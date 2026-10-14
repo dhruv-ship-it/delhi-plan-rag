@@ -4,8 +4,8 @@ Day 2 of ZoneWise, run unattended. Seven stages: housekeeping, cleaning and chun
 zone tagging, the search indexes, retrieval, the DDA map layers and location-aware
 search, then tests and this report.
 
-**All seven stages finished.** 96 tests pass, nothing is pushed, and there are nine
-commits on `main` waiting for review.
+**All seven stages finished.** 96 tests pass, nothing is pushed, and every stage is
+committed on `main` waiting for review.
 
 | stage | what it built | state |
 | --- | --- | --- |
@@ -368,7 +368,7 @@ and `uv.lock` (seven dependencies).
 **New committed reports** — `reports/day2_queries.md`,
 `reports/day3_location_compare.md`, `reports/overnight_run.md`.
 
-**Commits** (nine, none pushed):
+**Commits** (one per stage, plus two that only corrected this report; none pushed):
 
 ```
 day2-stage0: lowercase chapter labels, reports/ and layers/dda folders, day 2 dependencies
@@ -453,6 +453,6 @@ visible cost of leaving it is a TOD answer at the top of a plain plot's results)
 **Nothing has been pushed.** When you are happy with the above:
 
 ```
-git log --oneline -9     # the nine day-2 commits
+git log --oneline --grep "^day2-"    # tonight's commits
 git push
 ```

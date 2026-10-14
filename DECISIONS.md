@@ -285,3 +285,43 @@ Why one and not three: the second failure is evidence that the model cannot grou
 - `citation_check_failed` — it answered twice and could not cite itself either time.
 
 Two never reach the model at all, which is the main reason for the ordering of `answer_point`. Every abstention still carries the retrieval results and the zone lookup, so a refusal is informative rather than a dead end.
+
+## D-046 · 2026-10-15 · Geocoding: Nominatim, bounded to Delhi, one request a second, cached
+`app/geocode.py` turns a place name into coordinates so the agent can answer "what can I build near Dwarka Sector 21?" without a map click. It uses Nominatim, OpenStreetMap's free geocoder, because it needs no key, no account and no billing, which matters for a student project that must stay free to run. It is the only service other than Anthropic that this project calls.
+
+Nominatim's usage policy is honoured rather than approximated. One request a second, enforced by a lock so it still holds when two requests arrive together once the agent runs behind the API; a 30 second timeout; and `User-Agent: ZoneWise/0.1 (student project)`, so the operator can see who is calling and complain to the right person.
+
+The search is **bounded to a box around NCT Delhi** (76.80 to 77.40 east, 28.36 to 28.92 north, with `bounded=1` and `countrycodes=in`). Without that, "Mumbai Central" returns a point 1,200 km away, `get_zones` reports `inside_delhi: false`, and the user is told their plot is outside Delhi — technically true and completely unhelpful. Bounded, the same query returns nothing and the agent can say it could not find the place. The live check confirmed this: "Mumbai Central" came back `not_found_in_delhi`.
+
+Results are cached in `data/index/geocode_cache.json`, gitignored like the rest of `data/index`. Misses are cached too, but only the honest kind: `not_found_in_delhi` is remembered, while `lookup_failed` from a timeout or a 500 is not, because a network failure says nothing about whether the name exists. Rejected: Google's Geocoding API (needs a key and a card), shipping a static gazetteer of Delhi place names (another dataset to maintain and keep correct), and unbounded search with a post-hoc distance check (one wasted request per out-of-area query, and the policy asks us to narrow the search instead).
+
+## D-047 · 2026-10-15 · Three tools, and the agent may only cite what its own search returned
+`app/agent.py` gives the model three tools and lets it sequence them, rather than hard-coding geocode-then-zones-then-search.
+
+- `locate_place(query)` — a place name to coordinates.
+- `get_zones(lat, lon)` — coordinates to the planning zones that contain them.
+- `search_clauses(query, lat=None, lon=None, k=6)` — the clauses that match, location-aware when a point is given.
+
+Why let the model decide the order: the questions are not all the same shape. "What can I build near Connaught Place?" needs all three. "Does MPD-2047 replace MPD-2021?" needs only the third. "Is 28.63, 77.22 in a TOD zone?" arrives with coordinates already and needs no geocoding. A fixed pipeline would either waste a geocoding call or fail on the cases it was not written for. Each tool's description says when to use it and what it returns, and `search_clauses` explicitly tells the model to pass coordinates whenever it has them, because that is what turns on exclusion, boosting and query expansion.
+
+**The rule that makes agent citations trustworthy: a cited chunk id must have come back from a `search_clauses` call in this run.** This is a real risk rather than a theoretical one — the model can see the shape of a chunk id (`MPD47_GAZETTE_EN:4.2.3@p753:0`) and could produce a plausible one that points at nothing, or at a different clause. `AgentRun` therefore records every chunk id any search returned, and validation rejects anything outside that set. `tests/test_agent.py` covers both the invented id and the case where the model cites without having searched at all. Citing with no search is its own named problem, because an answer with confident citations and no retrieval behind it is the worst possible output.
+
+Two smaller choices. `k` is clamped to 1-10, so a model asking for 500 clauses gets 10 instead of flooding the context. And a tool that fails returns `{"error": ...}` to the model rather than raising: a Nominatim timeout should let the agent say "I could not find that place", not end the request with a stack trace. Rejected: one combined `answer_about_place` tool (it would hide the steps, and the tool trace is one of the more interesting things to show a user), and letting the agent cite by clause number (clause numbers are not unique across this corpus — D-021 — so `4.2.3` could be the TOD norms or a Delhi Jal Board section).
+
+## D-048 · 2026-10-15 · max_rounds = 4, and running out is an abstention
+The agent loop is capped at four rounds: four model calls, each of which may ask for tools, before it must have written an answer. Four is chosen to fit the longest sensible path with one spare: locate_place, get_zones, search_clauses, answer. A model that is still calling tools on the fifth round is looping, not working.
+
+Running out is an abstention with reason `max_rounds_reached`, not a half-answer and not an error. Whatever the tools did find is still returned in `retrieval` and `tool_trace`, so the interface can show the clauses and the steps even though no answer was written. The cap is in `app/config.py` and is passed as an argument, so a test can set it to 3 and assert the behaviour without waiting for four rounds. Rejected: no cap (an API bill that grows until something else stops it), and silently answering from whatever was gathered when the cap hit (that answer would not have been through the citation check).
+
+## D-049 · 2026-10-15 · The live geocoding check, and the one query that missed
+Three live Nominatim queries were run tonight, which is the whole budget the brief allowed, and the results are recorded as they came:
+
+| query | result |
+| --- | --- |
+| "Dwarka Sector 21 metro station" | **not found** (`not_found_in_delhi`) |
+| "Connaught Place" | found: 28.63177, 77.21938 — "Connaught Place, New Delhi, Delhi, 110001, India" |
+| "Mumbai Central" | **not found** (`not_found_in_delhi`) — correct, the box excludes it |
+
+Two of the three are the expected answers. The first is a genuine miss and is logged as a limitation rather than patched, because diagnosing it properly would mean spending more live queries than the brief allows. Dwarka Sector 21 is at roughly 28.552, 77.059, well inside the viewbox, so the box is not the problem: the phrase simply does not match an OSM name with `bounded=1` and `limit=1`. The likely cause is the trailing "metro station" against OSM's own naming of that station.
+
+Two fixes are worth trying on Day 4, in this order, and neither needs a code change tonight: raise `limit` from 1 to about 5 and pick the first result that `get_zones` says is inside Delhi; and if that fails, retry once without `bounded=1` and then check the result is inside the NCT boundary, which is a stronger test than a bounding box anyway. The miss is user-visible — it is exactly the phrase the brief's own example UI suggests typing — so it belongs in the morning checklist, not just here.

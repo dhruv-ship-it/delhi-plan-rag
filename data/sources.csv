@@ -1,0 +1,13 @@
+doc_id,title,doc_type,issuer,doc_date,url,downloaded_on,language,text_or_scanned,authority_rank,include,notes
+MPD47_GAZETTE_EN,Master Plan for Delhi 2047 gazette notification (English),plan,MoHUA / DDA,2026-08-20,,,en,,1,yes,
+MPD47_FAQ,FAQs on MPD-2047,faq,DDA,,,,en,,3,yes,
+MPD47_TOD_EXPLAINER,MPD 2047 TOD Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_LANDPOOLING_EXPLAINER,MPD 2047 Land Pooling Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_REDEV_EXPLAINER,MPD 2047 Redevelopment of Ageing Neighbourhoods Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_UC_EXPLAINER,MPD 2047 UCs Regularisation Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_NARELA_EXPLAINER,MPD 2047 Narela Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_JJ_EXPLAINER,MPD 2047 Jahaan Jhuggi Wahan Makaan Explained,explainer,DDA,,,,en,,3,yes,
+MPD47_LANDUSE_PLAN,Land Use Plan 2047 (map),map,DDA,,,,en,,1,reference,Used by hand on Day 3; not indexed
+DHC_YAMUNA_20240708,Delhi High Court order on Yamuna floodplain encroachments (8 Jul 2024),court_order,Delhi High Court,2024-07-08,,,en,,2,yes,
+NGT_YAMUNA_20250206,NGT order on Yamuna floodplain encroachment (6 Feb 2025),court_order,NGT,2025-02-06,https://www.indiaenvironmentportal.org.in/in-court/order-of-the-national-green-tribunal-regarding-clearing-the-delhi-stretch-of-yamuna-from-encroachment-06022025,,en,,2,yes,
+NGT_OA572_GNCTD_REPORT,GNCTD report to NGT on Yamuna floodplain demarcation (OA 572 of 2024),report,GNCTD,,https://www.greentribunal.gov.in/sites/default/files/news_updates/Report%20by%20GNCTD%20in%20OA%20No.%20572%20of%202024%20(NEWS%20ITEM%20TITLED%20NINE%20YEARS%20AFTER%20NGTS%20DIRECTIONS%20YAMUNA%20FLOODPLAINS%20YET%20TO%20BE%20DEMARCATED.pdf,,en,,3,yes,

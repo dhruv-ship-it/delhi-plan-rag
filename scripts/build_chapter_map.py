@@ -1,10 +1,13 @@
-"""Save the gazette's chapter structure before MPD47_PUBLICATION_EN leaves the index.
+"""Write data/chapter_map.json: which gazette pages each chapter and section covers.
 
-The gazette titles chapters 7 to 12 identically ("DEVELOPMENT CONTROL NORMS (DCN)"),
-so a citation taken from the gazette alone cannot say which chapter it came from. The
-Publication's contents list is the only place those chapters are named, so this script
-reads the names from the Publication, matches each chapter to the gazette page it starts
-on, and writes data/chapter_map.json. After that the Publication is no longer needed.
+Nothing in a page's own text says which chapter the page belongs to, so a citation
+cannot name the chapter without this map. Every title here comes from the gazette's own
+heading page, including the second and third lines that chapters 7 to 12 carry
+("CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)" then "FOR RESIDENTIAL").
+
+The map covers gazette pages 640-1144, the English part of the notification, with every
+page in exactly one entry. See D-010 for the page range and D-012 for why we index the
+gazette alone.
 
 Reads data/processed/pages.jsonl, writes data/chapter_map.json. Safe to re-run.
 Run with: uv run python scripts/build_chapter_map.py
@@ -18,66 +21,72 @@ from app.config import settings
 from app.extract import read_pages_jsonl, use_utf8_output
 
 GAZETTE = "MPD47_GAZETTE_EN"
-PUBLICATION = "MPD47_PUBLICATION_EN"
 #: The gazette is bilingual; only these pages hold the English notification (see D-010).
 GAZETTE_PAGES = (640, 1144)
+
+#: The pages before chapter 1: the S.O. notification and the plan's opening paragraphs.
+PREAMBLE_LABEL = "Preamble"
+PREAMBLE_TITLE = "Notification preamble"
 
 #: The gazette's running header, in its English and Hindi forms.
 GAZETTE_HEADER = re.compile(r"THE GAZETTE OF INDIA|PART II|भारत|राजपत्र|खण")
 PAGE_NUMBER_LINE = re.compile(r"^\d{1,4}$")
 ZERO_WIDTH = re.compile(r"[​-‏﻿]")
 
-#: "Chapter 7: Residential", the Publication's contents list. Title Case, unlike the body.
-CONTENTS_CHAPTER = re.compile(r"^Chapter\s+(\d{1,2})\s*:\s*(.+)$")
-#: A contents line ends in the page it points at, across a wide gap or a run of dots.
-CONTENTS_PAGE = re.compile(r"(?:\s{2,}|\.{2,}\s*)\d{1,4}$")
-#: "CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)", the heading over the chapter itself.
-BODY_CHAPTER = re.compile(r"^CHAPTER\s+(\d{1,2})\b")
+#: "CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)", with the title in the second group.
+CHAPTER_HEADING = re.compile(r"^CHAPTER\s+(\d{1,2})\s*[.:]?\s*(.*)$")
 #: The longest a divider page's one line can be.
 DIVIDER_WIDTH = 60
 
+#: Words that stay in lower case inside a title.
+SMALL_WORDS = frozenset("a an and as at but by for from in nor of on or the to with".split())
+#: Short forms the gazette writes in capitals, which title case must leave alone.
+KNOWN_ACRONYMS = frozenset({"DCN", "PSP", "GIS", "TOD", "LDA", "DDA", "MPD", "NCR"})
+
 
 def page_lines(text: str) -> list[str]:
-    """A page's non-empty lines, with the running header and page numbers dropped.
-
-    Spacing inside a line is left alone: the wide gap before a contents-list page
-    number is what tells "Chapter 6: Plan Monitoring    154" from a title ending in a year.
-    """
+    """A page's non-empty lines, with the running header and page numbers dropped."""
     kept = []
     for raw in text.splitlines():
-        line = ZERO_WIDTH.sub("", raw).strip()
+        line = " ".join(ZERO_WIDTH.sub("", raw).split())
         if not line or PAGE_NUMBER_LINE.match(line) or GAZETTE_HEADER.search(line):
             continue
         kept.append(line)
     return kept
 
 
-def squeeze(line: str) -> str:
-    """The same line with runs of spaces reduced to one."""
-    return " ".join(line.split())
+def title_case(text: str) -> str:
+    """Turn an all-capitals gazette heading into title case, leaving acronyms alone."""
+    words = []
+    for index, token in enumerate(text.split()):
+        bare = token.strip("()[].,;:")
+        if bare.upper() in KNOWN_ACRONYMS or (
+            token.startswith("(") and bare.isalpha() and len(bare) <= 5
+        ):
+            words.append(token)
+        elif index and token.lower() in SMALL_WORDS:
+            words.append(token.lower())
+        else:
+            words.append("-".join(part.capitalize() for part in token.split("-")))
+    return " ".join(words)
 
 
-def contents_titles(pages: list[dict]) -> dict[int, str]:
-    """Chapter number to full title, read from the Publication's contents list."""
-    titles: dict[int, str] = {}
+def chapter_headings(pages: list[dict]) -> dict[int, tuple[int, str]]:
+    """Chapter number to (start page, title), read from the gazette's heading pages.
+
+    A chapter heading sits alone on its own page, so every line on that page belongs to
+    the title. Chapters 7 to 12 run onto a second and sometimes a third line.
+    """
+    found: dict[int, tuple[int, str]] = {}
     for page in pages:
-        for line in page_lines(page["text"]):
-            match = CONTENTS_CHAPTER.match(squeeze(CONTENTS_PAGE.sub("", line)))
-            if match:
-                number = int(match.group(1))
-                titles.setdefault(number, match.group(2).strip())
-    return titles
-
-
-def chapter_start_pages(pages: list[dict]) -> dict[int, int]:
-    """Chapter number to the gazette page its heading sits on, first use only."""
-    starts: dict[int, int] = {}
-    for page in pages:
-        for line in page_lines(page["text"]):
-            match = BODY_CHAPTER.match(squeeze(line))
-            if match:
-                starts.setdefault(int(match.group(1)), page["page"])
-    return starts
+        lines = page_lines(page["text"])
+        if not lines:
+            continue
+        match = CHAPTER_HEADING.match(" ".join(lines))
+        if match:
+            number = int(match.group(1))
+            found.setdefault(number, (page["page"], title_case(match.group(2).strip())))
+    return found
 
 
 def back_matter_dividers(pages: list[dict], after_page: int) -> list[tuple[int, str]]:
@@ -94,8 +103,8 @@ def back_matter_dividers(pages: list[dict], after_page: int) -> list[tuple[int, 
         lines = page_lines(page["text"])
         if len(lines) != 1:
             continue
-        line = squeeze(lines[0])
-        if len(line) > DIVIDER_WIDTH or BODY_CHAPTER.match(line):
+        line = lines[0]
+        if len(line) > DIVIDER_WIDTH or CHAPTER_HEADING.match(line):
             continue
         if line == line.upper() and len(re.findall(r"[A-Z]", line)) >= 3:
             dividers.append((page["page"], line))
@@ -103,35 +112,21 @@ def back_matter_dividers(pages: list[dict], after_page: int) -> list[tuple[int, 
 
 
 def build_entries(
-    titles: dict[int, str], starts: dict[int, int], dividers: list[tuple[int, str]]
+    chapters: dict[int, tuple[int, str]], dividers: list[tuple[int, str]]
 ) -> tuple[list[dict], list[str]]:
-    """Put the chapters and the back-matter sections in page order and close each range."""
-    warnings: list[str] = []
-    entries: list[dict] = []
-
-    for number in sorted(starts):
-        if number not in titles:
-            warnings.append(f"chapter {number} starts on gazette page {starts[number]} "
-                            "but the Publication's contents list does not name it")
-        entries.append(
-            {
-                "chapter": number,
-                "title": titles.get(number, ""),
-                "gazette_start_page": starts[number],
-            }
-        )
-    for number in sorted(titles):
-        if number not in starts:
-            warnings.append(
-                f"chapter {number} ({titles[number]}) is in the contents list but no "
-                "CHAPTER heading for it was found in the gazette"
-            )
-
+    """Put the preamble, the chapters and the back matter in page order and close each range."""
+    first, last = GAZETTE_PAGES
+    entries: list[dict] = [
+        {"chapter": PREAMBLE_LABEL, "title": PREAMBLE_TITLE, "gazette_start_page": first}
+    ]
+    for number in sorted(chapters):
+        start, title = chapters[number]
+        entries.append({"chapter": number, "title": title, "gazette_start_page": start})
     for page, line in dividers:
         entries.append(
             {
                 "chapter": line.lower().replace(" ", "_"),
-                "title": line.title(),
+                "title": title_case(line),
                 "gazette_start_page": page,
             }
         )
@@ -139,13 +134,47 @@ def build_entries(
     entries.sort(key=lambda entry: entry["gazette_start_page"])
     for index, entry in enumerate(entries):
         following = entries[index + 1]["gazette_start_page"] if index + 1 < len(entries) else None
-        entry["gazette_end_page"] = following - 1 if following else GAZETTE_PAGES[1]
+        entry["gazette_end_page"] = following - 1 if following else last
+
+    warnings = check_coverage(entries, chapters)
+    return entries, warnings
+
+
+def check_coverage(entries: list[dict], chapters: dict[int, tuple[int, str]]) -> list[str]:
+    """Check that every page from 640 to 1144 sits in exactly one entry."""
+    first, last = GAZETTE_PAGES
+    warnings: list[str] = []
+
+    if not entries:
+        return ["no entries were built"]
+    if entries[0]["gazette_start_page"] != first:
+        warnings.append(f"the first entry starts on {entries[0]['gazette_start_page']}, not {first}")
+    if entries[-1]["gazette_end_page"] != last:
+        warnings.append(f"the last entry ends on {entries[-1]['gazette_end_page']}, not {last}")
+    for entry in entries:
         if entry["gazette_end_page"] < entry["gazette_start_page"]:
             warnings.append(
                 f"entry {entry['chapter']} ends before it starts "
                 f"({entry['gazette_start_page']}-{entry['gazette_end_page']})"
             )
-    return entries, warnings
+    for earlier, later in zip(entries, entries[1:]):
+        if earlier["gazette_end_page"] + 1 < later["gazette_start_page"]:
+            warnings.append(
+                f"gap between {earlier['chapter']} (ends {earlier['gazette_end_page']}) and "
+                f"{later['chapter']} (starts {later['gazette_start_page']})"
+            )
+        elif earlier["gazette_end_page"] + 1 > later["gazette_start_page"]:
+            warnings.append(
+                f"overlap between {earlier['chapter']} (ends {earlier['gazette_end_page']}) and "
+                f"{later['chapter']} (starts {later['gazette_start_page']})"
+            )
+    if chapters:
+        missing = [n for n in range(1, max(chapters) + 1) if n not in chapters]
+        if missing:
+            warnings.append(
+                f"no heading page found for chapter(s) {', '.join(str(n) for n in missing)}"
+            )
+    return warnings
 
 
 def print_table(entries: list[dict]) -> None:
@@ -168,7 +197,7 @@ def print_table(entries: list[dict]) -> None:
 
 
 def main() -> int:
-    """Read both documents, build the chapter map, write it and print it."""
+    """Read the gazette, build the chapter map, write it and print it."""
     use_utf8_output()
     path = settings.processed_dir / "pages.jsonl"
     if not path.exists():
@@ -180,25 +209,18 @@ def main() -> int:
     gazette = [
         page for page in pages if page["doc_id"] == GAZETTE and first <= page["page"] <= last
     ]
-    publication = [page for page in pages if page["doc_id"] == PUBLICATION]
     if not gazette:
         print(f"No {GAZETTE} pages in {first}-{last}. Run scripts/02_extract.py first.")
         return 1
-    if not publication:
-        print(
-            f"No {PUBLICATION} pages in pages.jsonl, so the chapter names cannot be read.\n"
-            f"This script needs an extract made while {PUBLICATION} was still include=yes."
-        )
-        return 1
 
-    print(f"Reading chapter names from {PUBLICATION} ({len(publication)} pages)")
-    print(f"Reading start pages from {GAZETTE} pages {first}-{last} ({len(gazette)} pages)")
+    print(f"Reading chapter titles and start pages from {GAZETTE} pages {first}-{last} "
+          f"({len(gazette)} pages)")
     print()
 
-    titles = contents_titles(publication)
-    starts = chapter_start_pages(gazette)
-    dividers = back_matter_dividers(gazette, after_page=max(starts.values()) if starts else first)
-    entries, warnings = build_entries(titles, starts, dividers)
+    chapters = chapter_headings(gazette)
+    after = max(start for start, _ in chapters.values()) if chapters else first
+    dividers = back_matter_dividers(gazette, after_page=after)
+    entries, warnings = build_entries(chapters, dividers)
 
     print_table(entries)
     print()
@@ -208,23 +230,26 @@ def main() -> int:
         json.dumps(entries, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
-    chapters = [entry for entry in entries if isinstance(entry["chapter"], int)]
-    sections = [entry for entry in entries if not isinstance(entry["chapter"], int)]
-    covered = entries[0]["gazette_start_page"] if entries else first
-    print(
-        f"{len(entries)} entries: {len(chapters)} chapters and {len(sections)} back-matter "
-        f"sections ({', '.join(entry['title'] for entry in sections)})."
+    numbered = [entry for entry in entries if isinstance(entry["chapter"], int)]
+    labelled = [entry for entry in entries if not isinstance(entry["chapter"], int)]
+    pages_covered = sum(
+        entry["gazette_end_page"] - entry["gazette_start_page"] + 1 for entry in entries
     )
     print(
-        f"Covered: gazette pages {covered}-{last}. Pages {first}-{covered - 1} hold the "
-        f"notification preamble before chapter 1 and belong to no chapter."
+        f"{len(entries)} entries: {len(numbered)} chapters and {len(labelled)} labelled "
+        f"sections ({', '.join(str(entry['chapter']) for entry in labelled)})."
     )
     if warnings:
         print(f"{len(warnings)} warning(s):")
         for warning in warnings:
             print(f"  - {warning}")
+    else:
+        print(
+            f"Coverage: pages {first}-{last} with no gaps and no overlaps "
+            f"({pages_covered} pages in {len(entries)} entries)."
+        )
     print(f"Wrote {out_path.relative_to(settings.project_root).as_posix()}")
-    return 0
+    return 1 if warnings else 0
 
 
 if __name__ == "__main__":

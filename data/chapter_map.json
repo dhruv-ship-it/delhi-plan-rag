@@ -1,5 +1,11 @@
 [
   {
+    "chapter": "Preamble",
+    "title": "Notification preamble",
+    "gazette_start_page": 640,
+    "gazette_end_page": 649
+  },
+  {
     "chapter": 1,
     "title": "Context & Existing Scenario",
     "gazette_start_page": 650,
@@ -31,43 +37,43 @@
   },
   {
     "chapter": 6,
-    "title": "Plan Monitoring",
+    "title": "Plan Monitoring and Evaluation",
     "gazette_start_page": 808,
     "gazette_end_page": 811
   },
   {
     "chapter": 7,
-    "title": "Residential",
+    "title": "Development Control Norms (DCN) for Residential",
     "gazette_start_page": 812,
     "gazette_end_page": 820
   },
   {
     "chapter": 8,
-    "title": "Commercial",
+    "title": "Development Control Norms (DCN) for Commercial",
     "gazette_start_page": 821,
     "gazette_end_page": 833
   },
   {
     "chapter": 9,
-    "title": "Industry",
+    "title": "Development Control Norms (DCN) for Industrial",
     "gazette_start_page": 834,
     "gazette_end_page": 840
   },
   {
     "chapter": 10,
-    "title": "Recreational",
+    "title": "Development Control Norms (DCN) for Recreational",
     "gazette_start_page": 841,
     "gazette_end_page": 849
   },
   {
     "chapter": 11,
-    "title": "Transportation, Utilities and, Government",
+    "title": "Development Control Norms (DCN) for Transportation, Utilities and Government",
     "gazette_start_page": 850,
     "gazette_end_page": 867
   },
   {
     "chapter": 12,
-    "title": "Public & Semi-Public",
+    "title": "Development Control Norms (DCN) for Public and Semi-Public (PSP) – Social Infrastructure",
     "gazette_start_page": 868,
     "gazette_end_page": 883
   },

@@ -60,6 +60,28 @@ class Result:
         """The heading path as one readable string."""
         return " › ".join(self.heading_path)
 
+    def to_dict(self, include_text: bool = True) -> dict:
+        """The result as plain JSON, for the API and the answer record."""
+        record = {
+            "chunk_id": self.chunk_id,
+            "doc_id": self.doc_id,
+            "clause_id": self.clause_id,
+            "heading_path": list(self.heading_path),
+            "chapter": self.chapter,
+            "page_start": self.page_start,
+            "page_end": self.page_end,
+            "zone_primary": self.zone_primary,
+            "zone_mentions": list(self.zone_mentions),
+            "dense_rank": self.dense_rank,
+            "bm25_rank": self.bm25_rank,
+            "dense_distance": self.dense_distance,
+            "fused_score": self.fused_score,
+            "boosted": self.boosted,
+        }
+        if include_text:
+            record["text"] = self.text
+        return record
+
 
 @dataclass
 class SearchReport:

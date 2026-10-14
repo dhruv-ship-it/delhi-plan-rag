@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "anthropic",
     "chromadb>=1.5.9",
+    "fastapi>=0.143.1",
     "fastembed>=0.9.0",
     "geopandas>=1.2.0",
     "pymupdf>=1.28.2",
@@ -14,10 +15,12 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "requests>=2.34.2",
     "shapely>=2.2.0",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest",
 ]
 

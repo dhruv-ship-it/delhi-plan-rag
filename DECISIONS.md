@@ -325,3 +325,35 @@ Three live Nominatim queries were run tonight, which is the whole budget the bri
 Two of the three are the expected answers. The first is a genuine miss and is logged as a limitation rather than patched, because diagnosing it properly would mean spending more live queries than the brief allows. Dwarka Sector 21 is at roughly 28.552, 77.059, well inside the viewbox, so the box is not the problem: the phrase simply does not match an OSM name with `bounded=1` and `limit=1`. The likely cause is the trailing "metro station" against OSM's own naming of that station.
 
 Two fixes are worth trying on Day 4, in this order, and neither needs a code change tonight: raise `limit` from 1 to about 5 and pick the first result that `get_zones` says is inside Delhi; and if that fails, retry once without `bounded=1` and then check the result is inside the NCT boundary, which is a stronger test than a bounding box anyway. The miss is user-visible — it is exactly the phrase the brief's own example UI suggests typing — so it belongs in the morning checklist, not just here.
+
+## D-050 · 2026-10-15 · Without a key the app is still useful, and the 503 carries the clauses
+Five of the seven endpoints need no API key: `/api/health`, `/api/zones`, `/api/layers/{name}`, `POST /api/search` and `/api/chunks/{id}`. Only `/api/ask` and `/api/agent` do. That split is the main API design decision, and it is what makes the project demonstrable today, with `.env` still holding a placeholder: a map of Delhi, click a point, see your planning zones, search the plan, read the clause. That is a working product without a single paid call.
+
+When the two answering endpoints are called with no key they return **503 with the retrieval results included in the body**, not a bare error. `/api/ask` looks up the zones, runs the location-aware search, and sends back `{error: "no_llm", message: ..., zones: ..., results: [...]}`. The interface shows a "Search-only mode" notice and lists the clauses it found, so the user still gets the answer to their question — they just have to read it themselves. An error with nothing in it would turn a usable state into a dead end.
+
+`llm_provider` is a FastAPI dependency returning `LLM | None` rather than raising, precisely so the endpoint can retrieve first and then decide. Being a dependency is also what lets `tests/test_api.py` override it with a scripted FakeLLM and test both answering endpoints, the 503 path and the 429 path with no key present. Rejected: a 200 with `answer: null` (a 200 means it worked), and hiding the endpoints when there is no key (the interface could not then explain what is missing).
+
+## D-051 · 2026-10-15 · Two rate limits, in memory: 10 per minute per IP and 300 a day overall
+`/api/ask` and `/api/agent` are limited; nothing else is, because nothing else costs money.
+
+The per-IP limit is 10 a minute. It stops the ordinary accident — a browser tab in a retry loop, a double-clicked button — and it is per address so one noisy client cannot lock everyone else out.
+
+The daily cap is 300 for the whole service, and it is the one that matters. It is the single thing standing between a bug and an unbounded API bill, which for a student project is the risk worth engineering against. It counts every answering request, whatever the address, and resets on the date changing.
+
+Both live in a dict in one process. That is honest for what this is — one laptop, one uvicorn worker, no accounts — and it means no Redis and no extra dependency. Its limits are written down rather than discovered later: the counters reset when the process restarts, and a second worker would have its own copy. If ZoneWise ever runs more than one process, this has to move to a shared store, and the class is small enough to swap. A 429 explains itself in words a person can act on, including naming the setting to raise. Rejected: limiting by question text (a legitimate user asking the same thing twice would be blocked), and no cap at all.
+
+## D-052 · 2026-10-15 · Every ask, agent and search request is logged as one JSONL line
+`data/logs/requests.jsonl`, gitignored, one object per request: the time, the endpoint, the question, the zones found, the chunk ids retrieved, whether it abstained and why, the number of LLM calls and the latency.
+
+Why keep it: this is the only record of what the system was actually asked, as opposed to what I guessed it would be asked. Tonight's 60 draft questions are my invention (D-054); the log is where real ones will come from, and the ones that abstained are the most valuable entries in it — they say what the corpus cannot answer. The retrieved chunk ids make a bad answer diagnosable after the fact: you can see exactly what the model was given.
+
+Three deliberate constraints. The log never touches the settings object, so there is no path by which an API key could reach it. A logging failure is swallowed, because an unwritable log must never turn a working answer into a 500. And it is gitignored: it will hold whatever anyone typed into the box, which is not mine to commit. Rejected: logging the full answer text (it grows fast and the chunk ids plus the question are enough to reproduce it), and Python's `logging` module (a JSONL file is directly readable by the eval scripts, which is what this is for).
+
+## D-053 · 2026-10-15 · Load everything once at startup, and serve simplified layers from memory
+The embedding model, the Chroma collection, the BM25 corpus and the eight GeoJSON layers all load in the FastAPI lifespan, before the first request. Together they take a few seconds and about 80 MB; per request they would make a search take seconds instead of milliseconds.
+
+A load failure is **recorded, not raised**, and `/api/health` reports it: `{"status": "degraded", "startup_errors": ["search index not loaded (...); run: uv run python scripts/05_build_index.py"]}`. A server that refuses to boot tells the user nothing; one that boots and names the script to run tells them exactly what to do. Endpoints that need the missing piece then return a 503 with the same message.
+
+Map layers get a second cache. `/api/layers/{name}` simplifies geometry to 0.0005 degrees (roughly 50 m, far finer than a zone boundary is accurate anyway) and keeps the result in memory, so the cost is paid once per layer per process instead of once per page load. Only the five core layers are served; `regional_park`, `yamuna_river` and `low_density_area` are downloaded and loaded but not exposed, because nothing in the product uses them yet and an endpoint nobody calls is still an endpoint to maintain.
+
+One routing detail worth recording: `/api/chunks/{chunk_id:path}` uses the path converter because chunk ids contain colons and `@` after the collision fix (D-021) — `MPD47_FAQ:Q13@p13:0` — and the default converter would not match them.

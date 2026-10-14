@@ -19,6 +19,10 @@ data/index/*
 data/layers/dda/*
 !data/layers/dda/.gitkeep
 
+# request logs: every question anyone asks this server (see D-052)
+data/logs/*
+!data/logs/.gitkeep
+
 # frontend
 web/node_modules/
 web/dist/

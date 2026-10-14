@@ -18,5 +18,8 @@ data/index/*
 web/node_modules/
 web/dist/
 
+# reference PDFs: maps used by hand, too big for git (LINKS.md is committed)
+data/reference/*.pdf
+
 # os
 .DS_Store

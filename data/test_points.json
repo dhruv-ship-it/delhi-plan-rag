@@ -1,0 +1,102 @@
+[
+  {
+    "name": "P_TOD",
+    "lat": 28.6328,
+    "lon": 77.2197,
+    "wanted": "in a TOD zone, not in HDC, land pooling or zone O",
+    "how_it_was_found": "Rajiv Chowk if it qualifies, otherwise the largest TOD polygon",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "D",
+      "tod": true,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_HDC",
+    "lat": 28.659532,
+    "lon": 77.006649,
+    "wanted": "in the High Density Corridor, and in nothing else if possible",
+    "how_it_was_found": "a point inside the single HDC polygon; the HDC follows UER-II through the land pooling areas and crosses TOD corridors, so a point in HDC alone is preferred to keep the location comparison readable",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "K-I",
+      "tod": false,
+      "hdc": true,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_ZONEO",
+    "lat": 28.672913,
+    "lon": 77.243545,
+    "wanted": "in planning zone O, on land rather than in the river",
+    "how_it_was_found": "a point in the zone O polygon that the Yamuna river layer does not cover",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "O",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": true,
+      "regional_park": false,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_LP",
+    "lat": 28.676901,
+    "lon": 77.027085,
+    "wanted": "in a land pooling area",
+    "how_it_was_found": "a point inside the largest land pooling polygon",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "K-I",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": true,
+      "land_pooling_zone": "L",
+      "zone_o": false,
+      "regional_park": false,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_PLAIN",
+    "lat": 28.639973,
+    "lon": 77.088994,
+    "wanted": "in Delhi but in none of TOD, HDC, land pooling or zone O",
+    "how_it_was_found": "found by walking a 60x60 grid over Delhi from the middle out",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "G",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_OUT",
+    "lat": 28.495,
+    "lon": 77.089,
+    "wanted": "outside NCT Delhi",
+    "how_it_was_found": "a point in Gurugram, given in the brief",
+    "zones": {
+      "inside_delhi": false
+    }
+  }
+]

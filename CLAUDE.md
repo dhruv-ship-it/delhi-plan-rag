@@ -19,9 +19,11 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - data/raw/          source PDFs, named <doc_id>.pdf (not committed)
 - data/reference/    maps and images used by hand, not indexed
 - data/processed/    generated files: pages, chunks (not committed)
-- data/layers/       GeoJSON map layers (committed)
+- data/layers/       GeoJSON map layers (committed), plus manifest.json describing them
+- data/layers/dda/   layers downloaded from gis.dda.org.in (not committed: DDA states no licence)
 - data/index/        search indexes (not committed)
 - eval/       evaluation questions, scripts, results
+- reports/    run reports written for a human to read (committed)
 - web/        React frontend
 - tests/      pytest tests
 

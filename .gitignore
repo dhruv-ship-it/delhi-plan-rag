@@ -14,6 +14,11 @@ data/processed/*
 data/index/*
 !data/index/.gitkeep
 
+# DDA map layers: downloaded from gis.dda.org.in, which states no licence, so the
+# layers themselves are never committed. data/layers/manifest.json is (see D-026).
+data/layers/dda/*
+!data/layers/dda/.gitkeep
+
 # frontend
 web/node_modules/
 web/dist/

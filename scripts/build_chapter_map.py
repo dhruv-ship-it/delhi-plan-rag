@@ -5,6 +5,9 @@ cannot name the chapter without this map. Every title here comes from the gazett
 heading page, including the second and third lines that chapters 7 to 12 carry
 ("CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)" then "FOR RESIDENTIAL").
 
+Labels for the unnumbered entries (preamble, abbreviations, definitions, annexures, maps,
+service_plans) are lower case with underscores; chapters keep their integer number.
+
 The map covers gazette pages 640-1144, the English part of the notification, with every
 page in exactly one entry. See D-010 for the page range and D-012 for why we index the
 gazette alone.
@@ -25,7 +28,9 @@ GAZETTE = "MPD47_GAZETTE_EN"
 GAZETTE_PAGES = (640, 1144)
 
 #: The pages before chapter 1: the S.O. notification and the plan's opening paragraphs.
-PREAMBLE_LABEL = "Preamble"
+#: Labels are lower case with underscores, like the back-matter ones, so nothing
+#: downstream has to special-case a capital (see D-013).
+PREAMBLE_LABEL = "preamble"
 PREAMBLE_TITLE = "Notification preamble"
 
 #: The gazette's running header, in its English and Hindi forms.

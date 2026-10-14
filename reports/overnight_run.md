@@ -16,7 +16,7 @@ commits on `main` waiting for review.
 | 4 | `app/retrieval.py`, `scripts/search.py` — hybrid search, 8 queries run | done |
 | 5 | `scripts/06_fetch_layers.py`, `app/spatial.py`, `scripts/07_test_points.py` — 8 layers | done |
 | 6 | `app/location.py` — exclusion, expansion, boost; 7 comparisons run | done |
-| 7 | 82 new tests, 13 decisions logged (D-013 to D-035), this report | done |
+| 7 | 82 new tests, 24 decisions logged (D-013 to D-036), this report | done |
 
 Nothing failed and no stage had to be skipped. Two things need your judgement rather
 than your attention, and they are in **Things I had to guess** below.
@@ -353,7 +353,7 @@ rather than in the water.
 
 **Changed** — `app/config.py` (layer and index paths, the search and location settings),
 `scripts/build_chapter_map.py` (lower-case labels), `data/chapter_map.json` (rebuilt),
-`.gitignore`, `CLAUDE.md` (repo layout), `DECISIONS.md` (D-013 to D-035), `pyproject.toml`
+`.gitignore`, `CLAUDE.md` (repo layout), `DECISIONS.md` (D-013 to D-036, 24 new entries), `pyproject.toml`
 and `uv.lock` (seven dependencies).
 
 **New committed data** — `data/zone_sections.json`, `data/test_points.json`,

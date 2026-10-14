@@ -82,3 +82,31 @@ Clause numbers are not unique in this corpus, which the first version of the for
 
 ## D-022 · 2026-10-15 · embed_text carries a one-line breadcrumb above the text
 What goes to the embedding model is not the chunk text alone but one header line and then the text. For the gazette the header is `MPD-2047 > <chapter title> > <heading path>` (written with the > character), for example "MPD-2047 > Spatial Development Policies > 4.2 TRANSIT ORIENTED DEVELOPMENT (TOD) > 4.2.1 Definitions"; for the other three documents it is the document title. Why: a clause often does not name its own subject — 4.2.1 says "area under 500m wide corridor on either side of centreline" and never the words "transit oriented development" in the sentence a user would match on — so without the breadcrumb a question about TOD cannot reach it. text stays clean and is what gets shown and quoted; embed_text is only ever fed to the index. Rejected: embedding the bare text (loses the context the heading carries), and repeating the full heading path inside text (the display would read awkwardly and the quote would not match the gazette).
+
+## D-023 · 2026-10-15 · Two kinds of zone tag: primary may exclude, a mention may only boost
+Each chunk gets `zone_primary` (one topic, or empty) and `zone_mentions` (a list), plus eight flat booleans so the search index can filter on scalars: `zp_tod`, `zp_hdc`, `zp_zone_o`, `zp_land_pooling` for the primary zone and `zm_*` for mentioned-or-primary.
+
+`zone_primary` comes from the heading path, never from the words. A chunk is tagged tod only if it sits under section 4.2, hdc only under 4.3, land_pooling only under 4.1 — the mapping lives in `data/zone_sections.json`, which is committed. That makes it a strong claim: a chunk with `zone_primary = "tod"` is a rule that holds inside the TOD zone and nowhere else, which is why search is allowed to drop it for a point that is not in a TOD zone.
+
+`zone_mentions` comes from the text and is a weak claim, used only to rank a chunk higher. It has to be weak: section 4.6.1 names Zone O in the list of areas it does *not* apply to, and 11.1.1 says fuel stations are permitted "in all Use Zones except ... Zone O". A chunk that mentions a zone to exclude it is still the chunk a user standing in that zone needs, so a mention must never cause a drop. 181 of 702 chunks (26%) carry at least one tag; 24 carry a primary zone.
+
+Only the plan's numbered chapters are considered for `zone_primary`. The nine service plans at the back of the gazette number their own sections from 1.1 in the same `doc_id`, so a Delhi Jal Board sewerage section numbered 4.2 would otherwise be read as the TOD policy. Rejected: deciding the primary zone from the text (every mention would become a rule, and the exclusion step would then drop the very clauses that list a zone as an exception), and one combined tag (there would be no way to say "boost but never drop").
+
+## D-024 · 2026-10-15 · zone_o has no policy section of its own, and that is the finding
+`data/zone_sections.json` maps `zone_o` to an empty list. MPD-2047 has no Zone O policy. Section 1.7.2 defines planning zone O as "River Yamuna / Riverfront", one of the 17 planning zones, and from there the plan names it only inside other policies' exclusion lists: "shall not apply to ... Zone 'O'" in 4.2.2, 4.5.1 and 4.6.1, and "all Use Zones except Recreational ... and Zone O" in 11.1.1, which is the clause that answers "can a fuel station be built in Zone O?".
+
+The nearest candidate was 3.1.2 Green-Blue Infrastructure, which carries the real floodplain rule ("Active floodplain shall be a 'no construction zone' and only recreational uses shall be permitted"). It was rejected because that section is about every green and blue asset in Delhi — parks, drains, water-body buffers, eco-cultural assets — not about Zone O. Naming it as Zone O's own policy would let the exclusion step drop it for any point outside the floodplain, and a question about a water-body buffer at an ordinary address would lose its answer. So Zone O works through mentions alone: it can boost a result and expand a query, and it can never lose a chunk. 53 chunks mention it, including 20 of the 47 NGT report chunks and 2 of the 8 High Court order chunks, which are the documents that actually regulate the floodplain.
+
+This is the one place tonight where the specification asked for something the document does not contain, so it is flagged for review: if Zone O should be able to exclude, 3.1.2 is the section to add, and the trade-off above is the reason not to.
+
+## D-025 · 2026-10-15 · The zone mention regexes are case-aware, and the false positives are tested
+Matching is by word boundary, and case matters where the short form is also an ordinary word.
+
+- tod: `\bTOD\b` in capitals only, and `transit[- ]oriented development` either case.
+- hdc: `high[- ]density corridor`, `\bHDC\b` in capitals, `\bUER[- ]?II\b` (so both "UER-II" and "UER II"), `urban extension road`.
+- zone_o: `\bZone\s*['"]?O\b` — capital Z, a standalone capital O, with optional quotes because the gazette writes Zone 'O' — plus `Zone O-1`, `Zone O-2` and `Yamuna flood ?plain`.
+- land_pooling: `land pooling`, `pooled land`.
+
+The capital-O-as-a-whole-word rule is what makes "zone of", "Zone of the river" and "TOD Zone or" fail to match while "Zone O", "Zone 'O'", "Zone O-1" and "Zone O Lutyens" match. "TOD Zone or" is tagged tod and nothing else; "flood plain zone of river" is tagged nothing at all. Both are in `tests/test_tagging.py`.
+
+One condition is kept separate from the phrase list: a chunk also counts as zone_o when it names "river Yamuna" *and* uses the word "flood" somewhere, which is how the court order and the NGT report talk about the floodplain without ever writing "Zone O". It is two conditions rather than one phrase precisely so that "flood plain zone of river", which has neither "Yamuna" nor a capital-O zone, stays untagged. Rejected: matching "flood plain" on its own (it appears in drainage and disaster sections that have nothing to do with Zone O), and case-insensitive `\btod\b` (it fires inside no English word, but "TOD" in lower case appears in URLs and file names in the source documents).

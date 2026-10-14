@@ -5,6 +5,7 @@ description = "Location-aware RAG assistant for Delhi planning law"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic",
+    "pymupdf>=1.28.2",
     "python-dotenv",
 ]
 

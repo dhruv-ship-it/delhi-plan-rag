@@ -1,12 +1,29 @@
 {
-  "tod": [
-    "4.2"
-  ],
-  "hdc": [
-    "4.3"
-  ],
-  "zone_o": [],
-  "land_pooling": [
-    "4.1"
-  ]
+  "_note": "Which sections are each zone topic's own policy. zone_primary is set from this, and it is the only tag search may exclude on, so a section listed here has to be a rule that applies inside that zone and nowhere else. gazette_sections are section numbers, and a number also covers everything under it, so 4.2 covers 4.2.1. faq_section_phrases are matched against a FAQ section heading, case-insensitively, and only an explicit topic name counts. zone_o is empty in both halves: MPD-2047 has no Zone O policy, so Zone O boosts a result and expands a query but never excludes. See D-023, D-024, D-037 and D-038.",
+  "gazette_sections": {
+    "tod": [
+      "4.2"
+    ],
+    "hdc": [
+      "4.3"
+    ],
+    "zone_o": [],
+    "land_pooling": [
+      "4.1"
+    ]
+  },
+  "faq_section_phrases": {
+    "tod": [
+      "Transit Oriented Development",
+      "TOD Policy"
+    ],
+    "hdc": [
+      "High Density Corridor",
+      "HDC Policy"
+    ],
+    "zone_o": [],
+    "land_pooling": [
+      "Land Pooling"
+    ]
+  }
 }

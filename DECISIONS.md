@@ -195,3 +195,42 @@ Every test builds its own input: a two-page PDF created on the spot with PyMuPDF
 Why: none of those folders is committed (D-014, and the .gitignore rules from Day 1), so a test that read them would fail on a fresh clone and pass only on the machine that happened to have run the pipeline. It also keeps the suite honest about what it checks. A test asserting "the gazette produces 702 chunks" would go red on any change to the cleaning rules without saying what broke; a test asserting that "3.50 80.50 0.05" is not a heading says exactly what it protects. 96 tests run in 1.4 seconds, which means they can be run on every change.
 
 Two tests earned their place by failing on my own wrong expectations rather than on the code. One asserted that three short numbered court paragraphs stay separate — they correctly merge, because each is under 40 words and they are siblings; on the real order the paragraphs run 46 to 109 words and do stay apart, so both behaviours are now covered. The other asserted the 1.5 boost is worth about nine ranks; the break-even is rank 31.5, past the end of the 30-deep pool, so within the pool a boosted chunk that both indexes returned beats any unboosted one. D-034 was corrected and both arithmetic claims are now assertions instead of prose. Rejected: a golden-file test over the real `chunks.jsonl` (it would need the PDFs committed, and it would fail noisily on every intentional change) and testing only through the scripts (a script failure would not say which rule broke).
+
+## D-037 · 2026-10-15 · Accepted: Zone O boosts and expands, but never excludes
+Last night's D-024 left this open. It is now settled: `zone_o` stays out of the primary-zone mapping, in both halves of `data/zone_sections.json`.
+
+The reason stands. MPD-2047 has no Zone O policy section to point at. 1.7.2 defines planning zone O as "River Yamuna / Riverfront", one of the 17 planning zones, and after that the plan names it only inside *other* policies' exclusion lists. The nearest candidate, 3.1.2 Green-Blue Infrastructure, carries the real floodplain rule but is about every green and blue asset in Delhi, so naming it as Zone O's own policy would let search drop it for any point outside the floodplain — and a question about a water-body buffer at an ordinary address would lose its answer.
+
+So Zone O works through the two steps that can only help: a chunk mentioning it is boosted for a point in the floodplain, and the point's zone words are appended to the query. 53 chunks mention it, including 20 of the 47 NGT report chunks and 2 of the 8 High Court order chunks. It demonstrably works — at P_ZONEO, "Can I construct a building here?" returns 3.1.2's "active floodplain shall be a no construction zone" at rank 1 with the Delhi High Court order second. Rejected again: adding 3.1.2 to the mapping, for the reason above.
+
+## D-038 · 2026-10-15 · The FAQ's policy sections now carry a zone_primary, matched on heading words
+This closes the gap D-035 flagged. `data/zone_sections.json` now has two halves:
+
+- `gazette_sections` — section numbers, as before. A number covers everything under it, so `4.2` covers 4.2.1 and 4.2.3.1.
+- `faq_section_phrases` — phrases matched case-insensitively against a FAQ chunk's section heading, because the FAQ has no section numbers at all.
+
+The phrases are deliberately narrow: `tod` is "Transit Oriented Development" or "TOD Policy", `hdc` is "High Density Corridor" or "HDC Policy", `land_pooling` is "Land Pooling", and `zone_o` is empty (D-037). Three of the eight FAQ section headings in the indexed range match and five do not, which is exactly the intent — **only an explicit topic name counts**:
+
+| FAQ section heading | zone_primary |
+| --- | --- |
+| FAQs - Transit Oriented Development (TOD) Policy | tod |
+| FAQs on High Density Corridor (HDC) Policy | hdc |
+| FAQs – Land Pooling Policy | land_pooling |
+| FAQs - GENERIC | (none) |
+| FAQs – Development Control Norms (DCN) for already existing developed areas | (none) |
+| FAQs – Heritage, Culture & Public Spaces | (none) |
+| FAQs on LDA | (none) |
+| FAQs - Slum and JJ Clusters | (none) |
+
+That table is regenerated into `data/processed/tag_report.md` on every run, so a new or renamed FAQ section cannot change what is tagged without showing up in the report.
+
+Primary-zone counts went from 24 chunks to 88: tod 10 to 29, hdc 9 to 36, land_pooling 5 to 23. The effect is visible in `reports/day3_location_compare_v2.md`: at P_PLAIN, an ordinary plot in none of the four zones, the top answer for "how much of my plot can be built on?" was the FAQ's TOD ground-coverage rule and is now chapter 7's plotted-housing norms. Exclusions at that point went from 7 chunks to 23.
+
+The trade-off being accepted is that exclusion is now a stronger instrument, so a mis-tagged section costs more. Two things hold it in check: only an explicit topic name matches, so a generic section can never be excluded; and `zone_mentions` is untouched, so a FAQ answer that merely talks about TOD is still only boosted, never dropped. Rejected: matching the exact heading strings (a re-extraction with slightly different punctuation would silently stop matching), and giving every FAQ section the topic of its nearest gazette chapter (nothing in the FAQ says which chapter a section belongs to).
+
+## D-039 · 2026-10-15 · Two DDA data gaps documented, not worked around
+Both are faults in the source data, not in our code, and neither is fixed tonight.
+
+**Planning zone A is missing from the layer.** DDA's `ZONE_BOUNDARY_TEXT` has 16 polygons where MPD-2047's own section 1.7.2 lists 17 planning zones. The absent one is zone A, Old City — the Walled City and the area outside it. A point clicked there returns `planning_zone = null`, and `get_zones` reports it honestly rather than guessing. Why not patch it: drawing our own zone A boundary would mean inventing a legal boundary from a scanned map, and a made-up boundary that looks official is worse than a null. The four policy flags (`tod`, `hdc`, `land_pooling`, `zone_o`) come from their own layers and still work for such a point, so the answer degrades rather than failing.
+
+**The land pooling layer's zone letters are its own.** `LAND POOLING AREA` has a `zone` field holding letters like "L" for polygons that sit inside planning zone K-I. They are not planning-zone letters and must never be compared with `planning_zone`. `get_zones` returns them in a separate field, `land_pooling_zone`, precisely so the two cannot be confused: P_LP reports `planning_zone = "K-I"` and `land_pooling_zone = "L"` together. Why not reconcile them: we have no document that maps one lettering onto the other, so any reconciliation would be a guess.

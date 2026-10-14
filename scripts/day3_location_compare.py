@@ -11,6 +11,7 @@ The file is for reading by hand. Nothing here judges a result.
 Safe to re-run. Run with: uv run python scripts/day3_location_compare.py
 """
 
+import argparse
 import json
 import sys
 from datetime import date
@@ -62,9 +63,17 @@ def result_rows(results) -> list[str]:
     return lines
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Run the four comparisons and write the report."""
     use_utf8_output()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out",
+        default="day3_location_compare.md",
+        help="file name to write inside reports/ (default: day3_location_compare.md)",
+    )
+    args = parser.parse_args(argv)
+
     points_path = settings.project_root / "data" / "test_points.json"
     if not points_path.exists():
         print(f"{points_path.as_posix()} is missing. Run: uv run python scripts/07_test_points.py")
@@ -146,7 +155,7 @@ def main() -> int:
             ]
 
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
-    out_path = settings.reports_dir / "day3_location_compare.md"
+    out_path = settings.reports_dir / args.out
     out_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
     asked = sum(len(names) for _, _, names in COMPARISONS)

@@ -19,6 +19,7 @@ from datetime import date
 from app.config import settings
 from app.extract import markdown_table, use_utf8_output
 from app.tagging import (
+    FAQ_DOC_ID,
     TOPIC_NAMES,
     TOPICS,
     load_zone_sections,
@@ -73,7 +74,7 @@ def choose_sample(chunks: list[dict]) -> list[dict]:
 
 
 def build_report(
-    chunks: list[dict], zone_sections: dict[str, list[str]], generated_on: str
+    chunks: list[dict], zone_sections, generated_on: str
 ) -> str:
     """The tag report: the section mapping, then counts per topic and per document."""
     tagged = [chunk for chunk in chunks if chunk["zone_primary"] or chunk["zone_mentions"]]
@@ -99,19 +100,45 @@ def build_report(
         "",
         "## Sections that are each topic's own policy (data/zone_sections.json)",
         "",
+        "The gazette is matched by section number, and a number covers everything under "
+        "it, so 4.2 covers 4.2.1. The FAQ has no section numbers, so its section "
+        "headings are matched on words, and only an explicit topic name counts (D-038).",
+        "",
     ]
 
     rows = []
     for topic in TOPICS:
-        sections = zone_sections.get(topic, [])
+        sections = zone_sections.gazette.get(topic, [])
+        phrases = zone_sections.faq.get(topic, [])
         rows.append(
             [
                 topic,
                 TOPIC_NAMES[topic],
-                ", ".join(sections) if sections else "(none — see the note below)",
+                ", ".join(sections) if sections else "(none)",
+                ", ".join(f'"{phrase}"' for phrase in phrases) if phrases else "(none)",
             ]
         )
-    lines += [markdown_table(("topic", "name", "gazette sections"), rows), ""]
+    lines += [
+        markdown_table(("topic", "name", "gazette sections", "FAQ heading phrases"), rows),
+        "",
+    ]
+
+    faq_headings: dict[str, str] = {}
+    for item in chunks:
+        if item["doc_id"] == FAQ_DOC_ID and item["heading_path"]:
+            faq_headings.setdefault(item["heading_path"][0], item["zone_primary"])
+    lines += [
+        "Every FAQ section heading in the indexed range, and what it was tagged as:",
+        "",
+        markdown_table(
+            ("FAQ section heading", "zone_primary"),
+            [
+                [heading, primary or "(none)"]
+                for heading, primary in sorted(faq_headings.items())
+            ],
+        ),
+        "",
+    ]
     lines += [
         "`zone_o` has no sections. MPD-2047 has no Zone O policy: planning zone O is "
         "defined in 1.7.2 as \"River Yamuna / Riverfront\", one of the 17 planning zones, "
@@ -267,7 +294,8 @@ def main() -> int:
                 topic,
                 sum(1 for chunk in chunks if chunk[f"zp_{topic}"]),
                 sum(1 for chunk in chunks if topic in chunk["zone_mentions"]),
-                ", ".join(zone_sections[topic]) or "(no policy section)",
+                ", ".join(zone_sections.gazette[topic] + zone_sections.faq[topic])
+                or "(no policy section)",
             )
         )
     width = max(len(topic) for topic, *_ in rows)

@@ -1,0 +1,110 @@
+[
+  {
+    "chapter": 1,
+    "title": "Context & Existing Scenario",
+    "gazette_start_page": 650,
+    "gazette_end_page": 671
+  },
+  {
+    "chapter": 2,
+    "title": "Vision and Objectives",
+    "gazette_start_page": 672,
+    "gazette_end_page": 675
+  },
+  {
+    "chapter": 3,
+    "title": "Strategies",
+    "gazette_start_page": 676,
+    "gazette_end_page": 744
+  },
+  {
+    "chapter": 4,
+    "title": "Spatial Development Policies",
+    "gazette_start_page": 745,
+    "gazette_end_page": 793
+  },
+  {
+    "chapter": 5,
+    "title": "Development Code",
+    "gazette_start_page": 794,
+    "gazette_end_page": 807
+  },
+  {
+    "chapter": 6,
+    "title": "Plan Monitoring",
+    "gazette_start_page": 808,
+    "gazette_end_page": 811
+  },
+  {
+    "chapter": 7,
+    "title": "Residential",
+    "gazette_start_page": 812,
+    "gazette_end_page": 820
+  },
+  {
+    "chapter": 8,
+    "title": "Commercial",
+    "gazette_start_page": 821,
+    "gazette_end_page": 833
+  },
+  {
+    "chapter": 9,
+    "title": "Industry",
+    "gazette_start_page": 834,
+    "gazette_end_page": 840
+  },
+  {
+    "chapter": 10,
+    "title": "Recreational",
+    "gazette_start_page": 841,
+    "gazette_end_page": 849
+  },
+  {
+    "chapter": 11,
+    "title": "Transportation, Utilities and, Government",
+    "gazette_start_page": 850,
+    "gazette_end_page": 867
+  },
+  {
+    "chapter": 12,
+    "title": "Public & Semi-Public",
+    "gazette_start_page": 868,
+    "gazette_end_page": 883
+  },
+  {
+    "chapter": 13,
+    "title": "Other Controls",
+    "gazette_start_page": 884,
+    "gazette_end_page": 899
+  },
+  {
+    "chapter": "abbreviations",
+    "title": "Abbreviations",
+    "gazette_start_page": 900,
+    "gazette_end_page": 903
+  },
+  {
+    "chapter": "definitions",
+    "title": "Definitions",
+    "gazette_start_page": 904,
+    "gazette_end_page": 916
+  },
+  {
+    "chapter": "annexures",
+    "title": "Annexures",
+    "gazette_start_page": 917,
+    "gazette_end_page": 986
+  },
+  {
+    "chapter": "maps",
+    "title": "Maps",
+    "gazette_start_page": 987,
+    "gazette_end_page": 992
+  },
+  {
+    "chapter": "service_plans",
+    "title": "Service Plans",
+    "gazette_start_page": 993,
+    "gazette_end_page": 1144
+  }
+]

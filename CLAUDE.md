@@ -9,22 +9,36 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - PDF: PyMuPDF. Embeddings: fastembed with BAAI/bge-small-en-v1.5. Keyword search: rank_bm25. Vector store: Chroma (local, persistent). Fusion: reciprocal rank fusion, k = 60.
 - Geo: GeoPandas + Shapely. Buffers computed in EPSG:32643 (UTM 43N), stored as EPSG:4326 GeoJSON.
 - LLM: Anthropic API through one wrapper, app/llm.py. Model name lives in app/config.py.
-- API: FastAPI. Frontend: React (Vite) + react-leaflet in web/, built files served by FastAPI.
+  Nothing else imports `anthropic`. `get_llm()` chooses the client; `FakeLLM` is the
+  scripted stand-in every test uses, so no test ever needs a key or a network call.
+- Geocoding: Nominatim, bounded to Delhi, 1 request/second, cached. The only
+  non-Anthropic service we call.
+- API: FastAPI, app/api.py. Seven endpoints; five need no API key, and /api/ask and
+  /api/agent return 503 with the retrieved clauses when there is none, so the app stays
+  useful in "search-only mode". Rate limits and the request log live there too.
+- Frontend: React (Vite) + react-leaflet in web/, plain JavaScript, built files served
+  by FastAPI at /. Frontend dependencies are also subject to the rule below.
 - Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first.
 
 ## Repo layout
-- app/        Python package: config, llm, extract, chunking, retrieval, spatial, answer, agent, api
-- scripts/    numbered pipeline scripts, run in order (00_, 01_, 02_ ...)
+- app/        Python package: config, llm, extract, cleaning, chunking, tagging, indexing,
+              retrieval, location, spatial, geocode, answer, agent, api
+- scripts/    numbered pipeline scripts, run in order (00_, 01_, 02_ ...), plus
+              search.py, show_chunk.py and serve.py
 - data/sources.csv   every document: id, title, type, issuer, date, url, download date, authority rank
+- data/chapter_map.json, data/zone_sections.json, data/test_points.json  (committed)
 - data/raw/          source PDFs, named <doc_id>.pdf (not committed)
 - data/reference/    maps and images used by hand, not indexed
-- data/processed/    generated files: pages, chunks (not committed)
-- data/layers/       GeoJSON map layers (committed), plus manifest.json describing them
+- data/processed/    generated files: pages, chunks, reports (not committed)
+- data/layers/       manifest.json describing the map layers (committed)
 - data/layers/dda/   layers downloaded from gis.dda.org.in (not committed: DDA states no licence)
-- data/index/        search indexes (not committed)
-- eval/       evaluation questions, scripts, results
+- data/index/        search indexes, model weights, geocode cache (not committed)
+- data/logs/         requests.jsonl, one line per API request (not committed)
+- eval/       points.json, questions_draft.jsonl, questions.jsonl (Dhruv's verified set),
+              metrics.py, run_eval.py, results/, README.md
 - reports/    run reports written for a human to read (committed)
-- web/        React frontend
+- docs/       ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md (committed)
+- web/        React + Vite frontend; src/components/ holds the UI pieces
 - tests/      pytest tests
 
 ## Rules

@@ -1,4 +1,16 @@
-"""Project settings: where things live on disk, and the few values other modules need."""
+"""Every path and tuning value in one place, resolved once when this module is imported.
+
+Nothing else in ZoneWise builds a path by hand or hard-codes a threshold. That matters
+most for the numbers that will need tuning later: `abstain_threshold` is a placeholder
+(D-042) that Day 5 will replace from the evaluation sweep, and `zone_boost`,
+`retrieval_pool` and `rrf_k` are the knobs the retrieval experiments turn. Having them
+here means an experiment changes one file and a report can state exactly what was set.
+
+The API key is read from `.env`, which is never committed. `looks_like_api_key()` is
+deliberately stricter than a truthiness check: `.env.example` ships the placeholder
+`your-key-here`, so a copied-but-unedited `.env` would otherwise read as a configured
+key and turn an honest "no key yet" into a confusing 401 (D-040).
+"""
 
 import os
 from dataclasses import dataclass

@@ -1,0 +1,526 @@
+/* Plain CSS, no framework. Two columns on a laptop, stacked on a phone.
+   One accent colour, one warning colour, and generous line height, because most of
+   what is on screen is legal text that has to stay readable. */
+
+:root {
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --bad: #b91c1c;
+  --good: #166534;
+  --good-soft: #dcfce7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.55;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* --- the persistent banner --- */
+
+.banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0.55rem 1rem;
+  background: var(--warn-soft);
+  border-bottom: 1px solid #fcd34d;
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+
+.banner strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+/* --- layout --- */
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 26rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.map-wrap {
+  position: relative;
+  min-height: 0;
+}
+
+.map {
+  height: 100%;
+  width: 100%;
+}
+
+.map-loading {
+  position: absolute;
+  z-index: 500;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
+.zone-tooltip {
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.85);
+  border: 1px solid var(--line);
+}
+
+.panel {
+  overflow-y: auto;
+  padding: 1rem 1.1rem 2rem;
+  background: var(--card);
+  border-left: 1px solid var(--line);
+}
+
+.panel h2 {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 1.4rem 0 0.5rem;
+}
+
+.panel h2:first-of-type {
+  margin-top: 0.2rem;
+}
+
+/* --- point and zones --- */
+
+.coords {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.chip-zone {
+  background: var(--accent-soft);
+  border-color: #bfdbfe;
+  font-weight: 600;
+}
+
+.chip-policy {
+  background: var(--good-soft);
+  border-color: #bbf7d0;
+  color: var(--good);
+  font-weight: 600;
+}
+
+.chip-out {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.chip-plain {
+  color: var(--muted);
+}
+
+/* --- legend --- */
+
+.legend {
+  margin: 1rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem 0.7rem;
+}
+
+.legend-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 0 0.3rem;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  padding: 0.12rem 0;
+  cursor: pointer;
+}
+
+.swatch {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* --- asking --- */
+
+.modes {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.mode {
+  flex: 1;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.mode.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+textarea:focus,
+.mode:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ask {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.55rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ask:disabled {
+  background: var(--muted);
+  cursor: progress;
+}
+
+/* --- answers --- */
+
+.answer {
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+}
+
+.answer h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.answer-text {
+  white-space: pre-wrap;
+}
+
+.cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin: 0 0.1rem;
+  padding: 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: super;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cite:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sources {
+  margin: 0.8rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.abstain {
+  background: var(--warn-soft);
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+}
+
+.abstain h3 {
+  color: var(--warn);
+}
+
+.abstain-detail {
+  font-style: italic;
+}
+
+.notice {
+  background: var(--accent-soft);
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.clause-list {
+  margin-top: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.clause-list summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.clause-list ul,
+.clause-list.open {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0 0;
+}
+
+.clause-list li {
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+
+.snippet {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* --- the agent trace --- */
+
+.trace {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+}
+
+.trace summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.trace ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.trace li {
+  margin-bottom: 0.45rem;
+}
+
+.trace-input,
+.trace-summary {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.trace-input {
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.trace-summary {
+  color: var(--muted);
+}
+
+/* --- the clause drawer --- */
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(34rem, 100vw);
+  background: var(--card);
+  border-left: 1px solid var(--line);
+  box-shadow: -4px 0 20px rgb(0 0 0 / 0.14);
+  padding: 1rem 1.2rem 2rem;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.drawer-head h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.close {
+  border: none;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.85rem;
+  margin: 0 0 0.9rem;
+}
+
+.meta dt {
+  color: var(--muted);
+}
+
+.meta dd {
+  margin: 0;
+}
+
+.clause-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8rem;
+  margin: 0 0 0.9rem;
+  overflow-x: auto;
+}
+
+/* --- small shared bits --- */
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.error {
+  color: var(--bad);
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.foot {
+  margin-top: 1.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--bg);
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+}
+
+/* --- phones: stack the map above the panel --- */
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 55vh auto;
+  }
+
+  .panel {
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .drawer {
+    width: 100vw;
+  }
+}

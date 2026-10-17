@@ -34,7 +34,14 @@ from app.chunking import (
     render,
     split_section,
 )
-from app.cleaning import Line, clean_text_lines, count_words, join_hyphenated, page_lines_from_pdf
+from app.cleaning import (
+    Line,
+    clean_text_lines,
+    count_words,
+    join_hyphenated,
+    join_pages,
+    page_lines_from_pdf,
+)
 from app.config import settings
 from app.extract import (
     edge_lines,
@@ -107,7 +114,7 @@ def document_lines(
         except Exception as exc:
             warnings.append(f"{doc_id}: cannot reopen the PDF for tables ({exc}); using text only")
 
-    lines: list[Line] = []
+    per_page: list[list[Line]] = []
     for page in sorted(pages, key=lambda item: item["page"]):
         number = page["page"]
         if doc is not None and number in table_pages:
@@ -129,13 +136,11 @@ def document_lines(
                 fallen_back += page["n_tables"] or 0
         else:
             page_lines = [Line(text, number) for text in clean_text_lines(page["text"], drop_hindi)]
-        if lines and page_lines:
-            lines.append(Line("", number))
-        lines += page_lines
+        per_page.append(page_lines)
 
     if doc is not None:
         doc.close()
-    return join_hyphenated(lines), warnings, converted, fallen_back
+    return join_hyphenated(join_pages(per_page)), warnings, converted, fallen_back
 
 
 def without_digits(text: str) -> str:

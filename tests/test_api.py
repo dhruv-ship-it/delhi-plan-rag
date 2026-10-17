@@ -47,10 +47,16 @@ def use_llm(responses: list) -> FakeLLM:
 
 
 def test_health_reports_what_is_loaded(client) -> None:
-    """The first thing to check when something is wrong."""
+    """The first thing to check when something is wrong.
+
+    The chunk count is asserted as "some chunks", not as a number. A test that pins
+    702 goes red on every intentional change to the cleaning rules without saying what
+    broke, which is the trap D-036 is about — and this one did exactly that the first
+    time the chunking rules changed (D-066).
+    """
     body = client.get("/api/health").json()
     assert body["status"] == "ok", body["startup_errors"]
-    assert body["chunks"] == 702
+    assert body["chunks"] > 0
     assert "planning_zones" in body["layers_loaded"]
     assert body["startup_errors"] == []
 

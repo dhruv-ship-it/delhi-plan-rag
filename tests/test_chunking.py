@@ -7,6 +7,7 @@ a heading, a clause cut in half, a page range that drifts.
 
 from app.chunking import (
     HARD_MAX_WORDS,
+    _move_orphan_titles,
     MERGE_UNDER_WORDS,
     Section,
     assign_chunk_ids,
@@ -285,3 +286,122 @@ def test_unnumbered_court_text_is_grouped_by_size_with_no_clause_id() -> None:
     sections = chunk_paragraph_document(lines, "Delhi High Court order")
     assert all(section.clause_id is None for section in sections)
     assert all(section.heading_path == ["Delhi High Court order"] for section in sections)
+
+
+# --- heading folded into its own child (D-066) ---------------------------------
+
+
+def test_an_annexure_heading_folds_into_its_lettered_child() -> None:
+    """"Annexure 9" and "9a: Household Industries" share no dotted prefix.
+
+    The child names its parent in `parent_key`, which is the relationship that matters;
+    without reading it, the annexure heading stays a seven-word chunk of its own.
+    """
+    heading = Section(
+        clause_id="Annexure 9",
+        clause_ids=["Annexure 9"],
+        heading_path=["Annexure 9: List of permissible Household Industries"],
+        parent_key="annexures",
+        lines=[Line("Annexure 9: List of permissible Household Industries", 947)],
+        heading_only=True,
+    )
+    child = Section(
+        clause_id="Annexure 9a",
+        clause_ids=["Annexure 9a"],
+        heading_path=["9a: Household Industries"],
+        parent_key="Annexure 9",
+        lines=[Line("9a: Household Industries", 948), Line("1. Agarbatti and similar products", 948)],
+        heading_only=False,
+    )
+    folded = fold_heading_only_sections([heading, child])
+    assert len(folded) == 1
+    assert "Annexure 9: List of permissible" in render(folded[0].lines)
+    assert folded[0].clause_ids == ["Annexure 9", "Annexure 9a"]
+
+
+def test_a_heading_is_not_folded_into_a_sibling_annexure() -> None:
+    """The parent test is an extra way in, not a way around the existing guards.
+
+    Annexure 9's heading belongs to Annexure 9's content. Annexure 10 is the next
+    annexure, not its child, so the heading is left where it is rather than being
+    glued to the wrong list.
+    """
+    heading = Section(
+        clause_id="Annexure 9",
+        clause_ids=["Annexure 9"],
+        heading_path=["Annexure 9: List"],
+        parent_key="annexures",
+        lines=[Line("Annexure 9: List", 947)],
+        heading_only=True,
+    )
+    other = Section(
+        clause_id="Annexure 10",
+        clause_ids=["Annexure 10"],
+        heading_path=["Annexure 10: Something else"],
+        parent_key="annexures",
+        lines=[Line("Annexure 10: Something else", 950), Line("Body text here.", 950)],
+        heading_only=False,
+    )
+    folded = fold_heading_only_sections([heading, other])
+    assert len(folded) == 2
+    assert folded[0].clause_id == "Annexure 9"
+    assert folded[1].clause_ids == ["Annexure 10"]
+
+
+# --- a title stranded at the end of a chunk (D-066) ----------------------------
+
+
+def test_a_table_title_at_the_end_of_a_chunk_moves_to_the_table() -> None:
+    """"Table 2 Water Augmentation Action Plan" belongs with the table it introduces."""
+    pieces = [
+        [Line("Body text that fills the first chunk.", 995), Line("", 995), Line("Table 2 Water Augmentation Action Plan", 995)],
+        [Line("| Source | MGD |\n| --- | --- |\n| Yamuna | 330 |", 996, is_table=True)],
+    ]
+    moved = _move_orphan_titles(pieces)
+    assert len(moved) == 2
+    assert "Table 2" not in render(moved[0].copy())
+    assert moved[1][0].text == "Table 2 Water Augmentation Action Plan"
+
+
+def test_a_finished_sentence_is_not_treated_as_a_title() -> None:
+    """A full stop means it is the end of the chunk's own text."""
+    pieces = [
+        [Line("Body text.", 1), Line("", 1), Line("A complete closing sentence.", 1)],
+        [Line("The next chunk.", 2)],
+    ]
+    assert _move_orphan_titles([list(piece) for piece in pieces]) == pieces
+
+
+def test_a_long_trailing_line_is_not_treated_as_a_title() -> None:
+    """Over fifteen words it is prose, whatever punctuation it ends with."""
+    long_line = " ".join(["word"] * 20)
+    pieces = [[Line("Body.", 1), Line("", 1), Line(long_line, 1)], [Line("Next.", 2)]]
+    assert _move_orphan_titles([list(piece) for piece in pieces]) == pieces
+
+
+def test_a_title_is_not_moved_out_of_the_last_chunk() -> None:
+    """There is nothing after it to introduce."""
+    pieces = [[Line("Body.", 1), Line("", 1), Line("Annexure 19B-i: Status of Drains", 1)]]
+    assert _move_orphan_titles([list(piece) for piece in pieces]) == pieces
+
+
+def test_a_title_is_not_moved_when_it_would_empty_its_chunk() -> None:
+    """A chunk that is only a title is `fold_heading_only_sections`'s problem, not this one."""
+    pieces = [[Line("", 1), Line("Table 3 Something", 1)], [Line("Next chunk.", 2)]]
+    assert len(_move_orphan_titles([list(piece) for piece in pieces])) == 2
+
+
+def test_a_title_is_not_moved_when_the_next_chunk_is_already_full() -> None:
+    """The hard maximum stands; a stranded title is the lesser problem."""
+    full = " ".join(["word"] * HARD_MAX_WORDS)
+    pieces = [[Line("Body.", 1), Line("", 1), Line("Table 4 Title", 1)], [Line(full, 2)]]
+    assert _move_orphan_titles([list(piece) for piece in pieces])[1][0].text == full
+
+
+def test_a_title_must_be_its_own_paragraph_to_move() -> None:
+    """A line attached to the paragraph above it is part of that paragraph."""
+    pieces = [
+        [Line("Body text here.", 1), Line("the rest of the sentence", 1)],
+        [Line("Next.", 2)],
+    ]
+    assert _move_orphan_titles([list(piece) for piece in pieces]) == pieces

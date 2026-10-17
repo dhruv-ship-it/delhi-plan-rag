@@ -14,7 +14,7 @@ key and turn an honest "no key yet" into a confusing 401 (D-040).
 Every setting a deployment might need to change is read from the environment through the
 four `env_*` readers below, each with the value in this file as its default, so a
 container is configured with variables and nothing has to be edited inside the image
-(D-063, D-079). A malformed value falls back to the default rather than stopping the
+(D-063, D-065). A malformed value falls back to the default rather than stopping the
 process: a typo in `RATE_LIMIT_PER_MINUTE` should not take the server down.
 """
 

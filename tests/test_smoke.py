@@ -54,7 +54,7 @@ def test_a_blank_llm_model_falls_back_to_the_default(monkeypatch) -> None:
 
 
 def test_env_readers_fall_back_when_a_value_will_not_parse(monkeypatch) -> None:
-    """A typo in a number should not stop the server (D-079)."""
+    """A typo in a number should not stop the server (D-065)."""
     monkeypatch.setenv("ZW_TEST_INT", "ten")
     monkeypatch.setenv("ZW_TEST_FLOAT", "lots")
     assert env_int("ZW_TEST_INT", 10) == 10
@@ -74,7 +74,7 @@ def test_env_bool_reads_the_usual_spellings(monkeypatch) -> None:
 
 
 def test_env_list_splits_on_commas_and_drops_blanks(monkeypatch) -> None:
-    """CORS_ORIGINS is a comma-separated list, trimmed (D-079)."""
+    """CORS_ORIGINS is a comma-separated list, trimmed (D-065)."""
     monkeypatch.setenv("ZW_TEST_LIST", " a.example , , b.example ")
     assert env_list("ZW_TEST_LIST", ["z"]) == ["a.example", "b.example"]
     monkeypatch.delenv("ZW_TEST_LIST", raising=False)

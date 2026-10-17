@@ -284,7 +284,7 @@ def pack_units(units: list[list[Line]]) -> list[list[Line]]:
             current, current_words = list(unit), unit_words
     if current:
         pieces.append(current)
-    return _absorb_scraps(pieces)
+    return _move_orphan_titles(_absorb_scraps(pieces))
 
 
 def _absorb_scraps(pieces: list[list[Line]]) -> list[list[Line]]:
@@ -306,6 +306,49 @@ def _absorb_scraps(pieces: list[list[Line]]) -> list[list[Line]]:
             continue
         out.append(piece)
     return out
+
+
+#: A trailing line longer than this is a sentence, not the title of what follows.
+ORPHAN_TITLE_MAX_WORDS = 15
+#: What a finished sentence ends with. A title ends with none of these.
+TITLE_END_CHARACTERS = ".!?;"
+
+
+def _is_orphan_title(line: Line) -> bool:
+    """True when a line looks like the title of whatever comes after it, not a sentence."""
+    if line.is_table or not line.text:
+        return False
+    if len(line.text.split()) > ORPHAN_TITLE_MAX_WORDS:
+        return False
+    return not line.text.rstrip().endswith(tuple(TITLE_END_CHARACTERS))
+
+
+def _move_orphan_titles(pieces: list[list[Line]]) -> list[list[Line]]:
+    """Move a title stranded at the end of a chunk onto the chunk it introduces.
+
+    Packing fills a chunk until the next unit will not fit, which regularly leaves the
+    heading of a table as the last line of the chunk before it: "Table 2 Water
+    Augmentation Action Plan" ends one chunk and the table itself opens the next. Both
+    halves are worse for it — one chunk ends mid-thought, and the other is a table with
+    nothing saying what it is (D-066).
+
+    The line is only moved when it is its own paragraph, when something is left behind,
+    and when the chunk it moves to stays inside the hard maximum.
+    """
+    for index in range(len(pieces) - 1):
+        piece = pieces[index]
+        if len(piece) < 3 or not _is_orphan_title(piece[-1]):
+            continue
+        if piece[-2].text or piece[-2].is_table:
+            continue  # not its own paragraph
+        if not any(line.text or line.is_table for line in piece[:-2]):
+            continue  # moving it would empty this chunk
+        title = piece[-1]
+        if words_of(pieces[index + 1]) + count_words(title.text) > HARD_MAX_WORDS:
+            continue
+        pieces[index] = piece[:-2]
+        pieces[index + 1] = [title, Line("", title.page)] + pieces[index + 1]
+    return [piece for piece in pieces if any(line.text or line.is_table for line in piece)]
 
 
 def split_section(lines: list[Line]) -> list[list[Line]]:
@@ -460,8 +503,18 @@ def _can_fold_into(carried: list[Section], section: Section) -> bool:
     There is no size limit here, unlike `merge_small_sections`. A heading belongs to
     the text under it, so folding cannot glue two unrelated clauses together, and
     whatever comes out is put through the splitting rules straight afterwards.
+
+    Three ways a section can belong under the carried heading, and the annexures need
+    the first one. "Annexure 9: List of permissible Household Industries" is a
+    seven-word section of its own, and the list it introduces is the next section,
+    "9a: Household Industries". Their clause ids are "Annexure 9" and "Annexure 9a",
+    which share no dotted prefix, so the numeric test below cannot see the
+    relationship — but the child names its parent in `parent_key`, which is exactly
+    the claim we need (D-066).
     """
     last = carried[-1]
+    if last.clause_id and section.parent_key == last.clause_id:
+        return True
     if last.clause_id and section.clause_id:
         return last.clause_id.split(".")[0] == section.clause_id.split(".")[0]
     return last.parent_key == section.parent_key

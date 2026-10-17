@@ -11,6 +11,13 @@ the text around it can be read in order. `page_lines_from_pdf()` reads a page's 
 with PyMuPDF, turns each into a markdown table, and takes the text between them with
 `get_text(clip=...)` so no sentence appears twice.
 
+Two of the rules exist because a page is a printing unit and not a unit of meaning.
+`clean_text_lines` drops the all-capitals continuation lines of a PART or CHAPTER
+divider title, which are the second and third lines of a divider page and otherwise end
+up glued to the last clause of the previous chapter (D-066). `join_pages` is the other
+half: a sentence that runs over a page break is joined instead of being split by the
+paragraph break that a page boundary would otherwise insert.
+
 Nothing in here knows about clauses or chunk sizes; that is app/chunking.py.
 """
 
@@ -70,6 +77,21 @@ ILLUSTRATIVE_NOTE = re.compile(r"^\(?\s*for\s+illustrative\s+purposes?\s+only\s*
 #: The chapter is already known from data/chapter_map.json, so the line adds nothing.
 DIVIDER_LINE = re.compile(r"^(?:CHAPTER\s+\d{1,2}\b|PART\s+[IVX]+\s*[:.])", re.I)
 
+#: The characters a divider title is printed with: capitals, digits and light
+#: punctuation. A continuation line has to be made only of these, which is what
+#: keeps the rule from reaching ordinary text (D-066).
+DIVIDER_CONTINUATION = re.compile(r"^[A-Z0-9 &,:;.()–—/'\"-]+$")
+#: A divider title spread over more lines than this is not a divider title.
+DIVIDER_CONTINUATION_MAX_WORDS = 10
+#: A line that names itself: "4.2 TRANSIT ORIENTED DEVELOPMENT (TOD)", "Annexure 9:".
+#: A numbered heading can follow a divider line on the same page and is never part of
+#: the divider's title, so it is excluded from the continuation rule.
+NUMBERED_OR_NAMED_HEADING = re.compile(r"^(?:\d|Annexure)", re.I)
+
+#: A line with no letter and no digit anywhere: a rule of dashes, a stray bracket,
+#: the punctuation debris an OCR pass leaves behind on a scanned page.
+PUNCTUATION_ONLY = re.compile(r"^[^\w]+$")
+
 #: A word broken across a line end: "compact mixed-" / "use development".
 HYPHEN_BREAK = re.compile(r"(\w)-$")
 LOWERCASE_START = re.compile(r"^[a-z]")
@@ -109,7 +131,14 @@ def is_mostly_hindi(line: str) -> bool:
 
 
 def is_droppable(line: str, drop_hindi: bool) -> bool:
-    """True for a line that carries no clause text: header, page number, caption, divider."""
+    """True for a line that carries no clause text.
+
+    A running header, a bare page number, a figure caption, a PART or CHAPTER divider,
+    a line of pure punctuation, and — inside the gazette's English range — a line of
+    Hindi. The punctuation-only rule is the narrowest one that still catches the
+    debris an OCR pass leaves on the scanned court documents, such as a rule of dashes
+    or a stray bracket on its own line (D-066).
+    """
     if not line:
         return False  # a blank line is a paragraph break, not noise
     if is_gazette_header(line) or PAGE_NUMBER_LINE.match(line):
@@ -118,7 +147,45 @@ def is_droppable(line: str, drop_hindi: bool) -> bool:
         return True
     if DIVIDER_LINE.match(line):
         return True
+    if PUNCTUATION_ONLY.match(line):
+        return True
     return drop_hindi and is_mostly_hindi(line)
+
+
+def is_capitals(line: str) -> bool:
+    """True when every letter in the line is a capital. Blank or letterless lines are not."""
+    letters = [char for char in line if char.isalpha()]
+    return bool(letters) and all(char.isupper() for char in letters)
+
+
+def starts_divider_block(line: str) -> bool:
+    """True for a divider line printed in capitals, which is a real divider page title.
+
+    The distinction matters. "PART I: BACKGROUND" on page 649 is a divider page and the
+    lines under it are the rest of its title. "Part I: Background" on page 647 is a
+    contents entry in the middle of 384 words of prose, and the lines under *it* are
+    text. Only the capitalised form opens a divider block (D-066).
+    """
+    return bool(DIVIDER_LINE.match(line)) and is_capitals(line)
+
+
+def continues_divider_title(line: str) -> bool:
+    """True for a line that can only be the rest of a divider title.
+
+    "FOR RESIDENTIAL" under "CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)", and
+    "& DEVELOPMENT FRAMEWORK" under "PART II: VISION, STRATEGIES, SPATIAL POLICIES".
+    Capitals only, short, and no sentence-ending punctuation, so a capitalised sentence
+    of real text cannot match. A line that starts with its own number is excluded
+    outright: "4.2 TRANSIT ORIENTED DEVELOPMENT (TOD)" can sit under a chapter divider
+    on the same page, and a numbered heading is never the tail of a divider title.
+    """
+    if not is_capitals(line) or len(line.split()) > DIVIDER_CONTINUATION_MAX_WORDS:
+        return False
+    if line.endswith((".", "!", "?")):
+        return False
+    if NUMBERED_OR_NAMED_HEADING.match(line):
+        return False
+    return bool(DIVIDER_CONTINUATION.match(line))
 
 
 def clean_text_lines(text: str, drop_hindi: bool = False) -> list[str]:
@@ -126,12 +193,24 @@ def clean_text_lines(text: str, drop_hindi: bool = False) -> list[str]:
 
     `drop_hindi` is on inside the gazette's English range, where any Devanagari left
     after the header is a divider page's Hindi title.
+
+    A divider line in capitals opens a divider block, and the capitalised lines that
+    follow it — with blanks allowed between, because the title is spread down the page —
+    are the rest of its title and go too. Without that, "FOR RESIDENTIAL" from the
+    chapter 7 divider page ends up glued to the last clause of chapter 6 (D-066).
     """
     kept: list[str] = []
+    in_divider = False
     for raw in strip_zero_width(text).splitlines():
         line = normalise_spaces(raw)
         if is_droppable(line, drop_hindi):
+            if starts_divider_block(line):
+                in_divider = True
             continue
+        if line and in_divider:
+            if continues_divider_title(line):
+                continue
+            in_divider = False
         if not line and (not kept or not kept[-1]):
             continue  # never keep two blank lines in a row
         kept.append(line)
@@ -163,6 +242,94 @@ def join_hyphenated(lines: list[Line]) -> list[Line]:
             out.append(Line(previous.text + line.text, previous.page))
             continue
         out.append(line)
+    return out
+
+
+# --- joining pages -------------------------------------------------------------
+
+#: What a finished sentence, quotation or bracket ends with.
+SENTENCE_END = (".", "!", "?", ":", ";", "”", "’", '"', ")")
+
+#: A line that opens a list item: "(ii)", "a.", "3.", "-", "•".
+LIST_MARKER = re.compile(r"^\s*(?:[-*•]|\(?[a-zA-Z0-9]{1,4}[).])\s+")
+
+#: Words that can only continue a sentence, never start one.
+CONTINUATION_WORDS = frozenset(
+    {
+        "and",
+        "or",
+        "but",
+        "however",
+        "therefore",
+        "thus",
+        "also",
+        "moreover",
+        "furthermore",
+        "whereas",
+        "thereof",
+        "therein",
+        "thereby",
+        "hence",
+        "besides",
+        "nevertheless",
+    }
+)
+
+
+def sentence_continues(previous: Line, following: Line) -> bool:
+    """True when `following` is the rest of the sentence `previous` was in the middle of.
+
+    Both conditions have to hold, because either on its own is wrong often enough to
+    matter. The earlier line must not end a sentence, and the later line must start
+    with something that cannot start one: a lower-case word, or a word like "and" or
+    "however" that only ever continues. A list marker, a table row or a capitalised
+    word means a new thought, whatever the line before it ended with — a heading has
+    no full stop either.
+    """
+    if previous.is_table or following.is_table:
+        return False
+    if not previous.text or not following.text:
+        return False
+    if previous.text.rstrip().endswith(SENTENCE_END):
+        return False
+    if following.text.startswith("|") or LIST_MARKER.match(following.text):
+        return False
+    words = following.text.split()
+    if not words:
+        return False
+    first = words[0]
+    return first[:1].islower() or first.lower() in CONTINUATION_WORDS
+
+
+def join_pages(pages: list[list[Line]]) -> list[Line]:
+    """Join a document's per-page lines into one stream, one blank line between pages.
+
+    The blank line is a paragraph break, which is where the chunker is allowed to cut.
+    That is right almost everywhere and wrong at the 57 places in this gazette where a
+    sentence runs over a page break: page 683 of MPD-2047 opens with "and seamlessly
+    integrated with the green spaces ...", and inserting a break there let the chunker
+    cut the sentence in half (D-066). So when the next page carries on the sentence,
+    the two lines are concatenated instead, and the joined line keeps the earlier page
+    as its start and the later one as its end, so the chunk's page range stays honest.
+    """
+    out: list[Line] = []
+    for page in pages:
+        if not page:
+            continue
+        if out and sentence_continues(out[-1], page[0]):
+            previous = out.pop()
+            out.append(
+                Line(
+                    f"{previous.text} {page[0].text}",
+                    previous.page,
+                    last_page=page[0].page_end,
+                )
+            )
+            out += page[1:]
+            continue
+        if out:
+            out.append(Line("", page[0].page))
+        out += page
     return out
 
 
@@ -199,9 +366,19 @@ def table_to_markdown(rows: list[list[str | None]]) -> str:
 
     The first row is treated as the header, which is what these gazette tables have.
     Ragged rows are padded so every line has the same number of pipes.
+
+    A leading row whose every cell is empty is dropped rather than rendered as the
+    header. PyMuPDF returns one for a table whose top border it read as a row, and
+    `| | | |` as a header tells a reader nothing and tells BM25 less — worse, the
+    header is repeated on every piece when a long table is split, so one empty row
+    becomes several. Rows are only ever dropped from the front, never reordered: the
+    first row that has any content becomes the header in the order the document
+    printed it (D-066).
     """
     width = max(len(row) for row in rows)
     padded = [[_cell(row[i] if i < len(row) else "") for i in range(width)] for row in rows]
+    while len(padded) > 1 and not any(padded[0]):
+        padded.pop(0)
     header, *body = padded
     lines = ["| " + " | ".join(header) + " |"]
     lines.append("| " + " | ".join("---" for _ in header) + " |")

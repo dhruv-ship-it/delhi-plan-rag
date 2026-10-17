@@ -150,7 +150,15 @@ def open_collection(client: chromadb.ClientAPI):
 
 
 #: How many chunks are embedded and written to Chroma at a time.
-BATCH_SIZE = 128
+#:
+#: 32, not 128, and the reason is arithmetic rather than taste. onnxruntime runs a batch
+#: as one tensor, and the attention node for BAAI/bge-small-en-v1.5 needs
+#: batch x 12 heads x 512 tokens x 512 tokens x 4 bytes. At 128 that is 1.5 GiB in one
+#: allocation, which this laptop refused outright once the chunks got long enough to
+#: reach the 512-token cap ("Failed to allocate memory for requested buffer of size
+#: 1610612736"). At 32 the same tensor is 402 MiB and the whole build still takes about
+#: the same time, because the model is CPU-bound rather than batch-bound here (D-066).
+BATCH_SIZE = 32
 
 
 def build_dense_index(chunks: list[dict], batch_size: int = BATCH_SIZE) -> tuple[int, float]:

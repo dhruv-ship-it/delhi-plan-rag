@@ -14,6 +14,7 @@ from app.cleaning import (
     clean_text_lines,
     is_gazette_header,
     join_hyphenated,
+    join_pages,
     page_lines_from_pdf,
     split_markdown_table,
     table_is_usable,
@@ -193,3 +194,182 @@ def test_a_page_with_no_tables_still_comes_back_clean(table_pdf: Path) -> None:
         page.clean_contents()
         lines, _ = page_lines_from_pdf(page, 751)
     assert any("TOD Norms" in line.text for line in lines)
+
+
+# --- divider continuation lines (D-066) ----------------------------------------
+
+
+def test_a_divider_title_spread_over_two_lines_goes_entirely() -> None:
+    """"FOR RESIDENTIAL" under the chapter 7 divider is the rest of its title."""
+    page = (
+        "812   THE GAZETTE OF INDIA : EXTRAORDINARY   [PART II—SEC. 3(ii)]\n"
+        "\n"
+        " CHAPTER 7. DEVELOPMENT CONTROL NORMS (DCN)\n"
+        "              FOR RESIDENTIAL"
+    )
+    assert clean_text_lines(page, drop_hindi=True) == []
+
+
+def test_a_divider_title_survives_a_blank_line_in_the_middle() -> None:
+    """Page 811 prints "PART III:" and "DEVELOPMENT CONTROL NORMS" with a gap between."""
+    page = "PART III:\n\n      DEVELOPMENT CONTROL NORMS"
+    assert clean_text_lines(page, drop_hindi=True) == []
+
+
+def test_a_three_line_divider_title_goes_entirely() -> None:
+    """Chapter 11's divider title runs over three lines."""
+    page = (
+        " CHAPTER 11. DEVELOPMENT CONTROL NORMS (DCN)\n"
+        "       FOR TRANSPORTATION, UTILITIES AND\n"
+        "               GOVERNMENT"
+    )
+    assert clean_text_lines(page, drop_hindi=True) == []
+
+
+def test_a_contents_entry_in_title_case_does_not_open_a_divider_block() -> None:
+    """Page 647 has "Part I: Background" inside 384 words of prose, which must survive."""
+    page = (
+        "Part I: Background\n"
+        "THE PLAN sets out the context for Delhi in 2047.\n"
+        "It then describes the existing scenario."
+    )
+    kept = clean_text_lines(page, drop_hindi=True)
+    assert kept == [
+        "THE PLAN sets out the context for Delhi in 2047.",
+        "It then describes the existing scenario.",
+    ]
+
+
+def test_a_capitalised_sentence_after_a_divider_is_kept() -> None:
+    """A capitals line that ends a sentence is text, not the rest of a title."""
+    page = "PART I: BACKGROUND\nTHIS IS A REAL SENTENCE IN CAPITALS."
+    assert clean_text_lines(page, drop_hindi=True) == ["THIS IS A REAL SENTENCE IN CAPITALS."]
+
+
+def test_a_long_capitals_line_after_a_divider_is_kept() -> None:
+    """Over ten words it is prose shouted in capitals, not a divider title."""
+    shouting = "ALL DEVELOPMENT IN THE AREA SHALL BE SUBJECT TO THE NORMS LISTED BELOW"
+    page = f"PART I: BACKGROUND\n{shouting}"
+    assert clean_text_lines(page, drop_hindi=True) == [shouting]
+
+
+def test_a_mixed_case_line_after_a_divider_closes_the_block() -> None:
+    """Ordinary text ends the divider block, so later capitals lines are safe."""
+    page = "PART I: BACKGROUND\nThe plan begins here.\nFOR RESIDENTIAL USE"
+    assert clean_text_lines(page, drop_hindi=True) == [
+        "The plan begins here.",
+        "FOR RESIDENTIAL USE",
+    ]
+
+
+def test_punctuation_only_lines_are_dropped() -> None:
+    """A rule of dashes or a stray bracket is OCR debris from the scanned documents."""
+    page = "The report is enclosed.\n———————\n»\nSigned."
+    assert clean_text_lines(page) == ["The report is enclosed.", "Signed."]
+
+
+def test_a_line_with_a_single_letter_is_kept() -> None:
+    """The punctuation rule is narrow on purpose: anything with a letter stays."""
+    assert clean_text_lines("A\n1.") == ["A", "1."]
+
+
+# --- joining a sentence across a page break (D-066) ----------------------------
+
+
+def test_a_sentence_running_over_a_page_break_is_joined() -> None:
+    """Page 643 of the gazette opens with "colonies, Rehabilitation Colonies, ..."."""
+    joined = join_pages(
+        [
+            [Line("including DDA housing schemes, DDA plotted developments, resettlement", 642)],
+            [Line("colonies, Rehabilitation Colonies and other planned developments.", 643)],
+        ]
+    )
+    assert len(joined) == 1
+    assert joined[0].text.startswith("including DDA housing schemes")
+    assert "resettlement colonies, Rehabilitation" in joined[0].text
+
+
+def test_a_joined_line_reports_both_pages() -> None:
+    """The page range has to stay honest: it starts on 642 and ends on 643."""
+    joined = join_pages([[Line("ends with", 642)], [Line("more words here.", 643)]])
+    assert joined[0].page == 642
+    assert joined[0].page_end == 643
+
+
+def test_two_finished_sentences_keep_their_paragraph_break() -> None:
+    """A full stop at the page foot means the pages are separate paragraphs."""
+    joined = join_pages([[Line("A complete sentence.", 1)], [Line("Another one.", 2)]])
+    assert [line.text for line in joined] == ["A complete sentence.", "", "Another one."]
+
+
+def test_a_capitalised_word_starts_a_new_thought() -> None:
+    """A heading has no full stop either, so the next page must start lower case."""
+    joined = join_pages([[Line("4.2 Transit Oriented Development", 1)], [Line("Delhi shall.", 2)]])
+    assert [line.text for line in joined] == ["4.2 Transit Oriented Development", "", "Delhi shall."]
+
+
+def test_a_list_marker_is_never_joined_to_the_page_before() -> None:
+    """"(ii) ..." opens an item however the previous page ended."""
+    joined = join_pages([[Line("the following shall apply", 1)], [Line("(ii) parking norms", 2)]])
+    assert len(joined) == 3
+
+
+def test_a_continuation_word_is_joined_even_though_it_is_capitalised() -> None:
+    """Page 683 really does open with "and seamlessly integrated ...", lower case."""
+    joined = join_pages([[Line("shall be restored", 1)], [Line("And seamlessly integrated.", 2)]])
+    assert len(joined) == 1
+
+
+def test_a_table_is_never_joined_across_a_page_break() -> None:
+    """A markdown table is one line already; concatenating it would destroy it."""
+    table = Line("| a | b |\n| --- | --- |", 2, is_table=True)
+    joined = join_pages([[Line("continues on", 1)], [table]])
+    assert len(joined) == 3
+    assert joined[-1].is_table
+
+
+def test_join_pages_skips_empty_pages() -> None:
+    """A divider page cleans down to nothing and must not leave two blank lines."""
+    joined = join_pages([[Line("First page.", 1)], [], [Line("Third page.", 3)]])
+    assert [line.text for line in joined] == ["First page.", "", "Third page."]
+
+
+# --- empty table headers (D-066) -----------------------------------------------
+
+
+def test_a_leading_empty_row_is_not_used_as_the_table_header() -> None:
+    """PyMuPDF reads some top borders as a row of empty cells."""
+    markdown = table_to_markdown([["", "", ""], ["2", "ACTION PLAN", ""], ["", "CIVIL", "ARMY"]])
+    assert markdown.splitlines()[0] == "| 2 | ACTION PLAN |  |"
+    assert markdown.splitlines()[1] == "| --- | --- | --- |"
+
+
+def test_dropping_empty_rows_never_reorders_the_table() -> None:
+    """Only leading rows go, so the header is still the first printed row with content."""
+    markdown = table_to_markdown([["", ""], ["Zone", "FAR"], ["", "200"], ["D", "300"]])
+    assert [line for line in markdown.splitlines()] == [
+        "| Zone | FAR |",
+        "| --- | --- |",
+        "|  | 200 |",
+        "| D | 300 |",
+    ]
+
+
+def test_a_table_of_nothing_but_empty_rows_keeps_one_row() -> None:
+    """There is nothing to promote, and table_is_usable rejects it anyway."""
+    assert table_to_markdown([["", ""], ["", ""]]).splitlines()[0] == "|  |  |"
+    assert table_is_usable([["", ""], ["", ""]])[0] is False
+
+
+def test_a_numbered_heading_after_a_divider_is_never_a_divider_tail() -> None:
+    """"4.2 TRANSIT ORIENTED DEVELOPMENT (TOD)" names itself, whatever sits above it."""
+    page = "CHAPTER 4. SPATIAL DEVELOPMENT POLICIES\n4.2 TRANSIT ORIENTED DEVELOPMENT (TOD)"
+    assert clean_text_lines(page, drop_hindi=True) == ["4.2 TRANSIT ORIENTED DEVELOPMENT (TOD)"]
+
+
+def test_an_annexure_heading_after_a_divider_survives() -> None:
+    """The annexure headings are capitalised too, and they name themselves."""
+    page = "PART IV: ANNEXURES\nANNEXURE 9: LIST OF PERMISSIBLE HOUSEHOLD INDUSTRIES"
+    assert clean_text_lines(page, drop_hindi=True) == [
+        "ANNEXURE 9: LIST OF PERMISSIBLE HOUSEHOLD INDUSTRIES"
+    ]

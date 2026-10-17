@@ -10,6 +10,12 @@ The API key is read from `.env`, which is never committed. `looks_like_api_key()
 deliberately stricter than a truthiness check: `.env.example` ships the placeholder
 `your-key-here`, so a copied-but-unedited `.env` would otherwise read as a configured
 key and turn an honest "no key yet" into a confusing 401 (D-040).
+
+Every setting a deployment might need to change is read from the environment through the
+four `env_*` readers below, each with the value in this file as its default, so a
+container is configured with variables and nothing has to be edited inside the image
+(D-063, D-079). A malformed value falls back to the default rather than stopping the
+process: a typo in `RATE_LIMIT_PER_MINUTE` should not take the server down.
 """
 
 import os
@@ -38,6 +44,49 @@ def looks_like_api_key(key: str | None) -> bool:
     """
     text = (key or "").strip()
     return text.startswith(API_KEY_PREFIX) and len(text) >= API_KEY_MIN_LENGTH
+
+
+def env_str(name: str, default: str) -> str:
+    """An environment variable as text, or `default` when it is unset or blank."""
+    return (os.getenv(name) or "").strip() or default
+
+
+def env_int(name: str, default: int) -> int:
+    """An environment variable as a whole number, or `default` when it will not parse."""
+    try:
+        return int(env_str(name, str(default)))
+    except ValueError:
+        return default
+
+
+def env_float(name: str, default: float) -> float:
+    """An environment variable as a number, or `default` when it will not parse."""
+    try:
+        return float(env_str(name, str(default)))
+    except ValueError:
+        return default
+
+
+def env_bool(name: str, default: bool) -> bool:
+    """An environment variable as a flag. "1", "true" and "yes" are true, anything else false."""
+    text = (os.getenv(name) or "").strip().lower()
+    if not text:
+        return default
+    return text in {"1", "true", "yes", "on"}
+
+
+def env_list(name: str, default: list[str]) -> list[str]:
+    """An environment variable as a comma-separated list, trimmed, blanks dropped."""
+    text = (os.getenv(name) or "").strip()
+    if not text:
+        return list(default)
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+#: The default Anthropic model. Haiku because the answering job is short, extractive and
+#: bounded by the retrieved sources, so the smallest current model is the right one to
+#: pay for; `LLM_MODEL` in .env overrides it without a code change (D-063).
+DEFAULT_LLM_MODEL = "claude-haiku-5-5"
 
 
 @dataclass(frozen=True)
@@ -154,7 +203,7 @@ settings = Settings(
     reports_dir=PROJECT_ROOT / "reports",
     sources_csv=DATA_DIR / "sources.csv",
     anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-    llm_model="claude-haiku-5-5",
+    llm_model=env_str("LLM_MODEL", DEFAULT_LLM_MODEL),
     use_fake_llm=os.getenv("ZONEWISE_USE_FAKE_LLM", "").strip().lower()
     in {"1", "true", "yes"},
 )

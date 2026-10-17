@@ -200,6 +200,24 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 uv run pytest
 ```
 
+### Configuration
+
+Everything is configured through `.env`, and every variable is optional: the default in
+`app/config.py` applies when one is unset, and a value that will not parse falls back to
+that default rather than stopping the server. `.env.example` documents all of them with
+their defaults; the ones worth knowing about:
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | none | Without it the app runs in search-only mode. |
+| `LLM_MODEL` | `claude-haiku-5-5` | Which Anthropic model answers. Haiku because the job is short, extractive and bounded by the retrieved sources, so the smallest current model is the right one to pay for. Override to try a larger one without a code change. |
+| `ZONEWISE_DEV` | off | Enables the dev-only question verification screen. Never set it in production. |
+| `ABSTAIN_SIGNAL` | `dense_cosine` | Which score decides retrieval was too weak to ask the model: `dense_cosine` or `rerank_score`. |
+| `ABSTAIN_THRESHOLD` | provisional | The cut-off for that signal. See [Evaluation](#evaluation). |
+| `USE_RERANKER` | off | Rerank the top 20 with a cross-encoder after fusion. |
+| `RATE_LIMIT_PER_DAY` | 300 | The cap that stands between a bug and an unbounded bill. |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated list of browser origins allowed to call the API. |
+
 ### API
 
 | Endpoint | Key needed | What it does |

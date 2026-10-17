@@ -128,14 +128,19 @@ def test_a_land_pooling_point_reports_which_pooling_zone(toy) -> None:
     assert topics_for(zones) == ["land_pooling"]
 
 
-def test_the_two_extra_layers_are_reported_but_not_policy_topics(toy) -> None:
-    """regional_park and lda are downloaded and answered, but no policy is wired to them."""
+def test_the_park_and_lda_layers_are_policy_topics(toy) -> None:
+    """Both became policy topics in D-069, and the Ridge's topic is not its layer's name.
+
+    The layer and the `get_zones` key are both `regional_park`, because that is what
+    DDA calls the polygons. The tagging topic is `ridge`, because that is what
+    MPD-2047 calls the thing. `TOPIC_KEYS` is where the two meet.
+    """
     park = get_zones(28.72, 77.32, toy)
     assert park["regional_park"] is True
-    assert topics_for(park) == []
+    assert topics_for(park) == ["ridge"]
     lda = get_zones(28.72, 77.37, toy)
     assert lda["lda"] is True
-    assert topics_for(lda) == []
+    assert topics_for(lda) == ["lda"]
 
 
 def test_the_river_is_separate_from_zone_o(toy) -> None:

@@ -21,16 +21,22 @@ from shapely.strtree import STRtree
 
 from app.config import settings
 
-#: The layers `get_zones` answers from.
+#: The layers a policy topic is wired to, and so the ones the browser is served.
+#: `regional_park` and `low_density_area` joined this list in D-069, when the ridge
+#: and lda topics were added to tagging; before that they were downloaded and loaded
+#: but nothing used them.
 CORE_LAYERS = (
     "nctd_boundary",
     "planning_zones",
     "tod_zone",
     "high_density_corridor",
     "land_pooling_area",
+    "regional_park",
+    "low_density_area",
 )
-#: Downloaded as well, and reported, but no policy is wired to them yet.
-EXTRA_LAYERS = ("regional_park", "low_density_area", "yamuna_river")
+#: Downloaded as well, and reported, but no policy is wired to it. The river polygon
+#: is used when picking a zone O test point that is on land, and nowhere else.
+EXTRA_LAYERS = ("yamuna_river",)
 ALL_LAYERS = CORE_LAYERS + EXTRA_LAYERS
 
 #: The keys `get_zones` returns for a point inside Delhi.
@@ -145,8 +151,8 @@ def get_zones(lat: float, lon: float, layers: dict[str, Layer] | None = None) ->
       land_pooling        in a land pooling area
       land_pooling_zone   which land pooling zone, where the layer names one
       zone_o              planning_zone == "O", the River Yamuna / Riverfront zone
-      regional_park       in a Regional Park polygon
-      lda                 in a Low Density Area polygon
+      regional_park       in a Regional Park polygon (the `ridge` policy topic)
+      lda                 in a Low Density Area polygon (the `lda` policy topic)
     """
     layers = layers or load_layers()
     point = Point(lon, lat)  # GeoJSON and shapely are (x, y) = (lon, lat)
@@ -189,12 +195,21 @@ def in_water(lat: float, lon: float, layers: dict[str, Layer] | None = None) -> 
     return layers["yamuna_river"].contains(Point(lon, lat))
 
 
+#: Which `get_zones` key says the point is in each topic. The topic names come from
+#: app.tagging and the keys from `get_zones`, and the two differ for the Ridge:
+#: the layer is called regional_park, the policy topic is called ridge.
+TOPIC_KEYS: tuple[tuple[str, str], ...] = (
+    ("tod", "tod"),
+    ("hdc", "hdc"),
+    ("zone_o", "zone_o"),
+    ("land_pooling", "land_pooling"),
+    ("ridge", "regional_park"),
+    ("lda", "lda"),
+)
+
+
 def topics_for(zones: dict) -> list[str]:
     """The zone topics from app.tagging that this point is in, in a fixed order."""
     if not zones.get("inside_delhi"):
         return []
-    found = []
-    for topic, key in (("tod", "tod"), ("hdc", "hdc"), ("zone_o", "zone_o"), ("land_pooling", "land_pooling")):
-        if zones.get(key):
-            found.append(topic)
-    return found
+    return [topic for topic, key in TOPIC_KEYS if zones.get(key)]

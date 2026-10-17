@@ -31,6 +31,8 @@ EXPANSION_TERMS: dict[str, str] = {
     "hdc": "high density corridor HDC UER-II",
     "zone_o": "Zone O Yamuna floodplain",
     "land_pooling": "land pooling",
+    "ridge": "Ridge regional park Aravalli forest",
+    "lda": "low density area LDA farmhouse",
 }
 
 #: How a point's zones are described back to a reader.
@@ -39,6 +41,8 @@ ZONE_LABELS: dict[str, str] = {
     "hdc": "high density corridor",
     "zone_o": "Zone O (Yamuna floodplain)",
     "land_pooling": "land pooling area",
+    "ridge": "Ridge / regional park",
+    "lda": "low density area",
 }
 
 
@@ -87,10 +91,7 @@ def describe_zones(zones: dict) -> str:
             f"{label} {zones['land_pooling_zone']}" if label == "land pooling area" else label
             for label in found
         ]
-    parts.append("in " + ", ".join(found) if found else "in none of the four policy zones")
-    for key, label in (("regional_park", "regional park"), ("lda", "low density area")):
-        if zones.get(key):
-            parts.append(label)
+    parts.append("in " + ", ".join(found) if found else "in none of the six policy zones")
     return "; ".join(parts)
 
 

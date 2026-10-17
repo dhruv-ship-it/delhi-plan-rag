@@ -1,17 +1,18 @@
-// What get_zones returned, as chips. The four policy zones are the ones that change
-// which rules apply, so they are highlighted; the planning zone and the two extra
-// layers are shown plainly.
+// What get_zones returned, as chips. All six policy zones change which rules apply, so
+// all six are highlighted; the planning zone is shown plainly beside them.
+//
+// Two of the six carry a note, because they behave differently in search: Zone O and
+// the Ridge have no policy section of their own in MPD-2047, so they can raise a
+// clause up the results and widen the query, but they can never remove a clause the
+// way a TOD or LDA point does (D-037, D-069).
 
 const POLICY_CHIPS = [
   { key: 'tod', label: 'Inside TOD zone' },
   { key: 'hdc', label: 'Inside high density corridor' },
   { key: 'land_pooling', label: 'Inside land pooling area' },
-  { key: 'zone_o', label: 'Inside Zone O (Yamuna floodplain)' },
-]
-
-const EXTRA_CHIPS = [
-  { key: 'regional_park', label: 'Regional park' },
-  { key: 'lda', label: 'Low density area' },
+  { key: 'zone_o', label: 'Inside Zone O (Yamuna floodplain)', boostOnly: true },
+  { key: 'regional_park', label: 'Inside regional park / the Ridge', boostOnly: true },
+  { key: 'lda', label: 'Inside low density area' },
 ]
 
 export default function ZoneChips({ zones, loading, error }) {
@@ -31,7 +32,7 @@ export default function ZoneChips({ zones, loading, error }) {
   }
 
   const policies = POLICY_CHIPS.filter((chip) => zones[chip.key])
-  const extras = EXTRA_CHIPS.filter((chip) => zones[chip.key])
+  const boostOnly = policies.filter((chip) => chip.boostOnly)
 
   return (
     <div className="chips">
@@ -46,13 +47,15 @@ export default function ZoneChips({ zones, loading, error }) {
             : ''}
         </span>
       ))}
-      {extras.map((chip) => (
-        <span key={chip.key} className="chip">
-          {chip.label}
-        </span>
-      ))}
       {policies.length === 0 && (
-        <span className="chip chip-plain">In none of the four policy zones</span>
+        <span className="chip chip-plain">In none of the six policy zones</span>
+      )}
+      {boostOnly.length > 0 && (
+        <p className="muted">
+          MPD&ndash;2047 has no policy section of its own for{' '}
+          {boostOnly.map((chip) => (chip.key === 'zone_o' ? 'Zone O' : 'the Ridge')).join(' or ')},
+          so clauses that mention it are ranked higher here, but no clause is ruled out.
+        </p>
       )}
       {!zones.planning_zone && (
         <p className="muted">

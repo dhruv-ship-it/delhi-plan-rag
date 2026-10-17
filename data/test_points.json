@@ -72,10 +72,46 @@
     }
   },
   {
+    "name": "P_RIDGE",
+    "lat": 28.427902,
+    "lon": 77.207749,
+    "wanted": "in a Regional Park (the Ridge), and in nothing else if possible",
+    "how_it_was_found": "a point inside the largest regional park polygon; the Ridge is asked for on its own because the ridge topic has no policy section of its own and works only through boosting and query expansion (D-069)",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "J",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": true,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_LDA",
+    "lat": 28.608034,
+    "lon": 76.903849,
+    "wanted": "in a Low Density Area, and in nothing else if possible",
+    "how_it_was_found": "a point inside the largest low density area polygon; the LDAs sit along the NCT border, where the land pooling areas also are, so a point in the LDA alone is preferred to keep the comparison readable",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "L",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": true
+    }
+  },
+  {
     "name": "P_PLAIN",
     "lat": 28.639973,
     "lon": 77.088994,
-    "wanted": "in Delhi but in none of TOD, HDC, land pooling or zone O",
+    "wanted": "in Delhi but in none of the six policy zones",
     "how_it_was_found": "found by walking a 60x60 grid over Delhi from the middle out",
     "zones": {
       "inside_delhi": true,

@@ -1,7 +1,7 @@
-"""Find six test points from the map layers and build a preview map to check them on.
+"""Find eight test points from the map layers and build a preview map to check them on.
 
 Reads  data/layers/dda/*.geojson
-Writes data/test_points.json          the six points and their get_zones result (committed)
+Writes data/test_points.json          the eight points and their get_zones result (committed)
        data/layers/dda/preview.html   a standalone Leaflet page (gitignored)
 
 The points are computed from the polygons, not typed in from memory, so they stay right
@@ -90,7 +90,7 @@ def find_point(
 
 
 def choose_points(layers) -> list[TestPoint]:
-    """Work out the six test points from the layers."""
+    """Work out the eight test points from the layers."""
     def zones(lat, lon):
         return get_zones(lat, lon, layers)
 
@@ -165,17 +165,64 @@ def choose_points(layers) -> list[TestPoint]:
         ),
     )
 
+    add(
+        "P_RIDGE",
+        "in a Regional Park (the Ridge), and in nothing else if possible",
+        "a point inside the largest regional park polygon; the Ridge is asked for on "
+        "its own because the ridge topic has no policy section of its own and works "
+        "only through boosting and query expansion (D-069)",
+        find_point(
+            layers,
+            "regional_park",
+            lambda lat, lon: (
+                (z := zones(lat, lon))["inside_delhi"]
+                and z["regional_park"]
+                and not z["tod"]
+                and not z["hdc"]
+                and not z["land_pooling"]
+                and not z["zone_o"]
+                and not z["lda"]
+            ),
+            fallback=lambda lat, lon: (
+                (z := zones(lat, lon))["inside_delhi"] and z["regional_park"]
+            ),
+        ),
+    )
+    add(
+        "P_LDA",
+        "in a Low Density Area, and in nothing else if possible",
+        "a point inside the largest low density area polygon; the LDAs sit along the "
+        "NCT border, where the land pooling areas also are, so a point in the LDA "
+        "alone is preferred to keep the comparison readable",
+        find_point(
+            layers,
+            "low_density_area",
+            lambda lat, lon: (
+                (z := zones(lat, lon))["inside_delhi"]
+                and z["lda"]
+                and not z["tod"]
+                and not z["hdc"]
+                and not z["land_pooling"]
+                and not z["zone_o"]
+                and not z["regional_park"]
+            ),
+            fallback=lambda lat, lon: (
+                (z := zones(lat, lon))["inside_delhi"] and z["lda"]
+            ),
+        ),
+    )
+
     plain = None
     for lat, lon in grid_points(layers["nctd_boundary"].geometries[0].bounds, DELHI_GRID_STEPS):
         candidate = zones(lat, lon)
         if candidate["inside_delhi"] and not any(
-            candidate[key] for key in ("tod", "hdc", "land_pooling", "zone_o")
+            candidate[key] for key in ("tod", "hdc", "land_pooling", "zone_o", "regional_park", "lda")
         ):
             plain = (lat, lon)
             break
     add(
         "P_PLAIN",
-        "in Delhi but in none of TOD, HDC, land pooling or zone O",
+        "in Delhi but in none of the six policy zones",
         f"found by walking a {DELHI_GRID_STEPS}x{DELHI_GRID_STEPS} grid over Delhi from the middle out",
         plain,
     )

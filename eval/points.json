@@ -72,11 +72,47 @@
     }
   },
   {
+    "name": "P_RIDGE",
+    "lat": 28.427902,
+    "lon": 77.207749,
+    "source": "data/test_points.json",
+    "wanted": "in a Regional Park (the Ridge), and in nothing else if possible",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "J",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": true,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_LDA",
+    "lat": 28.608034,
+    "lon": 76.903849,
+    "source": "data/test_points.json",
+    "wanted": "in a Low Density Area, and in nothing else if possible",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "L",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": true
+    }
+  },
+  {
     "name": "P_PLAIN",
     "lat": 28.639973,
     "lon": 77.088994,
     "source": "data/test_points.json",
-    "wanted": "in Delhi but in none of TOD, HDC, land pooling or zone O",
+    "wanted": "in Delhi but in none of the six policy zones",
     "zones": {
       "inside_delhi": true,
       "planning_zone": "G",
@@ -313,6 +349,114 @@
       "zone_o": true,
       "regional_park": false,
       "lda": false
+    }
+  },
+  {
+    "name": "P_RIDGE_2",
+    "lat": 28.42678,
+    "lon": 77.184085,
+    "source": "computed from the regional_park layer",
+    "wanted": "in ridge",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "J",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": true,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_RIDGE_3",
+    "lat": 28.42678,
+    "lon": 77.232294,
+    "source": "computed from the regional_park layer",
+    "wanted": "in ridge",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "J",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": true,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_RIDGE_4",
+    "lat": 28.432039,
+    "lon": 77.159981,
+    "source": "computed from the regional_park layer",
+    "wanted": "in ridge",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "J",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": true,
+      "lda": false
+    }
+  },
+  {
+    "name": "P_LDA_2",
+    "lat": 28.605252,
+    "lon": 76.878789,
+    "source": "computed from the low_density_area layer",
+    "wanted": "in lda",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "L",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": true
+    }
+  },
+  {
+    "name": "P_LDA_3",
+    "lat": 28.616479,
+    "lon": 76.934017,
+    "source": "computed from the low_density_area layer",
+    "wanted": "in lda",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "L",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": true
+    }
+  },
+  {
+    "name": "P_LDA_4",
+    "lat": 28.582798,
+    "lon": 76.878789,
+    "source": "computed from the low_density_area layer",
+    "wanted": "in lda",
+    "zones": {
+      "inside_delhi": true,
+      "planning_zone": "L",
+      "tod": false,
+      "hdc": false,
+      "land_pooling": false,
+      "land_pooling_zone": null,
+      "zone_o": false,
+      "regional_park": false,
+      "lda": true
     }
   }
 ]

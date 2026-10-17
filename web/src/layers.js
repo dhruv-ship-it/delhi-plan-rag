@@ -1,9 +1,13 @@
-// The five map layers the interface draws, in the order they are stacked and listed.
+// The seven map layers the interface draws, in the order they are stacked and listed.
 // Names must match SERVABLE_LAYERS in app/api.py.
 //
 // The NCT boundary is an outline only (no fill), because it covers the whole map and a
 // fill would tint everything. Planning zones sit underneath the policy layers, since a
 // point is always in exactly one planning zone but may be in several policy zones.
+//
+// The regional park and low density area layers are off by default. They are the two
+// largest by feature count (44 and 208 polygons) and they cover a lot of the map, so
+// turning them on by default would bury the three corridor policies underneath them.
 
 export const LAYERS = [
   {
@@ -46,6 +50,22 @@ export const LAYERS = [
     fill: true,
     weight: 1,
     defaultOn: true,
+  },
+  {
+    name: 'regional_park',
+    label: 'Regional park / Ridge',
+    colour: '#15803d',
+    fill: true,
+    weight: 1,
+    defaultOn: false,
+  },
+  {
+    name: 'low_density_area',
+    label: 'Low density area',
+    colour: '#a16207',
+    fill: true,
+    weight: 1,
+    defaultOn: false,
   },
 ]
 

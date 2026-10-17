@@ -3,8 +3,8 @@
 Reads  data/test_points.json, data/layers/dda/*.geojson
 Writes eval/points.json
 
-The six points from `data/test_points.json` are reused as they are, then about three
-more are found inside each of the four policy zones, so a location question can be asked
+The eight points from `data/test_points.json` are reused as they are, then about three
+more are found inside each of the six policy zones, so a location question can be asked
 at several places in the same zone rather than always the same one. Every point is
 stored with its full `get_zones` result, which is what `eval/run_eval.py` passes to the
 location-aware search.
@@ -31,12 +31,16 @@ GRID_STEPS = 18
 #: Points closer together than this (in degrees, about 2 km) count as the same place.
 MIN_SEPARATION = 0.02
 
-#: Which layer to search for each zone topic, and what to call the points.
+#: Which layer to search for each zone topic, what `get_zones` key says the point is
+#: in it, and what to call the points. The key and the topic differ for the Ridge: the
+#: layer and the `get_zones` key are regional_park, the policy topic is ridge (D-069).
 ZONE_SOURCES = (
-    ("tod", "tod_zone", "P_TOD"),
-    ("hdc", "high_density_corridor", "P_HDC"),
-    ("land_pooling", "land_pooling_area", "P_LP"),
-    ("zone_o", "planning_zones", "P_ZONEO"),
+    ("tod", "tod", "tod_zone", "P_TOD"),
+    ("hdc", "hdc", "high_density_corridor", "P_HDC"),
+    ("land_pooling", "land_pooling", "land_pooling_area", "P_LP"),
+    ("zone_o", "zone_o", "planning_zones", "P_ZONEO"),
+    ("ridge", "regional_park", "regional_park", "P_RIDGE"),
+    ("lda", "lda", "low_density_area", "P_LDA"),
 )
 
 
@@ -60,8 +64,13 @@ def grid_points(bounds: tuple[float, float, float, float], steps: int):
             )
 
 
-def find_in_zone(layers, topic: str, layer_name: str, wanted: int, taken: list) -> list[dict]:
+def find_in_zone(
+    layers, topic: str, key: str, layer_name: str, wanted: int, taken: list
+) -> list[dict]:
     """Find up to `wanted` points inside a zone, spread out rather than clustered.
+
+    `key` is the `get_zones` field that says the point is in the zone, which is not
+    always the topic's name: the Ridge's layer and field are both `regional_park`.
 
     Zone O is the awkward one: it is a planning zone rather than a policy layer, and
     half of it is the river, so a point there has to be on land as well as in the zone.
@@ -84,7 +93,7 @@ def find_in_zone(layers, topic: str, layer_name: str, wanted: int, taken: list) 
             if not geometry.covers(Point(lon, lat)):
                 continue
             zones = get_zones(lat, lon, layers)
-            if not zones.get("inside_delhi") or not zones.get(topic):
+            if not zones.get("inside_delhi") or not zones.get(key):
                 continue
             if topic == "zone_o" and in_water(lat, lon, layers):
                 continue
@@ -127,8 +136,8 @@ def main() -> int:
             taken.append((point["lat"], point["lon"]))
 
     print(f"{len(records)} points reused from data/test_points.json")
-    for topic, layer_name, prefix in ZONE_SOURCES:
-        found = find_in_zone(layers, topic, layer_name, EXTRA_PER_ZONE, taken)
+    for topic, key, layer_name, prefix in ZONE_SOURCES:
+        found = find_in_zone(layers, topic, key, layer_name, EXTRA_PER_ZONE, taken)
         for number, point in enumerate(found, start=2):
             records.append(
                 {
@@ -158,13 +167,27 @@ def main() -> int:
             "yes" if record["zones"].get("hdc") else "-",
             "yes" if record["zones"].get("land_pooling") else "-",
             "yes" if record["zones"].get("zone_o") else "-",
+            "yes" if record["zones"].get("regional_park") else "-",
+            "yes" if record["zones"].get("lda") else "-",
         ]
         for record in records
     ]
     print()
     print(
         markdown_table(
-            ("point", "lat, lon", "in Delhi", "zone", "tod", "hdc", "pooling", "zone O"), rows
+            (
+                "point",
+                "lat, lon",
+                "in Delhi",
+                "zone",
+                "tod",
+                "hdc",
+                "pooling",
+                "zone O",
+                "ridge",
+                "lda",
+            ),
+            rows,
         )
     )
     print()

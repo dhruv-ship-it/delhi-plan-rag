@@ -123,9 +123,44 @@ def test_a_section_and_every_section_under_it_get_the_primary_zone() -> None:
 
 
 def test_a_neighbouring_section_does_not_inherit_the_primary_zone() -> None:
-    """4.20 starts with "4.2" as a string but is not under it."""
+    """4.20 starts with "4.2" as a string but is not under it.
+
+    This is the prefix trap the number comparison exists to avoid: a section number
+    matches when it is equal or when the next character is a dot, never on a string
+    prefix. 4.4 is checked separately because it is a real section now (D-069).
+    """
     assert primary_zone(chunk(heading_path=["4.20 Something Else"]), SECTIONS) == ""
-    assert primary_zone(chunk(heading_path=["4.4 LOW DENSITY AREA"]), SECTIONS) == ""
+    assert primary_zone(chunk(heading_path=["4.40 Something Else"]), SECTIONS) == ""
+
+
+def test_the_low_density_area_section_is_the_lda_policy() -> None:
+    """4.4 LOW DENSITY AREA (LDA) is a dedicated policy section, so it may exclude."""
+    assert primary_zone(chunk(heading_path=["4.4 LOW DENSITY AREA (LDA)"]), SECTIONS) == "lda"
+    assert (
+        primary_zone(
+            chunk(heading_path=["4.4 LOW DENSITY AREA (LDA)", "4.4.3 Development Control Norms"]),
+            SECTIONS,
+        )
+        == "lda"
+    )
+
+
+def test_the_ridge_has_no_policy_section_to_exclude_on() -> None:
+    """MPD-2047 has no Ridge policy, so no heading can give a chunk ridge as primary.
+
+    Chapter 10 names the Regional Park in its recreational norms and 3.1.2 names the
+    Ridge in Green-Blue Infrastructure, but both are about every park or green asset
+    in Delhi. Listing either would let search drop general park norms for an ordinary
+    plot, which is the same trap as zone O (D-037, D-069).
+    """
+    for heading_path in (
+        ["10.1 Use Premises and Definitions"],
+        ["10.2 Development Control Norms (DCN)", "10.2.1 Parks & Multipurpose ground"],
+        ["3.1 ENVIRONMENT", "3.1.2 Green-Blue Infrastructure"],
+    ):
+        assert primary_zone(chunk(chapter=heading_path[0][0], heading_path=heading_path), SECTIONS) != "ridge"
+    assert SECTIONS.gazette["ridge"] == []
+    assert SECTIONS.faq["ridge"] == []
 
 
 def test_the_service_plans_cannot_claim_a_primary_zone() -> None:
@@ -193,17 +228,22 @@ def test_a_generic_faq_section_stays_untagged() -> None:
         "FAQs - GENERIC",
         "FAQs \u2013 Development Control Norms (DCN) for already existing developed areas",
         "FAQs \u2013 Heritage, Culture & Public Spaces",
-        "FAQs on LDA",
         "FAQs - Slum and JJ Clusters",
         "FREQUENTLY ASKED QUESTIONS (FAQs)",
     ):
         assert primary_zone(faq_chunk(heading), SECTIONS) == "", heading
 
 
-def test_the_low_density_area_faq_is_not_read_as_high_density() -> None:
-    """"LDA" and "Low Density Area" must not match the high density corridor phrases."""
-    assert primary_zone(faq_chunk("FAQs on LDA"), SECTIONS) == ""
-    assert primary_zone(faq_chunk("FAQs on Low Density Area (LDA)"), SECTIONS) == ""
+def test_the_low_density_area_faq_is_the_lda_policy_not_the_high_density_one() -> None:
+    """"FAQs on LDA" is the LDA section, and must never be read as the HDC section.
+
+    The two phrases are one letter apart in the way that matters: "High Density
+    Corridor" and "Low Density Area" share "Density". Matching whole phrases rather
+    than words is what keeps them separate.
+    """
+    assert primary_zone(faq_chunk("FAQs on LDA"), SECTIONS) == "lda"
+    assert primary_zone(faq_chunk("FAQs on Low Density Area (LDA)"), SECTIONS) == "lda"
+    assert primary_zone(faq_chunk("FAQs on High Density Corridor (HDC) Policy"), SECTIONS) == "hdc"
 
 
 def test_the_faq_heading_is_matched_whatever_its_case() -> None:
@@ -222,3 +262,60 @@ def test_a_question_inside_a_tagged_faq_section_can_now_be_excluded() -> None:
     )
     assert tagged["zone_primary"] == "tod"
     assert tagged["zp_tod"] is True
+
+
+# --- the ridge and lda mention regexes (D-069) ---------------------------------
+
+
+def test_ridge_does_not_match_bridge_or_cartridge() -> None:
+    """A word boundary at the front is what separates the Ridge from a bridge."""
+    for text in (
+        "The bridge over the drain shall be widened.",
+        "Bridges and cartridges are not ridges.",
+        "The footbridge connects the two sectors.",
+    ):
+        assert "ridge" not in mentions_of(text), text
+
+
+def test_ridge_matches_every_way_the_plan_names_it() -> None:
+    """Capital and lower case both count: the gazette writes "the Ridge" and "ridge"."""
+    cases = {
+        "The Ridge is a reserved forest.": "Ridge",
+        "conserving Aravalli ridge and reconstructing ecosystems": "ridge",
+        "land under notified Forests/Regional Parks": "Regional Park",
+        "the Aravalli Range falling in the NCT of Delhi": "Aravalli",
+    }
+    for text, phrase in cases.items():
+        found = matches_for("ridge", text)
+        assert found, text
+        assert any(phrase.lower() in item.lower() for item in found), (text, found)
+
+
+def test_lda_short_form_is_capitals_only() -> None:
+    """"LDA" is the short form; "lda" inside ordinary text is not."""
+    assert "lda" in mentions_of("Development within land pooling areas and LDA shall apply.")
+    assert "lda" not in mentions_of("The lda in lower case means nothing here.")
+
+
+def test_lda_matches_the_long_forms_and_farmhouses() -> None:
+    """Farm houses are the characteristic LDA use, and the plan spells it both ways."""
+    for text in (
+        "areas designated as Low Density Area under this Master Plan",
+        "Villages declared as Low Density Residential Area",
+        "One Dwelling Unit (Farmhouse) and two service staff units",
+        "regularisation of the existing farm houses",
+    ):
+        assert "lda" in mentions_of(text), text
+
+
+def test_low_density_alone_is_not_an_lda_mention() -> None:
+    """"Low density development on the city periphery" is 3.1.2, not the LDA policy."""
+    assert "lda" not in mentions_of("Low density development on the city periphery.")
+    assert "lda" not in mentions_of("a low density neighbourhood")
+
+
+def test_high_density_corridor_is_not_read_as_a_low_density_area() -> None:
+    """The two phrases share the word "density" and must not share a tag."""
+    found = mentions_of("The High Density Corridor along UER-II.")
+    assert "hdc" in found
+    assert "lda" not in found

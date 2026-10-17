@@ -79,8 +79,13 @@ def test_an_empty_list_fuses_to_nothing() -> None:
 
 
 def test_the_excluded_topics_are_the_ones_the_point_is_not_in() -> None:
-    """A point in a TOD zone can drop the HDC, Zone O and land pooling policies."""
-    assert excluded_topics_for(["tod"]) == {"hdc", "zone_o", "land_pooling"}
+    """A point in a TOD zone can drop every other policy's own sections.
+
+    Zone O and the Ridge appear in the set and it costs nothing: neither has a policy
+    section, so no chunk ever carries them as a primary zone and there is nothing for
+    the exclusion step to find (D-037, D-069).
+    """
+    assert excluded_topics_for(["tod"]) == {"hdc", "zone_o", "land_pooling", "ridge", "lda"}
     assert excluded_topics_for([]) == set(TOPICS)
     assert excluded_topics_for(list(TOPICS)) == set()
 
@@ -192,4 +197,4 @@ def test_a_point_in_no_policy_zone_says_that_too() -> None:
             "lda": False,
         }
     )
-    assert "none of the four policy zones" in described
+    assert "none of the six policy zones" in described

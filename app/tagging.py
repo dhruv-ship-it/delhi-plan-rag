@@ -1,12 +1,14 @@
 """Tag each chunk with the planning-zone topics it is about, so a point can filter search.
 
-ZoneWise answers questions about a point on the map, and four of the plan's policies are
+ZoneWise answers questions about a point on the map, and six of the plan's policies are
 the ones that depend on where you are standing:
 
   tod            Transit Oriented Development, the 500 m band along metro corridors
   hdc            the High Density Corridor, including the UER-II corridor
   zone_o         the Yamuna floodplain: planning zone O, and O-1 / O-2
   land_pooling   the land pooling areas
+  ridge          the Ridge and the Regional Parks: Delhi's Aravalli forest
+  lda            the Low Density Areas along the border of the NCT
 
 A chunk gets two different kinds of tag, and the difference matters at search time.
 
@@ -26,8 +28,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-#: The four topics, in the order they are reported.
-TOPICS = ("tod", "hdc", "zone_o", "land_pooling")
+#: The six topics, in the order they are reported. The order also decides which topic
+#: a heading takes when it could belong to two, and nothing in this corpus does.
+TOPICS = ("tod", "hdc", "zone_o", "land_pooling", "ridge", "lda")
 
 #: How each topic is named back to a reader, and in a query expansion.
 TOPIC_NAMES = {
@@ -35,6 +38,8 @@ TOPIC_NAMES = {
     "hdc": "High Density Corridor (HDC)",
     "zone_o": "Zone O (Yamuna floodplain)",
     "land_pooling": "Land Pooling",
+    "ridge": "the Ridge / Regional Park",
+    "lda": "Low Density Area (LDA)",
 }
 
 #: The phrases that count as a mention of each topic.
@@ -63,6 +68,16 @@ MENTION_PATTERNS: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\bland\s+pooling\b", re.I),
         (r"\bpooled\s+land\b", re.I),
     ),
+    "ridge": (
+        (r"\bridge\b", re.I),
+        (r"regional\s+park", re.I),
+        (r"\bAravalli", re.I),
+    ),
+    "lda": (
+        (r"\bLDA\b", 0),
+        (r"low\s+density\s+(?:area|residential)", re.I),
+        (r"\bfarm\s?house", re.I),
+    ),
 }
 
 #: zone_o also counts when a chunk talks about the river and about flooding together.
@@ -77,12 +92,15 @@ COMPILED: dict[str, tuple[re.Pattern[str], ...]] = {
 }
 
 #: Which gazette sections are each topic's own policy, by section number.
-#: zone_o is empty on purpose: MPD-2047 has no Zone O policy section (D-023, D-037).
+#: zone_o and ridge are empty on purpose: MPD-2047 has a policy section for neither
+#: (D-023, D-037, D-069), so both may boost and expand but never exclude.
 DEFAULT_GAZETTE_SECTIONS: dict[str, list[str]] = {
     "tod": ["4.2"],
     "hdc": ["4.3"],
     "zone_o": [],
     "land_pooling": ["4.1"],
+    "ridge": [],
+    "lda": ["4.4"],
 }
 
 #: Phrases that, when they appear in a FAQ section heading, make that section a topic's
@@ -94,6 +112,8 @@ DEFAULT_FAQ_SECTIONS: dict[str, list[str]] = {
     "hdc": ["High Density Corridor", "HDC Policy"],
     "zone_o": [],
     "land_pooling": ["Land Pooling"],
+    "ridge": [],
+    "lda": ["LDA", "Low Density Area"],
 }
 
 #: The doc_id whose sections are matched by heading words rather than section number.
@@ -236,9 +256,13 @@ ZONE_SECTIONS_NOTE = (
     "a rule that applies inside that zone and nowhere else. gazette_sections are "
     "section numbers, and a number also covers everything under it, so 4.2 covers "
     "4.2.1. faq_section_phrases are matched against a FAQ section heading, "
-    "case-insensitively, and only an explicit topic name counts. zone_o is empty in "
-    "both halves: MPD-2047 has no Zone O policy, so Zone O boosts a result and expands "
-    "a query but never excludes. See D-023, D-024, D-037 and D-038."
+    "case-insensitively, and only an explicit topic name counts. zone_o and ridge are "
+    "empty in both halves: MPD-2047 has a policy section for neither, so both boost a "
+    "result and expand a query but never exclude. The Ridge is named in chapter 10's "
+    "recreational norms and in 3.1.2 Green-Blue Infrastructure, and both of those are "
+    "about every park or green asset in Delhi rather than about the Ridge, so listing "
+    "either would let search drop general park norms for an ordinary plot. "
+    "See D-023, D-024, D-037, D-038 and D-069."
 )
 
 

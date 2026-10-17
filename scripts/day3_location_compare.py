@@ -1,9 +1,9 @@
 """Compare plain hybrid search against location-aware search at the test points.
 
 Reads  data/test_points.json, the indexes in data/index/, the layers in data/layers/dda/
-Writes reports/day3_location_compare.md
+Writes reports/<--out>.md, default reports/day3_location_compare.md
 
-Four comparisons, each the same question asked at different points, so the only thing
+Five comparisons, each the same question asked at different points, so the only thing
 that changes between the two columns is where the user is standing.
 
 The file is for reading by hand. Nothing here judges a result.
@@ -25,11 +25,17 @@ K = 5
 SNIPPET_CHARS = 120
 
 #: (label, question, the test points to ask it at).
+#:
+#: E is the comparison the ridge and lda topics were added for (D-069). "Can I build a
+#: house here?" is the right question to ask at both: in a Low Density Area the answer
+#: is a real policy with its own section (4.4), and on the Ridge there is no policy
+#: section at all, so the two points show the two halves of the design in one question.
 COMPARISONS = (
     ("A", "What is the maximum ground coverage allowed on my plot?", ("P_TOD", "P_HDC", "P_PLAIN")),
     ("B", "Can I construct a building here?", ("P_ZONEO",)),
     ("C", "What development rules apply to my land here?", ("P_LP",)),
     ("D", "What FAR can I get here?", ("P_TOD", "P_PLAIN")),
+    ("E", "Can I build a house here?", ("P_RIDGE", "P_LDA")),
 )
 
 
@@ -86,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     index = get_index()
 
     lines = [
-        "# Day 3: plain hybrid against location-aware search",
+        "# Plain hybrid against location-aware search",
         "",
         f"Generated {date.today().isoformat()} by `scripts/day3_location_compare.py`.",
         "",
@@ -103,6 +109,12 @@ def main(argv: list[str] | None = None) -> int:
         "both indexes, so a question with no zone words in it can still reach the right policy.",
         f"3. **Boost** — a chunk whose `zone_primary` *or* `zone_mentions` matches the point's "
         f"zones has its fused score multiplied by {settings.zone_boost}.",
+        "",
+        "Two of the six topics can only do steps 2 and 3. Zone O and the Ridge have no "
+        "policy section of their own in MPD-2047, so no chunk ever carries them as a "
+        "`zone_primary` and the exclusion step has nothing to find for them "
+        "(D-037, D-069). The three corridor policies and the LDA do have sections, so a "
+        "point outside them can drop their rules.",
         "",
         "`d3` is dense rank 3, `b1` is BM25 rank 1, **boosted** marks a chunk the boost "
         "applied to. Not judged here.",

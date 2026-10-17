@@ -128,9 +128,20 @@ def test_an_unknown_layer_is_a_404_that_lists_the_real_ones(client) -> None:
     assert "planning_zones" in detail["available"]
 
 
-def test_the_extra_layers_are_not_exposed(client) -> None:
-    """Downloaded but not wired to anything, so not served (D-030)."""
-    assert client.get("/api/layers/low_density_area").status_code == 404
+def test_the_policy_layers_are_served(client) -> None:
+    """The regional park and low density area layers back the ridge and lda topics."""
+    for name in ("regional_park", "low_density_area"):
+        body = client.get(f"/api/layers/{name}").json()
+        assert body["type"] == "FeatureCollection"
+        assert body["features"]
+
+
+def test_the_river_layer_is_not_exposed(client) -> None:
+    """Downloaded and loaded, but no policy is wired to it, so it is not served (D-030).
+
+    The river polygon exists to keep the zone O test point out of the water, which is
+    a job for `scripts/07_test_points.py` and not for the browser.
+    """
     assert client.get("/api/layers/yamuna_river").status_code == 404
 
 

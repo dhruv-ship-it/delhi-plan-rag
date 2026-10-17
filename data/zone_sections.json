@@ -1,5 +1,5 @@
 {
-  "_note": "Which sections are each zone topic's own policy. zone_primary is set from this, and it is the only tag search may exclude on, so a section listed here has to be a rule that applies inside that zone and nowhere else. gazette_sections are section numbers, and a number also covers everything under it, so 4.2 covers 4.2.1. faq_section_phrases are matched against a FAQ section heading, case-insensitively, and only an explicit topic name counts. zone_o is empty in both halves: MPD-2047 has no Zone O policy, so Zone O boosts a result and expands a query but never excludes. See D-023, D-024, D-037 and D-038.",
+  "_note": "Which sections are each zone topic's own policy. zone_primary is set from this, and it is the only tag search may exclude on, so a section listed here has to be a rule that applies inside that zone and nowhere else. gazette_sections are section numbers, and a number also covers everything under it, so 4.2 covers 4.2.1. faq_section_phrases are matched against a FAQ section heading, case-insensitively, and only an explicit topic name counts. zone_o and ridge are empty in both halves: MPD-2047 has a policy section for neither, so both boost a result and expand a query but never exclude. The Ridge is named in chapter 10's recreational norms and in 3.1.2 Green-Blue Infrastructure, and both of those are about every park or green asset in Delhi rather than about the Ridge, so listing either would let search drop general park norms for an ordinary plot. See D-023, D-024, D-037, D-038 and D-069.",
   "gazette_sections": {
     "tod": [
       "4.2"
@@ -10,6 +10,10 @@
     "zone_o": [],
     "land_pooling": [
       "4.1"
+    ],
+    "ridge": [],
+    "lda": [
+      "4.4"
     ]
   },
   "faq_section_phrases": {
@@ -24,6 +28,11 @@
     "zone_o": [],
     "land_pooling": [
       "Land Pooling"
+    ],
+    "ridge": [],
+    "lda": [
+      "LDA",
+      "Low Density Area"
     ]
   }
 }

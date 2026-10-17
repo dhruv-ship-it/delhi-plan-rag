@@ -5,6 +5,8 @@ so no test here needs an API key, the Chroma store or the map layers. That is th
 of the `llm` and `index` arguments on `answer_point`.
 """
 
+from dataclasses import replace
+
 import pytest
 
 from app.answer import (
@@ -44,8 +46,19 @@ CHUNKS = {
 }
 
 
-def fake_result(chunk_id: str, score: float = 0.05, clause: str = "4.2.3") -> Result:
-    """One search result, with only the fields the answer path reads."""
+def fake_result(
+    chunk_id: str,
+    score: float = 0.05,
+    clause: str = "4.2.3",
+    cosine: float = 0.8,
+    rerank: float | None = None,
+) -> Result:
+    """One search result, with only the fields the answer path reads.
+
+    `cosine` is the dense cosine *similarity*, which is what the abstention pre-check
+    reads (D-071); it is stored as the distance Chroma would have returned, 1 - cosine,
+    so the `dense_cosine` property computes the value asked for here.
+    """
     return Result(
         chunk_id=chunk_id,
         doc_id=chunk_id.split(":")[0],
@@ -59,9 +72,23 @@ def fake_result(chunk_id: str, score: float = 0.05, clause: str = "4.2.3") -> Re
         text=CHUNKS[chunk_id]["text"],
         dense_rank=1,
         bm25_rank=1,
-        dense_distance=0.2,
+        dense_distance=1.0 - cosine,
         fused_score=score,
+        bm25_score=7.5,
+        rerank_score=rerank,
     )
+
+
+
+def with_threshold(monkeypatch, value: float) -> None:
+    """Point app.answer at a copy of the settings with a different abstain threshold.
+
+    `Settings` is a frozen dataclass, so it cannot be mutated in place; `replace`
+    builds a copy and the module global is swapped for the duration of the test. That
+    is the right shape anyway — a test that mutated the real settings object would
+    leak into whatever ran next.
+    """
+    monkeypatch.setattr("app.answer.settings", replace(settings, abstain_threshold=value))
 
 
 class StubIndex:
@@ -268,9 +295,14 @@ def test_the_model_declining_is_passed_through_with_its_reason(patched) -> None:
     assert result.llm_calls == 1
 
 
-def test_weak_retrieval_abstains_without_asking_the_model(patched) -> None:
-    """No point spending a call when the best match is barely a match."""
-    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", score=0.001)]
+def test_weak_retrieval_abstains_without_asking_the_model(patched, monkeypatch) -> None:
+    """No point spending a call when the best match is barely a match.
+
+    "Barely a match" now means a low dense cosine similarity, not a low fused score:
+    the fused score of rank 1 is the same whatever was asked (D-071).
+    """
+    with_threshold(monkeypatch, 0.30)
+    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", cosine=0.11)]
     llm = FakeLLM(responses=[])  # any call at all would raise ScriptExhausted
     result = answer_point("What about Mars?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
 
@@ -343,14 +375,19 @@ def test_an_answer_that_obeys_an_injected_instruction_is_rejected(patched) -> No
     assert result.answer_markdown is None
 
 
-def test_the_abstain_threshold_is_the_configured_one(patched) -> None:
-    """A guard on the placeholder: if the default moves, this test says so (D-042)."""
-    assert settings.abstain_threshold == 0.02
-    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", score=0.0199)]
+def test_the_abstain_threshold_is_read_from_the_settings(patched, monkeypatch) -> None:
+    """The cut-off comes from config, and one side of it answers while the other does not.
+
+    The value is not asserted. It is provisional (D-071) and will be replaced from the
+    sweep over verified questions, and a test that pinned it would go red on the
+    measurement that is supposed to set it (D-068).
+    """
+    with_threshold(monkeypatch, 0.50)
+    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", cosine=0.499)]
     result = answer_point("x", 28.63, 77.22, llm=FakeLLM(responses=[]), index=StubIndex(CHUNKS))
     assert result.abstain_reason == WEAK_RETRIEVAL
 
-    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", score=0.0201)]
+    patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", cosine=0.501)]
     # only one source this time, so the answer may only cite [C1]
     single = "Ground coverage on a TOD plot is 40% [C1]."
     result = answer_point(

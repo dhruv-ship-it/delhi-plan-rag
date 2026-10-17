@@ -10,6 +10,7 @@ Three steps close that gap, in this order:
   1. Exclusion       drop a chunk whose own policy is a zone the point is not in
   2. Query expansion add the point's zone names to the query text, for both indexes
   3. Boost           multiply the fused score of a chunk about the point's zones
+  4. Rerank          optionally rescore the shortlist with a cross-encoder (D-070)
 
 Exclusion and boosting are deliberately asymmetric. Exclusion acts only on
 `zone_primary`, which is a claim about where a rule applies (D-023); a chunk with no
@@ -19,7 +20,13 @@ enough to be ranked higher but never enough to push anything out.
 """
 
 from app.config import settings
-from app.retrieval import Result, SearchIndex, SearchReport, reciprocal_rank_fusion
+from app.retrieval import (
+    Result,
+    SearchIndex,
+    SearchReport,
+    apply_reranker,
+    reciprocal_rank_fusion,
+)
 from app.spatial import topics_for
 from app.tagging import TOPICS
 
@@ -139,7 +146,7 @@ def location_aware_search(
 
     topics = topics_for(zones)
     if not zones.get("inside_delhi"):
-        results = rank(query, k=k, mode=mode, index=index)
+        results = rank(query, k=k, mode=mode, index=index, report=report)
         if report is not None:
             report.zones = zones
             report.expanded_query = query
@@ -157,6 +164,7 @@ def location_aware_search(
     dense_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(dense, start=1)}
     bm25_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(keyword, start=1)}
     distance = dict(dense)
+    keyword_score = dict(keyword)
 
     if mode == "dense":
         rankings = [[chunk_id for chunk_id, _ in dense]]
@@ -185,8 +193,11 @@ def location_aware_search(
         report.boosted = len(boosted_ids)
 
     ordered = sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
+    # Deeper than k when the reranker is on, so it has a shortlist to reorder. The
+    # reranker reads the expanded query, the same text both indexes searched with.
+    depth = max(k, settings.rerank_pool) if settings.reranker_on else k
     results: list[Result] = []
-    for chunk_id, score in ordered[:k]:
+    for chunk_id, score in ordered[:depth]:
         chunk = index.chunks.get(chunk_id)
         if chunk is None:
             continue
@@ -207,6 +218,7 @@ def location_aware_search(
                 dense_distance=distance.get(chunk_id),
                 fused_score=score,
                 boosted=chunk_id in boosted_ids,
+                bm25_score=keyword_score.get(chunk_id),
             )
         )
-    return results
+    return apply_reranker(expanded, results, k, report)

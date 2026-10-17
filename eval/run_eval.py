@@ -3,7 +3,7 @@
 Reads  eval/questions.jsonl if it exists, else eval/questions_draft.jsonl
        eval/points.json
 Writes eval/results/<timestamp>.md and .json
-       eval/results/DRYRUN_<timestamp>.md for an unverified run
+       eval/results/DRYRUN_<label>_<timestamp>.md for an unverified run
 
     uv run python eval/run_eval.py                       # verified questions only
     uv run python eval/run_eval.py --include-unverified  # a dry run, clearly labelled
@@ -28,7 +28,8 @@ report states how many of those there were.
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from contextlib import contextmanager
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -44,15 +45,39 @@ from eval.metrics import (  # noqa: E402
     mrr,
     paired_difference_interval,
     recall,
+    safest_threshold,
     suggest_threshold,
     threshold_sweep,
 )
 
-from app.config import settings  # noqa: E402
+from app.config import ABSTAIN_SIGNALS, settings  # noqa: E402
 from app.extract import markdown_table, use_utf8_output  # noqa: E402
+from app.rerank import available as reranker_available  # noqa: E402
 from app.retrieval import get_index, rank, search  # noqa: E402
 
-CONFIGURATIONS = ("dense", "bm25", "hybrid", "hybrid+location")
+#: The configurations always scored.
+BASE_CONFIGURATIONS = ("dense", "bm25", "hybrid", "hybrid+location")
+#: Scored as well when the installed fastembed has a cross-encoder (D-070).
+RERANK_CONFIGURATION = "hybrid+location+rerank"
+
+
+def configurations() -> tuple[str, ...]:
+    """Which configurations this run can score.
+
+    The rerank configuration is included only when the cross-encoder is importable,
+    so the harness runs on a machine whose fastembed does not have one and says so
+    in the report rather than failing.
+    """
+    if reranker_available():
+        return BASE_CONFIGURATIONS + (RERANK_CONFIGURATION,)
+    return BASE_CONFIGURATIONS
+
+
+CONFIGURATIONS = configurations()
+
+#: The signals the abstention analysis reports on, in report order. `fused_score`
+#: is included so a reader can see for themselves why it was replaced (D-071).
+ANALYSED_SIGNALS = ("fused_score",) + tuple(ABSTAIN_SIGNALS)
 #: How deep to retrieve. Must be at least the largest recall cut-off.
 TOP_K = max(RECALL_AT)
 
@@ -67,6 +92,32 @@ DRY_RUN_BANNER = (
     "> **Do not put these numbers in a README, a resume or a conversation.** "
     "Verify the questions first: see `eval/README.md`."
 )
+
+
+@contextmanager
+def reranker(on: bool):
+    """Turn the reranker on or off for the body of the block.
+
+    Settings is a frozen dataclass, so this swaps the module globals the retrieval
+    code reads for a replaced copy and puts them back afterwards, whatever happens
+    inside.
+    """
+    import app.location as location_module
+    import app.retrieval as retrieval_module
+
+    if on == settings.use_reranker:
+        yield
+        return
+    patched = replace(settings, use_reranker=on)
+    modules = (retrieval_module, location_module)
+    originals = [(module, module.settings) for module in modules]
+    for module, _ in originals:
+        module.settings = patched
+    try:
+        yield
+    finally:
+        for module, original in originals:
+            module.settings = original
 
 
 def load_questions(include_unverified: bool) -> tuple[list[dict], Path, int]:
@@ -85,23 +136,39 @@ def load_questions(include_unverified: bool) -> tuple[list[dict], Path, int]:
     return kept, path, len(everything) - len(kept)
 
 
-def retrieve(question: dict, configuration: str, index) -> tuple[list[str], float]:
-    """Run one question through one configuration. Returns (chunk ids, best score)."""
+def retrieve(question: dict, configuration: str, index) -> tuple[list[str], dict]:
+    """Run one question through one configuration. Returns (chunk ids, top-1 signals).
+
+    The rerank configuration turns the reranker on for the length of the call by
+    swapping in a copy of the settings, rather than relying on whatever USE_RERANKER
+    happens to be: one run has to score every configuration in one pass, so the flag
+    cannot be process-wide.
+    """
     text = question["question"]
     has_point = question.get("lat") is not None and question.get("lon") is not None
+    wants_location = configuration.startswith("hybrid+location")
+    wants_rerank = configuration == RERANK_CONFIGURATION
 
-    if configuration == "hybrid+location" and has_point:
-        from app.spatial import get_zones
+    with reranker(wants_rerank):
+        if wants_location and has_point:
+            from app.spatial import get_zones
 
-        zones = get_zones(question["lat"], question["lon"])
-        results = search(text, k=TOP_K, mode="hybrid", zones=zones, index=index)
-    else:
-        mode = "hybrid" if configuration == "hybrid+location" else configuration
-        results = rank(text, k=TOP_K, mode=mode, index=index)
+            zones = get_zones(question["lat"], question["lon"])
+            results = search(text, k=TOP_K, mode="hybrid", zones=zones, index=index)
+        else:
+            mode = "hybrid" if wants_location else configuration
+            results = rank(text, k=TOP_K, mode=mode, index=index)
 
+    if not results:
+        return [], {"fused_score": 0.0, "dense_cosine": None, "rerank_score": None}
+    best = results[0]
     return (
         [result.chunk_id for result in results],
-        results[0].fused_score if results else 0.0,
+        {
+            "fused_score": best.fused_score,
+            "dense_cosine": best.dense_cosine,
+            "rerank_score": best.rerank_score,
+        },
     )
 
 
@@ -109,18 +176,42 @@ def score_questions(questions: list[dict], configuration: str, index) -> list[Qu
     """Score every question under one configuration."""
     scored: list[QuestionScore] = []
     for question in questions:
-        retrieved, top_score = retrieve(question, configuration, index)
+        retrieved, signals = retrieve(question, configuration, index)
         wanted = set(question["expected_chunk_ids"]) | set(question["acceptable_chunk_ids"])
         scored.append(
             QuestionScore(
                 question_id=question["id"],
                 category=question["category"],
                 first_hit_rank=first_hit_rank(retrieved, wanted) if wanted else None,
-                top_score=top_score,
+                top_score=signals["fused_score"],
                 retrieved=retrieved,
+                top_dense_cosine=signals["dense_cosine"],
+                top_rerank_score=signals["rerank_score"],
             )
         )
     return scored
+
+
+#: The percentiles the abstention analysis reports, in report order.
+REPORTED_PERCENTILES = ((0.05, "p5"), (0.25, "p25"), (0.50, "p50"), (0.75, "p75"), (0.95, "p95"))
+
+
+def signal_percentiles(values: list[float]) -> dict[str, float | None]:
+    """p5, p25, p50, p75 and p95 of one signal's values, by nearest rank.
+
+    Percentiles rather than a mean, because the question is not how high the signal
+    usually is but how far the two groups overlap. Two distributions can share a mean
+    and still be perfectly separable, or differ in mean and overlap completely, and it
+    is the overlap that decides whether a threshold can work at all.
+    """
+    if not values:
+        return {name: None for _, name in REPORTED_PERCENTILES}
+    ordered = sorted(values)
+    found = {}
+    for share, name in REPORTED_PERCENTILES:
+        position = min(len(ordered) - 1, max(0, round(share * (len(ordered) - 1))))
+        found[name] = ordered[position]
+    return found
 
 
 def summarise(scores: list[QuestionScore]) -> dict:
@@ -293,55 +384,133 @@ def build_report(
             "",
         ]
 
-    # the abstention threshold sweep
+    # the abstention analysis, one section per signal
     abstain_ids = {item["id"] for item in questions if item["should_abstain"]}
-    sweep_rows: list[dict] = []
-    suggestion = None
+    signal_analysis: dict[str, dict] = {}
     if abstain_ids:
-        hybrid = results["hybrid+location"]
-        abstain_scores = [s.top_score for s in hybrid if s.question_id in abstain_ids]
-        answer_scores = [s.top_score for s in hybrid if s.question_id in answerable_ids]
-        rows_data = threshold_sweep(answer_scores, abstain_scores)
-        suggestion = suggest_threshold(rows_data)
-        sweep_rows = [asdict(row) | {"margin": row.margin} for row in rows_data]
         lines += [
-            "## Could the top score alone decide when to refuse?",
+            "## Which score can decide when to refuse?",
             "",
-            f"Retrieval only, no LLM call. For each candidate threshold: the share of the "
-            f"{len(abstain_ids)} should-abstain questions whose best fused score falls "
-            f"below it (caught, higher is better), against the share of the "
-            f"{len(answerable_ids)} answerable ones that would be wrongly refused (lost, "
-            "lower is better).",
+            "Retrieval only, no LLM call, scored under `hybrid+location` (and under "
+            "`hybrid+location+rerank` for the cross-encoder signal, which only exists "
+            "there). Each signal is the **top-1** value for the question: the question "
+            "is refused before any API call when that value falls below "
+            "`settings.abstain_threshold`.",
             "",
-            markdown_table(
-                ("threshold", "caught", "lost", "margin"),
-                [
-                    [
-                        f"{row.threshold:.4f}",
-                        f"{row.caught:.2f}",
-                        f"{row.lost:.2f}",
-                        f"{row.margin:+.2f}",
-                    ]
-                    for row in rows_data
-                ],
-            ),
+            "`fused_score` is here to be rejected rather than used. An RRF score only "
+            "encodes rank position, so the best chunk for a question about Mumbai "
+            "property tax scores exactly what the best chunk for a question the "
+            "gazette answers in full scores. Read its two percentile rows against each "
+            "other and the point is immediate (D-071).",
             "",
         ]
-        if suggestion is not None:
-            lines += [
-                f"**Widest margin at {suggestion.threshold:.4f}**: it would catch "
-                f"{suggestion.caught:.0%} of the unanswerable questions and wrongly "
-                f"refuse {suggestion.lost:.0%} of the answerable ones. "
-                f"`settings.abstain_threshold` is currently "
-                f"{settings.abstain_threshold} (a placeholder, D-042).",
-                "",
-            ]
-            if dry_run:
+        for signal in ANALYSED_SIGNALS:
+            source_configuration = (
+                RERANK_CONFIGURATION if signal == "rerank_score" else "hybrid+location"
+            )
+            if source_configuration not in results:
                 lines += [
-                    "This suggestion is from unverified questions, so it is not a reason "
-                    "to change the setting yet.",
+                    f"### `{signal}`",
+                    "",
+                    "Not available: the installed fastembed has no cross-encoder, so "
+                    "nothing produced this signal (D-070).",
                     "",
                 ]
+                continue
+            scored = results[source_configuration]
+            answerable_values = [
+                value
+                for score in scored
+                if score.question_id in answerable_ids
+                and (value := score.signal(signal)) is not None
+            ]
+            abstain_values = [
+                value
+                for score in scored
+                if score.question_id in abstain_ids
+                and (value := score.signal(signal)) is not None
+            ]
+            rows_data = threshold_sweep(answerable_values, abstain_values)
+            widest = suggest_threshold(rows_data)
+            safest = safest_threshold(rows_data)
+            signal_analysis[signal] = {
+                "configuration": source_configuration,
+                "percentiles": {
+                    "answerable": signal_percentiles(answerable_values),
+                    "should_abstain": signal_percentiles(abstain_values),
+                },
+                "sweep": [asdict(row) | {"margin": row.margin} for row in rows_data],
+                "widest_margin": asdict(widest) if widest else None,
+                "provisional": asdict(safest) if safest else None,
+            }
+            lines += [
+                f"### `{signal}`" + (
+                    f" — from `{source_configuration}`"
+                    if source_configuration != "hybrid+location"
+                    else ""
+                ),
+                "",
+                markdown_table(
+                    ("group", "n", "p5", "p25", "p50", "p75", "p95"),
+                    [
+                        [name, str(len(values))]
+                        + [
+                            "-" if value is None else f"{value:.4f}"
+                            for value in signal_percentiles(values).values()
+                        ]
+                        for name, values in (
+                            ("answerable", answerable_values),
+                            ("should abstain", abstain_values),
+                        )
+                    ],
+                ),
+                "",
+            ]
+            if not answerable_values or not abstain_values:
+                lines += ["No values for one of the two groups, so no sweep.", ""]
+                continue
+            lines += [
+                markdown_table(
+                    ("threshold", "caught", "lost", "margin"),
+                    [
+                        [
+                            f"{row.threshold:.4f}",
+                            f"{row.caught:.0%}",
+                            f"{row.lost:.0%}",
+                            f"{row.margin:+.2f}",
+                        ]
+                        for row in rows_data
+                    ],
+                ),
+                "",
+            ]
+            if safest is not None:
+                lines += [
+                    f"**Provisional threshold {safest.threshold:.4f}** — the highest "
+                    f"value that refuses none of the answerable questions. It catches "
+                    f"{safest.caught:.0%} of the should-abstain ones.",
+                    "",
+                ]
+            if widest is not None:
+                lines += [
+                    f"**Widest margin at {widest.threshold:.4f}** — catches "
+                    f"{widest.caught:.0%}, wrongly refuses {widest.lost:.0%}.",
+                    "",
+                ]
+        lines += [
+            f"`settings.abstain_signal` is `{settings.abstain_signal}` and "
+            f"`settings.abstain_threshold` is {settings.abstain_threshold}, which is "
+            "**provisional** (D-071). The two signals are on different scales, so the "
+            "threshold has to be reset whenever the signal changes.",
+            "",
+        ]
+        if dry_run:
+            lines += [
+                "Only the provisional value above may be adopted from this run. The "
+                "widest-margin values are fitted to questions Claude wrote and are not "
+                "measurements (D-054).",
+                "",
+            ]
 
     # per-question detail, so a bad score can be traced to a question
     lines += ["## Every question, under hybrid+location", "", ]
@@ -398,8 +567,9 @@ def build_report(
             for configuration in CONFIGURATIONS
         },
         "location_vs_hybrid": comparison,
-        "threshold_sweep": sweep_rows,
-        "suggested_threshold": asdict(suggestion) if suggestion else None,
+        "reranker_available": reranker_available(),
+        "abstention_by_signal": signal_analysis,
+        "configured_abstain_signal": settings.abstain_signal,
         "configured_abstain_threshold": settings.abstain_threshold,
         "per_question": {
             configuration: [
@@ -408,6 +578,8 @@ def build_report(
                     "category": score.category,
                     "first_hit_rank": score.first_hit_rank,
                     "top_score": score.top_score,
+                    "top_dense_cosine": score.top_dense_cosine,
+                    "top_rerank_score": score.top_rerank_score,
                     "retrieved": score.retrieved,
                 }
                 for score in results[configuration]
@@ -426,6 +598,11 @@ def main(argv: list[str] | None = None) -> int:
         "--include-unverified",
         action="store_true",
         help="also use questions with verified=false; the report is labelled a dry run",
+    )
+    parser.add_argument(
+        "--label",
+        default="",
+        help="a short name put in the output file name, e.g. night3",
     )
     args = parser.parse_args(argv)
 
@@ -468,8 +645,9 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = settings.project_root / "eval" / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
     prefix = "DRYRUN_" if dry_run else ""
-    report_path = out_dir / f"{prefix}{stamp}.md"
-    json_path = out_dir / f"{prefix}{stamp}.json"
+    label = f"{args.label}_" if args.label else ""
+    report_path = out_dir / f"{prefix}{label}{stamp}.md"
+    json_path = out_dir / f"{prefix}{label}{stamp}.json"
     report_path.write_text(report, encoding="utf-8")
     json_path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 

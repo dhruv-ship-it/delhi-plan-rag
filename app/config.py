@@ -88,6 +88,27 @@ def env_list(name: str, default: list[str]) -> list[str]:
 #: pay for; `LLM_MODEL` in .env overrides it without a code change (D-063).
 DEFAULT_LLM_MODEL = "claude-haiku-5-5"
 
+#: Which retrieval score the abstention pre-check reads. See D-071.
+DENSE_COSINE = "dense_cosine"
+RERANK_SCORE = "rerank_score"
+ABSTAIN_SIGNALS = (DENSE_COSINE, RERANK_SCORE)
+DEFAULT_ABSTAIN_SIGNAL = DENSE_COSINE
+
+#: The **PROVISIONAL** cut-off for `DENSE_COSINE`, measured by
+#: `scripts/tune_abstention.py` over the 60 drafted questions: it is a hair below the
+#: lowest top-1 cosine similarity any answerable draft question produced, so it refuses
+#: none of them. It also catches none of the ten should-abstain questions, which is the
+#: honest state of affairs and not a failure of the guard — the two distributions
+#: overlap almost completely on this signal, and the most conservative value that can
+#: be chosen without verified questions is therefore one that only catches a total
+#: retrieval failure. The final value comes from the same sweep over
+#: `eval/questions_verified.jsonl`. See D-071.
+DEFAULT_ABSTAIN_THRESHOLD = 0.5804
+#: The provisional cut-off for `RERANK_SCORE`, measured the same way. Cross-encoder
+#: scores run from about -11 to +11, so a threshold for one signal is meaningless for
+#: the other and `ABSTAIN_THRESHOLD` must be set whenever `ABSTAIN_SIGNAL` changes.
+PROVISIONAL_RERANK_THRESHOLD = -10.2377
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -127,11 +148,28 @@ class Settings:
     #: Whether the point's zone names are appended to the query text.
     zone_query_expansion: bool = True
 
+    # --- the reranker ---------------------------------------------------------
+    #: Rescore the top `rerank_pool` results with a cross-encoder after fusion.
+    #: Off until the evaluation says it earns its 0.4 s a query. See D-070.
+    use_reranker: bool = False
+    #: The smallest MS-MARCO cross-encoder fastembed offers, 80 MB.
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+    #: How many fused results the cross-encoder rescores.
+    rerank_pool: int = 20
+
     # --- answering ------------------------------------------------------------
-    #: Below this fused score we do not ask the model at all, we abstain.
-    #: PLACEHOLDER, to be tuned on Day 5 against the verified question set — the value
-    #: here is a guess, not a measurement. See D-042.
-    abstain_threshold: float = 0.02
+    #: Which score decides that retrieval was too weak to ask the model at all:
+    #: "dense_cosine" (top-1 dense cosine similarity) or "rerank_score" (top-1
+    #: cross-encoder score, only meaningful when `use_reranker` is on). See D-071.
+    abstain_signal: str = "dense_cosine"
+    #: Below this value of `abstain_signal` we do not ask the model, we abstain.
+    #: **PROVISIONAL** (D-071): set so that it refuses none of the drafted answerable
+    #: questions, which is the most conservative value available before the questions
+    #: are verified. The final value comes from the sweep in eval/run_eval.py.
+    abstain_threshold: float = DEFAULT_ABSTAIN_THRESHOLD
+    #: The old fused-score threshold, kept only so the reason it was replaced is
+    #: documented in one place. Nothing reads it. See D-042 and D-071.
+    legacy_fused_threshold: float = 0.02
     #: How many words the model may use for an answer.
     answer_max_tokens: int = 900
     #: Answers are deterministic: the same sources and question give the same words.
@@ -151,11 +189,16 @@ class Settings:
     geocode_timeout_s: int = 30
 
     # --- the API --------------------------------------------------------------
-    #: Where the web dev server runs, which is the only origin CORS allows.
-    cors_origin: str = "http://localhost:5173"
+    #: Which browser origins may call the API. See D-076.
+    cors_origins: tuple[str, ...] = ("http://localhost:5173",)
     #: Asks per IP per minute, and for the whole service per day. See D-049.
     rate_limit_per_minute: int = 10
     rate_limit_per_day: int = 300
+    #: The longest question the API accepts, and the largest request body. See D-075.
+    max_question_chars: int = 500
+    max_request_bytes: int = 65536
+    #: True enables the dev-only question verification endpoints. See D-073.
+    dev_mode: bool = False
     #: How much a map layer is simplified before it is sent to the browser, in degrees.
     layer_simplify_tolerance: float = 0.0005
 
@@ -185,6 +228,25 @@ class Settings:
         return looks_like_api_key(self.anthropic_api_key)
 
     @property
+    def reranker_on(self) -> bool:
+        """True when results should actually be reranked: asked for, and available."""
+        from app.rerank import available
+
+        return self.use_reranker and available()
+
+    @property
+    def abstention_signal(self) -> str:
+        """The abstention signal actually in use.
+
+        `rerank_score` means nothing with the reranker off — every result would have
+        `None` for it and the pre-check would let everything through — so the request
+        falls back to the dense signal rather than silently disabling the guard.
+        """
+        if self.abstain_signal == RERANK_SCORE and not self.reranker_on:
+            return DENSE_COSINE
+        return self.abstain_signal if self.abstain_signal in ABSTAIN_SIGNALS else DENSE_COSINE
+
+    @property
     def llm_available(self) -> bool:
         """True when an answer can actually be produced: a real key, or the fake client."""
         return self.use_fake_llm or self.has_api_key
@@ -204,6 +266,14 @@ settings = Settings(
     sources_csv=DATA_DIR / "sources.csv",
     anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
     llm_model=env_str("LLM_MODEL", DEFAULT_LLM_MODEL),
-    use_fake_llm=os.getenv("ZONEWISE_USE_FAKE_LLM", "").strip().lower()
-    in {"1", "true", "yes"},
+    use_fake_llm=env_bool("ZONEWISE_USE_FAKE_LLM", False),
+    use_reranker=env_bool("USE_RERANKER", False),
+    abstain_signal=env_str("ABSTAIN_SIGNAL", DEFAULT_ABSTAIN_SIGNAL),
+    abstain_threshold=env_float("ABSTAIN_THRESHOLD", DEFAULT_ABSTAIN_THRESHOLD),
+    dev_mode=env_bool("ZONEWISE_DEV", False),
+    cors_origins=tuple(env_list("CORS_ORIGINS", ["http://localhost:5173"])),
+    rate_limit_per_minute=env_int("RATE_LIMIT_PER_MINUTE", 10),
+    rate_limit_per_day=env_int("RATE_LIMIT_PER_DAY", 300),
+    max_question_chars=env_int("MAX_QUESTION_CHARS", 500),
+    max_request_bytes=env_int("MAX_REQUEST_BYTES", 65536),
 )

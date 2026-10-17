@@ -14,9 +14,16 @@ Reciprocal rank fusion adds 1/(k + rank) over the lists a chunk appears in, with
 k = 60 (see D-028). It uses only the ranks, never the scores, which is what makes it
 safe here: a cosine distance and a BM25 score are not on the same scale and cannot be
 added, but their rank orders can.
+
+Every result also carries the **raw** scores it came from — `dense_cosine`,
+`bm25_score`, and `rerank_score` when the reranker ran — alongside the fused score it
+is ranked by. Fusion deliberately throws the raw numbers away, and something downstream
+needs them back: the abstention pre-check has to ask "is this chunk actually about the
+question?", and a fused score cannot answer that, because rank 1 of a hopeless search
+scores exactly what rank 1 of a good search scores (D-071).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from app.config import settings
 from app.indexing import (
@@ -54,6 +61,27 @@ class Result:
     fused_score: float
     #: True when a zone boost multiplied this result's score.
     boosted: bool = False
+    #: Raw BM25 score, when the keyword pool returned this chunk. Corpus-dependent and
+    #: unbounded above, so it is reported rather than thresholded on.
+    bm25_score: float | None = None
+    #: The cross-encoder's score for this query and this chunk, when the reranker ran.
+    #: Unbounded, roughly -11 to +11 for the MS-MARCO MiniLM models, and an absolute
+    #: judgement rather than a position, which is what makes it usable as a signal.
+    rerank_score: float | None = None
+    #: 1-based position after reranking, when the reranker ran.
+    rerank_rank: int | None = None
+
+    @property
+    def dense_cosine(self) -> float | None:
+        """Cosine similarity with the query, or None when the dense pool missed it.
+
+        Chroma is built with `space: cosine`, where the distance it returns is
+        1 - similarity. Similarity is the more useful of the two to threshold on,
+        because it runs the right way round: higher means closer.
+        """
+        if self.dense_distance is None:
+            return None
+        return 1.0 - self.dense_distance
 
     @property
     def path(self) -> str:
@@ -75,6 +103,10 @@ class Result:
             "dense_rank": self.dense_rank,
             "bm25_rank": self.bm25_rank,
             "dense_distance": self.dense_distance,
+            "dense_cosine": self.dense_cosine,
+            "bm25_score": self.bm25_score,
+            "rerank_score": self.rerank_score,
+            "rerank_rank": self.rerank_rank,
             "fused_score": self.fused_score,
             "boosted": self.boosted,
         }
@@ -94,6 +126,10 @@ class SearchReport:
     boosted: int = 0
     excluded_topics: list[str] = field(default_factory=list)
     expansion_terms: list[str] = field(default_factory=list)
+    #: How many results the cross-encoder rescored, 0 when it did not run.
+    reranked: int = 0
+    #: Why the cross-encoder did not run, when it was asked for and failed.
+    rerank_error: str = ""
 
 
 class SearchIndex:
@@ -171,6 +207,7 @@ def _result(
     dense_distance: float | None,
     score: float,
     boosted: bool = False,
+    bm25_score: float | None = None,
 ) -> Result:
     """Build one Result from a chunk record and its scores."""
     return Result(
@@ -189,7 +226,59 @@ def _result(
         dense_distance=dense_distance,
         fused_score=score,
         boosted=boosted,
+        bm25_score=bm25_score,
     )
+
+
+def signal_value(result: Result, signal: str) -> float | None:
+    """The raw score named by `signal` for one result, or None when it has none.
+
+    One function so the abstention pre-check, the API's score breakdown and the
+    evaluation's percentile tables all read the same field by the same name (D-071).
+    """
+    if signal == "rerank_score":
+        return result.rerank_score
+    return result.dense_cosine
+
+
+def apply_reranker(
+    query: str, results: list[Result], k: int, report: SearchReport | None = None
+) -> list[Result]:
+    """Rescore the results with the cross-encoder and return the best k.
+
+    The query here is the **expanded** query, the same text the two indexes searched
+    with, so the cross-encoder is judging the same question they were asked. Returning
+    `results` unchanged when the reranker is off or unavailable is what lets every
+    caller run this unconditionally.
+
+    A failure is swallowed and reported, not raised. The reranker is an optimisation;
+    losing it should cost result quality, not the answer.
+    """
+    from app.rerank import rerank_scores
+
+    if not results or not settings.reranker_on:
+        return results[:k]
+
+    shortlist = results[: settings.rerank_pool]
+    try:
+        scores = rerank_scores(query, [item.text for item in shortlist])
+    except Exception as exc:  # pragma: no cover - needs the model to be broken
+        if report is not None:
+            report.reranked = 0
+            report.rerank_error = f"{type(exc).__name__}: {exc}"
+        return results[:k]
+
+    scored = [
+        (score, item) for score, item in zip(scores, shortlist)
+    ]
+    scored.sort(key=lambda pair: (-pair[0], pair[1].chunk_id))
+    reranked = [
+        replace(item, rerank_score=score, rerank_rank=position)
+        for position, (score, item) in enumerate(scored, start=1)
+    ]
+    if report is not None:
+        report.reranked = len(reranked)
+    return reranked[:k]
 
 
 def search(
@@ -234,6 +323,7 @@ def rank(
     dense_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(dense, start=1)}
     bm25_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(keyword, start=1)}
     distance = dict(dense)
+    keyword_score = dict(keyword)
 
     if mode == "dense":
         scores = reciprocal_rank_fusion([[chunk_id for chunk_id, _ in dense]])
@@ -248,8 +338,11 @@ def rank(
         report.expanded_query = query
 
     ordered = sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
+    # Deeper than k, so the reranker has a shortlist to reorder rather than k results
+    # in a fixed order. With the reranker off this costs one extra dict lookup each.
+    depth = max(k, settings.rerank_pool) if settings.reranker_on else k
     results = []
-    for chunk_id, score in ordered[:k]:
+    for chunk_id, score in ordered[:depth]:
         chunk = index.chunks.get(chunk_id)
         if chunk is None:
             continue  # the index holds a chunk id that chunks.jsonl no longer has
@@ -260,6 +353,7 @@ def rank(
                 bm25_rank.get(chunk_id),
                 distance.get(chunk_id),
                 score,
+                bm25_score=keyword_score.get(chunk_id),
             )
         )
-    return results
+    return apply_reranker(query, results, k, report)

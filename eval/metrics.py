@@ -34,9 +34,23 @@ class QuestionScore:
     category: str
     #: 1-based rank of the first acceptable chunk, or None if none was retrieved.
     first_hit_rank: int | None
-    #: The best fused score the retriever produced, for the abstention sweep.
+    #: The best fused score the retriever produced. Kept for continuity with earlier
+    #: runs; it is **not** a usable abstention signal, because an RRF score only
+    #: encodes rank position (D-071).
     top_score: float
     retrieved: list[str] = field(default_factory=list)
+    #: Top-1 dense cosine similarity, or None when the dense pool missed everything.
+    top_dense_cosine: float | None = None
+    #: Top-1 cross-encoder score, or None when the reranker did not run.
+    top_rerank_score: float | None = None
+
+    def signal(self, name: str) -> float | None:
+        """The named signal's top-1 value for this question, or None when it has none."""
+        return {
+            "fused_score": self.top_score,
+            "dense_cosine": self.top_dense_cosine,
+            "rerank_score": self.top_rerank_score,
+        }.get(name)
 
     def recall_at(self, k: int) -> int:
         """1 when an acceptable chunk is in the top k, else 0."""
@@ -149,6 +163,26 @@ class ThresholdRow:
         return self.caught - self.lost
 
 
+#: How many candidate thresholds a sweep tries when it picks its own.
+SWEEP_STEPS = 25
+
+
+def sweep_thresholds(scores: list[float], steps: int = SWEEP_STEPS) -> list[float]:
+    """Candidate thresholds spread across the range the scores actually occupy.
+
+    The thresholds cannot be a fixed list any more. The sweep used to try 0.002 to 0.05,
+    which is the range an RRF score lives in; a cosine similarity sits around 0.6 to
+    0.9 and a cross-encoder score runs from about -11 to +11, so a fixed list would
+    report 25 rows of zeroes for either of them (D-071).
+    """
+    if not scores:
+        return []
+    low, high = min(scores), max(scores)
+    if high == low:
+        high = low + 1.0
+    return [round(low + (high - low) * step / steps, 4) for step in range(steps + 1)]
+
+
 def threshold_sweep(
     answerable_scores: list[float],
     abstain_scores: list[float],
@@ -156,11 +190,13 @@ def threshold_sweep(
 ) -> list[ThresholdRow]:
     """For each candidate threshold, what it would catch and what it would lose.
 
-    A retrieval-only check: it asks whether the top fused score alone can separate the
-    questions the corpus answers from the ones it does not, with no LLM call involved.
+    A retrieval-only check: it asks whether one top-1 score can separate the questions
+    the corpus answers from the ones it does not, with no LLM call involved. When no
+    thresholds are given it picks them from the range the scores occupy, so the same
+    function works for every signal.
     """
     if thresholds is None:
-        thresholds = [round(0.002 * step, 4) for step in range(1, 26)]
+        thresholds = sweep_thresholds(answerable_scores + abstain_scores)
     rows = []
     for threshold in thresholds:
         caught = mean([1 if score < threshold else 0 for score in abstain_scores])
@@ -179,3 +215,17 @@ def suggest_threshold(rows: list[ThresholdRow]) -> ThresholdRow | None:
     if not rows:
         return None
     return max(rows, key=lambda row: (round(row.margin, 6), -row.threshold))
+
+
+def safest_threshold(rows: list[ThresholdRow]) -> ThresholdRow | None:
+    """The highest threshold that loses nothing at all: the provisional value.
+
+    This is the one that may be used before the questions have been checked by a
+    person. It is chosen without reference to what it catches, which is the point —
+    anything that trades a real answer away has been fitted to the question set, and a
+    question set nobody has verified is not evidence (D-054, D-071).
+    """
+    harmless = [row for row in rows if row.lost == 0.0]
+    if not harmless:
+        return None
+    return max(harmless, key=lambda row: row.threshold)

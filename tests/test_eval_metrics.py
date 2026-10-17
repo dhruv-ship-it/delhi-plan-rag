@@ -7,6 +7,8 @@ is small enough to check on paper.
 import pytest
 
 from eval.metrics import (
+    safest_threshold,
+    sweep_thresholds,
     BOOTSTRAP_RESAMPLES,
     QuestionScore,
     ThresholdRow,
@@ -223,3 +225,82 @@ def test_a_tie_goes_to_the_lower_threshold() -> None:
 
 def test_suggesting_from_nothing_returns_nothing() -> None:
     assert suggest_threshold([]) is None
+
+
+# --- the sweep on any signal's scale (D-071) -----------------------------------
+
+
+def test_sweep_thresholds_span_the_range_the_scores_occupy() -> None:
+    """A fixed list of candidates only suits the signal it was written for."""
+    candidates = sweep_thresholds([-10.0, 8.0], steps=4)
+    assert candidates[0] == -10.0
+    assert candidates[-1] == 8.0
+    assert len(candidates) == 5
+
+
+def test_sweep_thresholds_handles_one_repeated_value() -> None:
+    """Every question scoring the same is degenerate, not a crash."""
+    candidates = sweep_thresholds([0.5, 0.5], steps=2)
+    assert candidates[0] == 0.5
+    assert candidates[-1] > 0.5
+
+
+def test_sweep_thresholds_of_nothing_is_nothing() -> None:
+    assert sweep_thresholds([]) == []
+
+
+def test_the_sweep_picks_its_own_thresholds_from_the_scores() -> None:
+    """A cross-encoder sweep has to produce rows in the negatives (D-071)."""
+    rows = threshold_sweep([2.0, 5.0], [-8.0, -4.0])
+    assert rows[0].threshold == pytest.approx(-8.0)
+    assert rows[-1].threshold == pytest.approx(5.0)
+    assert any(row.caught == 1.0 and row.lost == 0.0 for row in rows)
+
+
+def test_the_provisional_threshold_loses_nothing() -> None:
+    """The only value that may be adopted from unverified questions."""
+    rows = threshold_sweep([0.7, 0.8, 0.9], [0.3, 0.4])
+    safest = safest_threshold(rows)
+    assert safest is not None
+    assert safest.lost == 0.0
+    assert all(row.threshold <= safest.threshold for row in rows if row.lost == 0.0)
+
+
+def test_the_provisional_threshold_is_the_highest_harmless_one() -> None:
+    """Highest, so it catches as much as it can without ever refusing a real question."""
+    rows = threshold_sweep([0.70], [0.1, 0.2, 0.3, 0.4])
+    safest = safest_threshold(rows)
+    assert safest is not None
+    assert safest.caught > 0.0
+    assert safest.lost == 0.0
+
+
+def test_there_may_be_no_harmless_threshold_at_all() -> None:
+    """When the lowest candidate already loses something, there is nothing safe to pick."""
+    rows = threshold_sweep([0.1, 0.2], [0.9], thresholds=[0.5, 0.95])
+    assert safest_threshold(rows) is None
+
+
+def test_the_question_score_reads_each_signal_by_name() -> None:
+    """One accessor, so the report and the pre-check cannot drift apart."""
+    score = QuestionScore(
+        question_id="loc-01",
+        category="location",
+        first_hit_rank=1,
+        top_score=0.0328,
+        top_dense_cosine=0.81,
+        top_rerank_score=4.2,
+    )
+    assert score.signal("fused_score") == pytest.approx(0.0328)
+    assert score.signal("dense_cosine") == pytest.approx(0.81)
+    assert score.signal("rerank_score") == pytest.approx(4.2)
+    assert score.signal("something_else") is None
+
+
+def test_a_signal_that_was_never_measured_reads_as_none() -> None:
+    """The reranker did not run, so there is no cross-encoder score to report."""
+    score = QuestionScore(
+        question_id="gen-01", category="general", first_hit_rank=None, top_score=0.0164
+    )
+    assert score.signal("rerank_score") is None
+    assert score.signal("dense_cosine") is None

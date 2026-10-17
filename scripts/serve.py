@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  app:    http://{args.host}:{args.port}/ (serving web/dist)")
     else:
         print("  app:    web/dist not built; run: cd web && npm run build")
-        print(f"          or use the dev server at {settings.cors_origin}")
+        print(f"          or use the dev server at {settings.cors_origins[0]}")
     print()
 
     import uvicorn

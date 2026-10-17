@@ -1,0 +1,5232 @@
+{
+  "generated_at": "2026-10-18T00:22:59",
+  "dry_run": true,
+  "source": "eval/questions_draft.jsonl",
+  "questions_used": 60,
+  "questions_skipped_unverified": 0,
+  "counts_per_category": {
+    "abstain": 10,
+    "general": 25,
+    "location": 25
+  },
+  "answerable": 50,
+  "answerable_with_coordinates": 25,
+  "configurations": {
+    "dense": {
+      "overall": {
+        "n": 50,
+        "recall@1": 0.26,
+        "recall@3": 0.42,
+        "recall@5": 0.62,
+        "mrr": 0.3813333333333333
+      },
+      "per_category": {
+        "general": {
+          "n": 25,
+          "recall@1": 0.4,
+          "recall@3": 0.68,
+          "recall@5": 0.84,
+          "mrr": 0.5646666666666667
+        },
+        "location": {
+          "n": 25,
+          "recall@1": 0.12,
+          "recall@3": 0.16,
+          "recall@5": 0.4,
+          "mrr": 0.198
+        }
+      }
+    },
+    "bm25": {
+      "overall": {
+        "n": 50,
+        "recall@1": 0.22,
+        "recall@3": 0.46,
+        "recall@5": 0.5,
+        "mrr": 0.33
+      },
+      "per_category": {
+        "general": {
+          "n": 25,
+          "recall@1": 0.4,
+          "recall@3": 0.72,
+          "recall@5": 0.76,
+          "mrr": 0.5433333333333333
+        },
+        "location": {
+          "n": 25,
+          "recall@1": 0.04,
+          "recall@3": 0.2,
+          "recall@5": 0.24,
+          "mrr": 0.11666666666666665
+        }
+      }
+    },
+    "hybrid": {
+      "overall": {
+        "n": 50,
+        "recall@1": 0.28,
+        "recall@3": 0.48,
+        "recall@5": 0.56,
+        "mrr": 0.3856666666666667
+      },
+      "per_category": {
+        "general": {
+          "n": 25,
+          "recall@1": 0.44,
+          "recall@3": 0.68,
+          "recall@5": 0.8,
+          "mrr": 0.5766666666666667
+        },
+        "location": {
+          "n": 25,
+          "recall@1": 0.12,
+          "recall@3": 0.28,
+          "recall@5": 0.32,
+          "mrr": 0.19466666666666665
+        }
+      }
+    },
+    "hybrid+location": {
+      "overall": {
+        "n": 50,
+        "recall@1": 0.34,
+        "recall@3": 0.6,
+        "recall@5": 0.72,
+        "mrr": 0.4856666666666667
+      },
+      "per_category": {
+        "general": {
+          "n": 25,
+          "recall@1": 0.44,
+          "recall@3": 0.68,
+          "recall@5": 0.8,
+          "mrr": 0.5766666666666667
+        },
+        "location": {
+          "n": 25,
+          "recall@1": 0.24,
+          "recall@3": 0.52,
+          "recall@5": 0.64,
+          "mrr": 0.39466666666666667
+        }
+      }
+    },
+    "hybrid+location+rerank": {
+      "overall": {
+        "n": 50,
+        "recall@1": 0.46,
+        "recall@3": 0.68,
+        "recall@5": 0.78,
+        "mrr": 0.5796666666666667
+      },
+      "per_category": {
+        "general": {
+          "n": 25,
+          "recall@1": 0.72,
+          "recall@3": 0.8,
+          "recall@5": 0.84,
+          "mrr": 0.7633333333333333
+        },
+        "location": {
+          "n": 25,
+          "recall@1": 0.2,
+          "recall@3": 0.56,
+          "recall@5": 0.72,
+          "mrr": 0.396
+        }
+      }
+    }
+  },
+  "location_vs_hybrid": {
+    "recall@1": {
+      "difference": 0.12,
+      "ci_low": -0.08,
+      "ci_high": 0.32
+    },
+    "recall@3": {
+      "difference": 0.24,
+      "ci_low": 0.0,
+      "ci_high": 0.48
+    },
+    "recall@5": {
+      "difference": 0.32,
+      "ci_low": 0.12,
+      "ci_high": 0.52
+    }
+  },
+  "reranker_available": true,
+  "abstention_by_signal": {
+    "fused_score": {
+      "configuration": "hybrid+location",
+      "percentiles": {
+        "answerable": {
+          "p5": 0.030090497737556562,
+          "p25": 0.032266458495966696,
+          "p50": 0.03278688524590164,
+          "p75": 0.04727047146401985,
+          "p95": 0.04878371232152301
+        },
+        "should_abstain": {
+          "p5": 0.028484848484848488,
+          "p25": 0.030536130536130537,
+          "p50": 0.031024531024531024,
+          "p75": 0.04800307219662058,
+          "p95": 0.04878371232152301
+        }
+      },
+      "sweep": [
+        {
+          "threshold": 0.0164,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0177,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.019,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0203,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0216,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.023,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0243,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0256,
+          "caught": 0.0,
+          "lost": 0.02,
+          "margin": -0.02
+        },
+        {
+          "threshold": 0.0269,
+          "caught": 0.0,
+          "lost": 0.04,
+          "margin": -0.04
+        },
+        {
+          "threshold": 0.0282,
+          "caught": 0.0,
+          "lost": 0.04,
+          "margin": -0.04
+        },
+        {
+          "threshold": 0.0295,
+          "caught": 0.2,
+          "lost": 0.04,
+          "margin": 0.16
+        },
+        {
+          "threshold": 0.0308,
+          "caught": 0.3,
+          "lost": 0.08,
+          "margin": 0.21999999999999997
+        },
+        {
+          "threshold": 0.0321,
+          "caught": 0.6,
+          "lost": 0.2,
+          "margin": 0.39999999999999997
+        },
+        {
+          "threshold": 0.0334,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.0348,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.0361,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.0374,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.0387,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.04,
+          "caught": 0.7,
+          "lost": 0.58,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.0413,
+          "caught": 0.7,
+          "lost": 0.6,
+          "margin": 0.09999999999999998
+        },
+        {
+          "threshold": 0.0426,
+          "caught": 0.7,
+          "lost": 0.6,
+          "margin": 0.09999999999999998
+        },
+        {
+          "threshold": 0.0439,
+          "caught": 0.7,
+          "lost": 0.62,
+          "margin": 0.07999999999999996
+        },
+        {
+          "threshold": 0.0452,
+          "caught": 0.7,
+          "lost": 0.64,
+          "margin": 0.05999999999999994
+        },
+        {
+          "threshold": 0.0466,
+          "caught": 0.7,
+          "lost": 0.68,
+          "margin": 0.019999999999999907
+        },
+        {
+          "threshold": 0.0479,
+          "caught": 0.7,
+          "lost": 0.84,
+          "margin": -0.14
+        },
+        {
+          "threshold": 0.0492,
+          "caught": 1.0,
+          "lost": 1.0,
+          "margin": 0.0
+        }
+      ],
+      "widest_margin": {
+        "threshold": 0.0321,
+        "caught": 0.6,
+        "lost": 0.2
+      },
+      "provisional": null
+    },
+    "dense_cosine": {
+      "configuration": "hybrid+location",
+      "percentiles": {
+        "answerable": {
+          "p5": 0.6370556354522705,
+          "p25": 0.7030785083770752,
+          "p50": 0.7348694205284119,
+          "p75": 0.7642367482185364,
+          "p95": 0.830318033695221
+        },
+        "should_abstain": {
+          "p5": 0.5834053158760071,
+          "p25": 0.6584579348564148,
+          "p50": 0.6764682531356812,
+          "p75": 0.7440712451934814,
+          "p95": 0.7655093669891357
+        }
+      },
+      "sweep": [
+        {
+          "threshold": 0.5834,
+          "caught": 0.0,
+          "lost": 0.0,
+          "margin": 0.0
+        },
+        {
+          "threshold": 0.5949,
+          "caught": 0.1,
+          "lost": 0.02,
+          "margin": 0.08
+        },
+        {
+          "threshold": 0.6065,
+          "caught": 0.1,
+          "lost": 0.02,
+          "margin": 0.08
+        },
+        {
+          "threshold": 0.618,
+          "caught": 0.1,
+          "lost": 0.02,
+          "margin": 0.08
+        },
+        {
+          "threshold": 0.6296,
+          "caught": 0.2,
+          "lost": 0.02,
+          "margin": 0.18000000000000002
+        },
+        {
+          "threshold": 0.6411,
+          "caught": 0.2,
+          "lost": 0.08,
+          "margin": 0.12000000000000001
+        },
+        {
+          "threshold": 0.6526,
+          "caught": 0.2,
+          "lost": 0.1,
+          "margin": 0.1
+        },
+        {
+          "threshold": 0.6642,
+          "caught": 0.3,
+          "lost": 0.14,
+          "margin": 0.15999999999999998
+        },
+        {
+          "threshold": 0.6757,
+          "caught": 0.4,
+          "lost": 0.14,
+          "margin": 0.26
+        },
+        {
+          "threshold": 0.6872,
+          "caught": 0.5,
+          "lost": 0.14,
+          "margin": 0.36
+        },
+        {
+          "threshold": 0.6988,
+          "caught": 0.6,
+          "lost": 0.22,
+          "margin": 0.38
+        },
+        {
+          "threshold": 0.7103,
+          "caught": 0.6,
+          "lost": 0.34,
+          "margin": 0.25999999999999995
+        },
+        {
+          "threshold": 0.7218,
+          "caught": 0.7,
+          "lost": 0.4,
+          "margin": 0.29999999999999993
+        },
+        {
+          "threshold": 0.7334,
+          "caught": 0.7,
+          "lost": 0.46,
+          "margin": 0.23999999999999994
+        },
+        {
+          "threshold": 0.7449,
+          "caught": 0.8,
+          "lost": 0.62,
+          "margin": 0.18000000000000005
+        },
+        {
+          "threshold": 0.7565,
+          "caught": 0.8,
+          "lost": 0.68,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.768,
+          "caught": 1.0,
+          "lost": 0.76,
+          "margin": 0.24
+        },
+        {
+          "threshold": 0.7795,
+          "caught": 1.0,
+          "lost": 0.78,
+          "margin": 0.21999999999999997
+        },
+        {
+          "threshold": 0.7911,
+          "caught": 1.0,
+          "lost": 0.84,
+          "margin": 0.16000000000000003
+        },
+        {
+          "threshold": 0.8026,
+          "caught": 1.0,
+          "lost": 0.88,
+          "margin": 0.12
+        },
+        {
+          "threshold": 0.8141,
+          "caught": 1.0,
+          "lost": 0.9,
+          "margin": 0.09999999999999998
+        },
+        {
+          "threshold": 0.8257,
+          "caught": 1.0,
+          "lost": 0.94,
+          "margin": 0.06000000000000005
+        },
+        {
+          "threshold": 0.8372,
+          "caught": 1.0,
+          "lost": 0.96,
+          "margin": 0.040000000000000036
+        },
+        {
+          "threshold": 0.8488,
+          "caught": 1.0,
+          "lost": 0.98,
+          "margin": 0.020000000000000018
+        },
+        {
+          "threshold": 0.8603,
+          "caught": 1.0,
+          "lost": 0.98,
+          "margin": 0.020000000000000018
+        },
+        {
+          "threshold": 0.8718,
+          "caught": 1.0,
+          "lost": 0.98,
+          "margin": 0.020000000000000018
+        }
+      ],
+      "widest_margin": {
+        "threshold": 0.6988,
+        "caught": 0.6,
+        "lost": 0.22
+      },
+      "provisional": {
+        "threshold": 0.5834,
+        "caught": 0.0,
+        "lost": 0.0
+      }
+    },
+    "rerank_score": {
+      "configuration": "hybrid+location+rerank",
+      "percentiles": {
+        "answerable": {
+          "p5": -8.478776931762695,
+          "p25": -1.9113359451293945,
+          "p50": 1.3438758850097656,
+          "p75": 3.0687026977539062,
+          "p95": 8.021717071533203
+        },
+        "should_abstain": {
+          "p5": -9.680255889892578,
+          "p25": -6.594608306884766,
+          "p50": -4.450815200805664,
+          "p75": -0.09693565964698792,
+          "p95": 4.171451568603516
+        }
+      },
+      "sweep": [
+        {
+          "threshold": -10.2277,
+          "caught": 0.0,
+          "lost": 0.0,
+          "margin": 0.0
+        },
+        {
+          "threshold": -9.4636,
+          "caught": 0.1,
+          "lost": 0.04,
+          "margin": 0.060000000000000005
+        },
+        {
+          "threshold": -8.6996,
+          "caught": 0.1,
+          "lost": 0.04,
+          "margin": 0.060000000000000005
+        },
+        {
+          "threshold": -7.9355,
+          "caught": 0.1,
+          "lost": 0.06,
+          "margin": 0.04000000000000001
+        },
+        {
+          "threshold": -7.1715,
+          "caught": 0.1,
+          "lost": 0.06,
+          "margin": 0.04000000000000001
+        },
+        {
+          "threshold": -6.4074,
+          "caught": 0.3,
+          "lost": 0.06,
+          "margin": 0.24
+        },
+        {
+          "threshold": -5.6434,
+          "caught": 0.4,
+          "lost": 0.06,
+          "margin": 0.34
+        },
+        {
+          "threshold": -4.8793,
+          "caught": 0.4,
+          "lost": 0.06,
+          "margin": 0.34
+        },
+        {
+          "threshold": -4.1153,
+          "caught": 0.5,
+          "lost": 0.1,
+          "margin": 0.4
+        },
+        {
+          "threshold": -3.3512,
+          "caught": 0.5,
+          "lost": 0.12,
+          "margin": 0.38
+        },
+        {
+          "threshold": -2.5872,
+          "caught": 0.5,
+          "lost": 0.14,
+          "margin": 0.36
+        },
+        {
+          "threshold": -1.8231,
+          "caught": 0.5,
+          "lost": 0.26,
+          "margin": 0.24
+        },
+        {
+          "threshold": -1.0591,
+          "caught": 0.6,
+          "lost": 0.3,
+          "margin": 0.3
+        },
+        {
+          "threshold": -0.295,
+          "caught": 0.6,
+          "lost": 0.38,
+          "margin": 0.21999999999999997
+        },
+        {
+          "threshold": 0.469,
+          "caught": 0.8,
+          "lost": 0.4,
+          "margin": 0.4
+        },
+        {
+          "threshold": 1.2331,
+          "caught": 0.9,
+          "lost": 0.44,
+          "margin": 0.46
+        },
+        {
+          "threshold": 1.9971,
+          "caught": 0.9,
+          "lost": 0.52,
+          "margin": 0.38
+        },
+        {
+          "threshold": 2.7612,
+          "caught": 0.9,
+          "lost": 0.7,
+          "margin": 0.20000000000000007
+        },
+        {
+          "threshold": 3.5252,
+          "caught": 0.9,
+          "lost": 0.82,
+          "margin": 0.08000000000000007
+        },
+        {
+          "threshold": 4.2893,
+          "caught": 1.0,
+          "lost": 0.86,
+          "margin": 0.14
+        },
+        {
+          "threshold": 5.0533,
+          "caught": 1.0,
+          "lost": 0.86,
+          "margin": 0.14
+        },
+        {
+          "threshold": 5.8174,
+          "caught": 1.0,
+          "lost": 0.9,
+          "margin": 0.09999999999999998
+        },
+        {
+          "threshold": 6.5814,
+          "caught": 1.0,
+          "lost": 0.92,
+          "margin": 0.07999999999999996
+        },
+        {
+          "threshold": 7.3455,
+          "caught": 1.0,
+          "lost": 0.92,
+          "margin": 0.07999999999999996
+        },
+        {
+          "threshold": 8.1095,
+          "caught": 1.0,
+          "lost": 0.96,
+          "margin": 0.040000000000000036
+        },
+        {
+          "threshold": 8.8735,
+          "caught": 1.0,
+          "lost": 0.98,
+          "margin": 0.020000000000000018
+        }
+      ],
+      "widest_margin": {
+        "threshold": 1.2331,
+        "caught": 0.9,
+        "lost": 0.44
+      },
+      "provisional": {
+        "threshold": -10.2277,
+        "caught": 0.0,
+        "lost": 0.0
+      }
+    }
+  },
+  "configured_abstain_signal": "dense_cosine",
+  "configured_abstain_threshold": 0.5804,
+  "per_question": {
+    "dense": [
+      {
+        "id": "loc-01",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7617083191871643,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.4.4:0"
+        ]
+      },
+      {
+        "id": "loc-02",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6742302775382996,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_FAQ:Q19@p16:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_FAQ:Q15@p16:0"
+        ]
+      },
+      {
+        "id": "loc-03",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7137876749038696,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_FAQ:Q15@p10:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.6@p788:0"
+        ]
+      },
+      {
+        "id": "loc-04",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.750359296798706,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_FAQ:Q7@p19:0",
+          "MPD47_FAQ:Q4@p2:0"
+        ]
+      },
+      {
+        "id": "loc-05",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7545303106307983,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_FAQ:Q19@p16:0",
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_FAQ:Q14@p13:0",
+          "MPD47_GAZETTE_EN:3.6.3@p731:0"
+        ]
+      },
+      {
+        "id": "loc-06",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7161405086517334,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_FAQ:Q19@p16:0",
+          "MPD47_GAZETTE_EN:8.1.3:0"
+        ]
+      },
+      {
+        "id": "loc-07",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7095504999160767,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q25:0",
+          "MPD47_GAZETTE_EN:4.3.4@p762:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_FAQ:Q23:0"
+        ]
+      },
+      {
+        "id": "loc-08",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6266562938690186,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p11:0",
+          "MPD47_GAZETTE_EN:3.6.1@p719:0",
+          "MPD47_GAZETTE_EN:3.3.2@p706:0",
+          "MPD47_FAQ:Q6@p7:0",
+          "MPD47_GAZETTE_EN:11.3.2:0"
+        ]
+      },
+      {
+        "id": "loc-09",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7917575836181641,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_FAQ:Q8@p19:0"
+        ]
+      },
+      {
+        "id": "loc-10",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6684801578521729,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q3@p6:0",
+          "MPD47_FAQ:Q7@p12:0",
+          "MPD47_FAQ:Q11@p16:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "loc-11",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7633565664291382,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:3.4@p707:0"
+        ]
+      },
+      {
+        "id": "loc-12",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7036266922950745,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:10.2.1@p846:0",
+          "MPD47_GAZETTE_EN:10.1@p842:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0"
+        ]
+      },
+      {
+        "id": "loc-13",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7705494165420532,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_FAQ:Q5@p15:0"
+        ]
+      },
+      {
+        "id": "loc-14",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7658668756484985,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.1.3:0",
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:4.5.3:0"
+        ]
+      },
+      {
+        "id": "loc-15",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7479031682014465,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_FAQ:Q5@p8:0",
+          "MPD47_GAZETTE_EN:4.1.3:0"
+        ]
+      },
+      {
+        "id": "loc-16",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.690314769744873,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.3@p779:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_FAQ:Q6@p11:0",
+          "MPD47_GAZETTE_EN:4.6.3@p778:0"
+        ]
+      },
+      {
+        "id": "loc-17",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7087395191192627,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.5:0",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q9@p9:0"
+        ]
+      },
+      {
+        "id": "loc-18",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6896271705627441,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0",
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0"
+        ]
+      },
+      {
+        "id": "loc-19",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6130096912384033,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p8:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "MPD47_FAQ:Q18@p10:0"
+        ]
+      },
+      {
+        "id": "loc-20",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6520269513130188,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 18:0",
+          "MPD47_GAZETTE_EN:13.4.6@p893:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:13.4.9@p898:0",
+          "MPD47_FAQ:Q19@p16:0"
+        ]
+      },
+      {
+        "id": "loc-21",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7283668518066406,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:5.1.3@p797:0",
+          "MPD47_FAQ:Q3@p2:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0",
+          "MPD47_GAZETTE_EN:4.5.1:0"
+        ]
+      },
+      {
+        "id": "loc-22",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6987278461456299,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "loc-23",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6532411575317383,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_GAZETTE_EN:3.4.2:0",
+          "MPD47_FAQ:Q9@p12:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0"
+        ]
+      },
+      {
+        "id": "loc-24",
+        "category": "location",
+        "first_hit_rank": 5,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6448388695716858,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q2@p7:0",
+          "MPD47_FAQ:Q6@p7:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "loc-25",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6430975198745728,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 18:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p966:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p981:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p970:0"
+        ]
+      },
+      {
+        "id": "gen-01",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7948004007339478,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_FAQ:Q4@p2:0",
+          "MPD47_FAQ:Q1@p2:0",
+          "MPD47_GAZETTE_EN:p647:0",
+          "MPD47_GAZETTE_EN:2.1:0"
+        ]
+      },
+      {
+        "id": "gen-02",
+        "category": "general",
+        "first_hit_rank": 5,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7390568256378174,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:1.5:0",
+          "MPD47_FAQ:Q1@p2:0"
+        ]
+      },
+      {
+        "id": "gen-03",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6866281032562256,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.6.1@p721:0",
+          "MPD47_GAZETTE_EN:11.1.1@p853:0",
+          "MPD47_GAZETTE_EN:3.6.1@p723:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:11.1.1@p852:0"
+        ]
+      },
+      {
+        "id": "gen-04",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7136795520782471,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_GAZETTE_EN:4.2@p750:0"
+        ]
+      },
+      {
+        "id": "gen-05",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7397545576095581,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.5:0"
+        ]
+      },
+      {
+        "id": "gen-06",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7550023794174194,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:3.6.1@p719:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-07",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7296472787857056,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:4.3.1:0"
+        ]
+      },
+      {
+        "id": "gen-08",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.8718281984329224,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p8:0",
+          "MPD47_FAQ:Q6@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q16@p10:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-09",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.8023725748062134,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_FAQ:Q11@p9:0",
+          "MPD47_FAQ:Q21:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q13@p9:0"
+        ]
+      },
+      {
+        "id": "gen-10",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7030785083770752,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:2:0",
+          "NGT_OA572_GNCTD_REPORT:9@p18:0"
+        ]
+      },
+      {
+        "id": "gen-11",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6967977285385132,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:3.3.1@p698:1",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "MPD47_GAZETTE_EN:5.1@p999:1",
+          "MPD47_GAZETTE_EN:p1014:0"
+        ]
+      },
+      {
+        "id": "gen-12",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7627661824226379,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:2:0",
+          "DHC_YAMUNA_20240708:5:0"
+        ]
+      },
+      {
+        "id": "gen-13",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7013281583786011,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "NGT_OA572_GNCTD_REPORT:15:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:7:0"
+        ]
+      },
+      {
+        "id": "gen-14",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7093546390533447,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:4.5.7:0"
+        ]
+      },
+      {
+        "id": "gen-15",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7328944206237793,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:4.6.2@p774:0",
+          "MPD47_GAZETTE_EN:4.5.6:0"
+        ]
+      },
+      {
+        "id": "gen-16",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.8391671180725098,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_FAQ:Q3@p6:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.5.4:0",
+          "MPD47_FAQ:Q2@p7:0"
+        ]
+      },
+      {
+        "id": "gen-17",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7903652191162109,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:4.4.3:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0"
+        ]
+      },
+      {
+        "id": "gen-18",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6559481620788574,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:8.3.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0"
+        ]
+      },
+      {
+        "id": "gen-19",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6434717178344727,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:8.1.1:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_GAZETTE_EN:13.4.8:0"
+        ]
+      },
+      {
+        "id": "gen-20",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7343878746032715,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.3.2@p831:0",
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0",
+          "MPD47_GAZETTE_EN:8.1.3:0"
+        ]
+      },
+      {
+        "id": "gen-21",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7526110410690308,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:3.2.5@p694:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.5@p784:0"
+        ]
+      },
+      {
+        "id": "gen-22",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.698645830154419,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:9.1.2@p836:0",
+          "MPD47_GAZETTE_EN:7.2.2@p816:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0"
+        ]
+      },
+      {
+        "id": "gen-23",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7419480085372925,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p18:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p972:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p970:0",
+          "MPD47_FAQ:Q7@p3:0",
+          "MPD47_FAQ:Q8@p7:0"
+        ]
+      },
+      {
+        "id": "gen-24",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7433087229728699,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:11.1.1@p855:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0"
+        ]
+      },
+      {
+        "id": "gen-25",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.830318033695221,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:p988:0",
+          "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "MPD47_GAZETTE_EN:5.1@p999:1",
+          "MPD47_GAZETTE_EN:4.5@p769:0"
+        ]
+      },
+      {
+        "id": "abs-01",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6476472020149231,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q17@p13:0",
+          "NGT_OA572_GNCTD_REPORT:1@p21:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:1",
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:4.6.4@p782:0"
+        ]
+      },
+      {
+        "id": "abs-02",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7200528979301453,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.4@p782:0",
+          "MPD47_GAZETTE_EN:11.1.3@p859:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0"
+        ]
+      },
+      {
+        "id": "abs-03",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.5968105792999268,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q9@p19:0",
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_FAQ:Q7@p19:0",
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:3.4.5:0"
+        ]
+      },
+      {
+        "id": "abs-04",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6714462041854858,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0"
+        ]
+      },
+      {
+        "id": "abs-05",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6755245923995972,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_FAQ:Q15@p10:0",
+          "MPD47_FAQ:Q3@p6:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q1@p5:0"
+        ]
+      },
+      {
+        "id": "abs-06",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6553777456283569,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:p1140:0",
+          "MPD47_GAZETTE_EN:p1026:0",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0",
+          "MPD47_GAZETTE_EN:p1007:1"
+        ]
+      },
+      {
+        "id": "abs-07",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6747044324874878,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q25:0",
+          "DHC_YAMUNA_20240708:7:0",
+          "NGT_OA572_GNCTD_REPORT:3@p21:0",
+          "MPD47_FAQ:Q1@p2:0",
+          "MPD47_FAQ:Q9@p19:0"
+        ]
+      },
+      {
+        "id": "abs-08",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7155704498291016,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q16@p13:0",
+          "MPD47_FAQ:Q23:0",
+          "MPD47_FAQ:Q4@p2:0",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_FAQ:Q15@p16:0"
+        ]
+      },
+      {
+        "id": "abs-09",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6880974769592285,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:3.3.1@p698:1",
+          "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p966:0",
+          "MPD47_GAZETTE_EN:5.1.3@p797:0"
+        ]
+      },
+      {
+        "id": "abs-10",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7452712059020996,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:1@p3:0",
+          "NGT_OA572_GNCTD_REPORT:9@p18:0"
+        ]
+      }
+    ],
+    "bm25": [
+      {
+        "id": "loc-01",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0"
+        ]
+      },
+      {
+        "id": "loc-02",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.1.4:0",
+          "NGT_OA572_GNCTD_REPORT:1@p27:0",
+          "MPD47_GAZETTE_EN:3.5@p1082:0",
+          "MPD47_GAZETTE_EN:3.6.3@p731:0",
+          "MPD47_GAZETTE_EN:11.1.1@p854:0"
+        ]
+      },
+      {
+        "id": "loc-03",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.2.2@p828:0",
+          "MPD47_GAZETTE_EN:4.6.6@p789:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:11.1.1@p854:0",
+          "MPD47_GAZETTE_EN:8.2.2@p829:0"
+        ]
+      },
+      {
+        "id": "loc-04",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.3@p779:0",
+          "MPD47_GAZETTE_EN:4.6.6@p789:0",
+          "NGT_OA572_GNCTD_REPORT:8:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:p914:0"
+        ]
+      },
+      {
+        "id": "loc-05",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7218387126922607,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_GAZETTE_EN:5.1.1:0",
+          "MPD47_FAQ:Q14@p13:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_GAZETTE_EN:4.6.3@p778:0"
+        ]
+      },
+      {
+        "id": "loc-06",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6255941390991211,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.6@p891:0",
+          "MPD47_GAZETTE_EN:2.2:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:13.4.4:0"
+        ]
+      },
+      {
+        "id": "loc-07",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.3.1@p701:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:4.3.4@p761:1",
+          "MPD47_GAZETTE_EN:p1112:0"
+        ]
+      },
+      {
+        "id": "loc-08",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.2@p1101:1",
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:4.3@p1092:0",
+          "MPD47_GAZETTE_EN:8.2.2@p828:0",
+          "MPD47_GAZETTE_EN:p1108:0"
+        ]
+      },
+      {
+        "id": "loc-09",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_FAQ:Q8@p19:0",
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:p1007:1"
+        ]
+      },
+      {
+        "id": "loc-10",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.2@p774:0",
+          "MPD47_GAZETTE_EN:11.1.1@p854:0",
+          "MPD47_GAZETTE_EN:5.1.1:0"
+        ]
+      },
+      {
+        "id": "loc-11",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7633565664291382,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:3.4@p707:0",
+          "MPD47_GAZETTE_EN:4.3.3@p758:0",
+          "MPD47_FAQ:Q23:0"
+        ]
+      },
+      {
+        "id": "loc-12",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q7@p12:0",
+          "MPD47_GAZETTE_EN:4.4.1:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:8.2.2@p829:0",
+          "MPD47_GAZETTE_EN:11.1.3@p858:0"
+        ]
+      },
+      {
+        "id": "loc-13",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:13.4.8:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:0",
+          "MPD47_GAZETTE_EN:13.4.4:0"
+        ]
+      },
+      {
+        "id": "loc-14",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.6.1@p655:0",
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:Annexure 9a@p948:0",
+          "MPD47_GAZETTE_EN:8.2@p1101:1",
+          "MPD47_GAZETTE_EN:8.1:0"
+        ]
+      },
+      {
+        "id": "loc-15",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7479031682014465,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:1.8@p669:0",
+          "MPD47_GAZETTE_EN:4.1.2:0"
+        ]
+      },
+      {
+        "id": "loc-16",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p1005:0",
+          "NGT_OA572_GNCTD_REPORT:3@p20:0",
+          "MPD47_GAZETTE_EN:8.2.2@p829:0",
+          "MPD47_GAZETTE_EN:Annexure 9b:0",
+          "MPD47_GAZETTE_EN:9.1.2@p836:0"
+        ]
+      },
+      {
+        "id": "loc-17",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p914:0",
+          "MPD47_GAZETTE_EN:4.3.4@p761:1",
+          "MPD47_FAQ:Q7@p12:0",
+          "MPD47_FAQ:Q14@p10:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:1"
+        ]
+      },
+      {
+        "id": "loc-18",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.5@p1082:0",
+          "MPD47_GAZETTE_EN:11.1.1@p854:0",
+          "MPD47_GAZETTE_EN:7.2.3:0",
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0"
+        ]
+      },
+      {
+        "id": "loc-19",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:p913:0",
+          "MPD47_GAZETTE_EN:3.3@p1081:0",
+          "MPD47_GAZETTE_EN:p997:0",
+          "MPD47_GAZETTE_EN:p1143:0"
+        ]
+      },
+      {
+        "id": "loc-20",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p935:1",
+          "NGT_OA572_GNCTD_REPORT:1@p27:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p925:0",
+          "MPD47_GAZETTE_EN:12.2.2@p874:0",
+          "MPD47_GAZETTE_EN:p1012:1"
+        ]
+      },
+      {
+        "id": "loc-21",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:4.3.3@p759:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:0",
+          "MPD47_GAZETTE_EN:p1110:0"
+        ]
+      },
+      {
+        "id": "loc-22",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.3@p859:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:7.2.3:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0"
+        ]
+      },
+      {
+        "id": "loc-23",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p931:1",
+          "MPD47_GAZETTE_EN:Annexure 1@p934:1",
+          "MPD47_GAZETTE_EN:2.2:0"
+        ]
+      },
+      {
+        "id": "loc-24",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "NGT_OA572_GNCTD_REPORT:3@p25:0",
+          "NGT_OA572_GNCTD_REPORT:1@p21:0",
+          "NGT_OA572_GNCTD_REPORT:1@p15:0",
+          "NGT_OA572_GNCTD_REPORT:7@p31:0",
+          "MPD47_GAZETTE_EN:11.1.3@p858:0"
+        ]
+      },
+      {
+        "id": "loc-25",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:12.6.1:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p979:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p977:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p968:0",
+          "MPD47_GAZETTE_EN:3.1.2@p680:0"
+        ]
+      },
+      {
+        "id": "gen-01",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7948004007339478,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_GAZETTE_EN:1.5:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:13.4.4:0"
+        ]
+      },
+      {
+        "id": "gen-02",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6753519773483276,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p2:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "NGT_OA572_GNCTD_REPORT:2@p2:0",
+          "MPD47_GAZETTE_EN:p1086:0",
+          "MPD47_GAZETTE_EN:5.1.4:0"
+        ]
+      },
+      {
+        "id": "gen-03",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.663737952709198,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_FAQ:Q1@p11:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_FAQ:Q15@p13:0",
+          "MPD47_GAZETTE_EN:11.1.3@p858:0"
+        ]
+      },
+      {
+        "id": "gen-04",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6951814889907837,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2@p750:0"
+        ]
+      },
+      {
+        "id": "gen-05",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.723197340965271,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.5.1:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:4.2.1:0"
+        ]
+      },
+      {
+        "id": "gen-06",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.734620213508606,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-07",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "gen-08",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.8718281984329224,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p8:0",
+          "MPD47_FAQ:Q6@p8:0",
+          "MPD47_GAZETTE_EN:p909:0",
+          "MPD47_FAQ:Q1@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0"
+        ]
+      },
+      {
+        "id": "gen-09",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7433151006698608,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q21:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_FAQ:Q17@p13:0"
+        ]
+      },
+      {
+        "id": "gen-10",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7030785083770752,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "MPD47_GAZETTE_EN:3.1.2@p685:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "MPD47_GAZETTE_EN:3.1.2@p679:0",
+          "MPD47_GAZETTE_EN:3.6.2@p728:0"
+        ]
+      },
+      {
+        "id": "gen-11",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:3:0",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:p647:0",
+          "MPD47_GAZETTE_EN:11.3.1:0"
+        ]
+      },
+      {
+        "id": "gen-12",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7627661824226379,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:2:0"
+        ]
+      },
+      {
+        "id": "gen-13",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6824339628219604,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "NGT_OA572_GNCTD_REPORT:12:0",
+          "NGT_OA572_GNCTD_REPORT:7@p4:0",
+          "NGT_OA572_GNCTD_REPORT:1@p27:0"
+        ]
+      },
+      {
+        "id": "gen-14",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7093546390533447,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:3.2.2@p690:0",
+          "MPD47_GAZETTE_EN:8.1.2@p824:0",
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:4.3.3@p758:0"
+        ]
+      },
+      {
+        "id": "gen-15",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:p900:0",
+          "MPD47_GAZETTE_EN:3.4.3:0",
+          "MPD47_GAZETTE_EN:p905:1",
+          "MPD47_GAZETTE_EN:4.2.1:0"
+        ]
+      },
+      {
+        "id": "gen-16",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.8391671180725098,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:13.4.6@p890:0",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:p908:1"
+        ]
+      },
+      {
+        "id": "gen-17",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:4.5.4:0",
+          "MPD47_GAZETTE_EN:9.2:0"
+        ]
+      },
+      {
+        "id": "gen-18",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6122044920921326,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:Annexure 20:0",
+          "MPD47_FAQ:Q1@p5:0",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0"
+        ]
+      },
+      {
+        "id": "gen-19",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.1.4:0",
+          "MPD47_GAZETTE_EN:p906:0",
+          "MPD47_GAZETTE_EN:8.1.2@p823:0",
+          "MPD47_GAZETTE_EN:Annexure 20:0",
+          "MPD47_GAZETTE_EN:8.1.1:0"
+        ]
+      },
+      {
+        "id": "gen-20",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7343878746032715,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.3.2@p831:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0",
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_FAQ:Q16@p16:0",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0"
+        ]
+      },
+      {
+        "id": "gen-21",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.7526110410690308,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:9.3.1:0",
+          "MPD47_FAQ:Q3@p11:0",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0"
+        ]
+      },
+      {
+        "id": "gen-22",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6716110110282898,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_GAZETTE_EN:p905:0",
+          "MPD47_GAZETTE_EN:13.4.2:0"
+        ]
+      },
+      {
+        "id": "gen-23",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:10.1@p842:0",
+          "MPD47_GAZETTE_EN:13.4.6@p891:0",
+          "MPD47_GAZETTE_EN:13.4.6@p893:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0"
+        ]
+      },
+      {
+        "id": "gen-24",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6809052228927612,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q8@p19:0",
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p935:1",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q6@p19:0"
+        ]
+      },
+      {
+        "id": "gen-25",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.830318033695221,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:3.3.1@p696:0",
+          "MPD47_GAZETTE_EN:5.1.4:0",
+          "MPD47_GAZETTE_EN:1.3:0",
+          "MPD47_GAZETTE_EN:1.6.2@p658:1"
+        ]
+      },
+      {
+        "id": "abs-01",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6051627397537231,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_GAZETTE_EN:p1135:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p925:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p927:0"
+        ]
+      },
+      {
+        "id": "abs-02",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p900:0",
+          "MPD47_GAZETTE_EN:13.4.2:0",
+          "MPD47_GAZETTE_EN:13.4.6@p891:0",
+          "MPD47_GAZETTE_EN:9.2:0",
+          "MPD47_GAZETTE_EN:11.1.2@p856:0"
+        ]
+      },
+      {
+        "id": "abs-03",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p913:0",
+          "MPD47_GAZETTE_EN:Annexure 14@p956:0",
+          "MPD47_GAZETTE_EN:Annexure 14@p955:0",
+          "NGT_OA572_GNCTD_REPORT:5@p15:0",
+          "MPD47_GAZETTE_EN:3.7.1@p736:0"
+        ]
+      },
+      {
+        "id": "abs-04",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:2.2:0",
+          "MPD47_GAZETTE_EN:3.8:0",
+          "MPD47_FAQ:Q4@p15:0",
+          "MPD47_FAQ:Q5@p15:0"
+        ]
+      },
+      {
+        "id": "abs-05",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6570665240287781,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p5:0",
+          "MPD47_GAZETTE_EN:p1135:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:13.4.7@p894:0",
+          "MPD47_FAQ:Q3@p20:0"
+        ]
+      },
+      {
+        "id": "abs-06",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:2.2:0",
+          "NGT_OA572_GNCTD_REPORT:3@p20:0",
+          "MPD47_GAZETTE_EN:p1027:0",
+          "DHC_YAMUNA_20240708:4:0"
+        ]
+      },
+      {
+        "id": "abs-07",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 21@p980:0",
+          "DHC_YAMUNA_20240708:7:0",
+          "MPD47_GAZETTE_EN:3.3.1@p701:0",
+          "NGT_OA572_GNCTD_REPORT:10@p11:0",
+          "MPD47_GAZETTE_EN:3.3@p1081:0"
+        ]
+      },
+      {
+        "id": "abs-08",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6764682531356812,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:0",
+          "MPD47_GAZETTE_EN:4.3.4@p761:1",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "abs-09",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": null,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.3@p1092:1",
+          "MPD47_GAZETTE_EN:p1140:0",
+          "MPD47_GAZETTE_EN:p1108:0",
+          "MPD47_GAZETTE_EN:1.3:0",
+          "MPD47_GAZETTE_EN:4.3@p1092:0"
+        ]
+      },
+      {
+        "id": "abs-10",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6808249950408936,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:3:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "NGT_OA572_GNCTD_REPORT:11:0",
+          "DHC_YAMUNA_20240708:4:0"
+        ]
+      }
+    ],
+    "hybrid": [
+      {
+        "id": "loc-01",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.7617083191871643,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0"
+        ]
+      },
+      {
+        "id": "loc-02",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.027650648360030512,
+        "top_dense_cosine": 0.6129738092422485,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p973:0",
+          "MPD47_GAZETTE_EN:4.4.3:0",
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_GAZETTE_EN:8.1.4:0"
+        ]
+      },
+      {
+        "id": "loc-03",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.028629032258064516,
+        "top_dense_cosine": 0.656630277633667,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.6@p789:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0",
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_FAQ:Q10@p9:0"
+        ]
+      },
+      {
+        "id": "loc-04",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.028577260665441927,
+        "top_dense_cosine": 0.6805630326271057,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.6@p788:0",
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.6.2@p775:0",
+          "MPD47_GAZETTE_EN:4.6.6@p789:0"
+        ]
+      },
+      {
+        "id": "loc-05",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.7218387126922607,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_FAQ:Q14@p13:0",
+          "MPD47_FAQ:Q19@p16:0",
+          "MPD47_GAZETTE_EN:11.1.2@p857:0"
+        ]
+      },
+      {
+        "id": "loc-06",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.03125763125763126,
+        "top_dense_cosine": 0.6745376586914062,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_GAZETTE_EN:13.4.6@p891:0",
+          "MPD47_FAQ:Q4@p7:0",
+          "MPD47_GAZETTE_EN:8.3.2@p831:0"
+        ]
+      },
+      {
+        "id": "loc-07",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.031754032258064516,
+        "top_dense_cosine": 0.6691750288009644,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.3.4@p762:0",
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_FAQ:Q25:0",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0"
+        ]
+      },
+      {
+        "id": "loc-08",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.02631578947368421,
+        "top_dense_cosine": 0.6009395122528076,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_FAQ:Q4@p11:0",
+          "MPD47_GAZETTE_EN:8.2@p1101:1",
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:3.6.1@p719:0"
+        ]
+      },
+      {
+        "id": "loc-09",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.03200204813108039,
+        "top_dense_cosine": 0.7857486009597778,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_FAQ:Q8@p19:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.3.3@p759:0"
+        ]
+      },
+      {
+        "id": "loc-10",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.6684801578521729,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.2@p774:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:1",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "loc-11",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7633565664291382,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:3.4@p707:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0"
+        ]
+      },
+      {
+        "id": "loc-12",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.030017921146953404,
+        "top_dense_cosine": 0.6776299476623535,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.1:0",
+          "MPD47_GAZETTE_EN:10.2.1@p844:0",
+          "MPD47_FAQ:Q6@p15:0",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q7@p12:0"
+        ]
+      },
+      {
+        "id": "loc-13",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.027820121951219513,
+        "top_dense_cosine": 0.7418525218963623,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0",
+          "MPD47_GAZETTE_EN:4.3.3@p759:0",
+          "MPD47_FAQ:Q2@p6:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0"
+        ]
+      },
+      {
+        "id": "loc-14",
+        "category": "location",
+        "first_hit_rank": 5,
+        "top_score": 0.029631255487269532,
+        "top_dense_cosine": 0.6985858678817749,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:4.5@p769:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q13@p9:0"
+        ]
+      },
+      {
+        "id": "loc-15",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7479031682014465,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.1.3:0",
+          "MPD47_GAZETTE_EN:4.1.2:0"
+        ]
+      },
+      {
+        "id": "loc-16",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.027884615384615386,
+        "top_dense_cosine": 0.6575663089752197,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.3@p778:0",
+          "MPD47_GAZETTE_EN:9.1.2@p836:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:1",
+          "MPD47_GAZETTE_EN:4.2@p1005:0",
+          "MPD47_GAZETTE_EN:4.6.3@p779:0"
+        ]
+      },
+      {
+        "id": "loc-17",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.030776515151515152,
+        "top_dense_cosine": 0.6917356848716736,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_GAZETTE_EN:4.3.4@p761:1",
+          "MPD47_GAZETTE_EN:4.6.6@p787:1",
+          "MPD47_GAZETTE_EN:4.4.5:0",
+          "MPD47_GAZETTE_EN:4.6.2@p775:0"
+        ]
+      },
+      {
+        "id": "loc-18",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.028083267871170464,
+        "top_dense_cosine": 0.6221849918365479,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:Annexure 22@p984:0",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:3.5@p1082:0",
+          "MPD47_GAZETTE_EN:11.1.1@p854:0"
+        ]
+      },
+      {
+        "id": "loc-19",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6130096912384033,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:p907:1",
+          "DHC_YAMUNA_20240708:1:0",
+          "MPD47_GAZETTE_EN:p913:0",
+          "DHC_YAMUNA_20240708:5:0"
+        ]
+      },
+      {
+        "id": "loc-20",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.02803921568627451,
+        "top_dense_cosine": 0.6166542768478394,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.6@p789:0",
+          "MPD47_FAQ:Q12@p13:0",
+          "MPD47_GAZETTE_EN:13.1.3:0",
+          "MPD47_GAZETTE_EN:Annexure 18:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p935:1"
+        ]
+      },
+      {
+        "id": "loc-21",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.030679156908665108,
+        "top_dense_cosine": 0.7283668518066406,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:5.1.3@p797:0",
+          "MPD47_FAQ:Q16@p10:0",
+          "MPD47_FAQ:Q4@p6:0",
+          "MPD47_GAZETTE_EN:13.4.4:0"
+        ]
+      },
+      {
+        "id": "loc-22",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.03177805800756621,
+        "top_dense_cosine": 0.6987278461456299,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_GAZETTE_EN:11.1.3@p859:0"
+        ]
+      },
+      {
+        "id": "loc-23",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6532411575317383,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:3.4.2:0"
+        ]
+      },
+      {
+        "id": "loc-24",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.023959827833572454,
+        "top_dense_cosine": 0.6054902672767639,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:0",
+          "MPD47_FAQ:Q2@p7:0",
+          "NGT_OA572_GNCTD_REPORT:1@p21:0"
+        ]
+      },
+      {
+        "id": "loc-25",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.029857397504456328,
+        "top_dense_cosine": 0.6370556354522705,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 21@p969:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p979:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p968:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p978:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p977:0"
+        ]
+      },
+      {
+        "id": "gen-01",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7948004007339478,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_GAZETTE_EN:1.5:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:p642:0"
+        ]
+      },
+      {
+        "id": "gen-02",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.7160084247589111,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_FAQ:Q1@p2:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:p1086:0",
+          "MPD47_GAZETTE_EN:p646:0"
+        ]
+      },
+      {
+        "id": "gen-03",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.663737952709198,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:3.6.1@p721:0",
+          "MPD47_GAZETTE_EN:11.1.1@p853:0",
+          "MPD47_GAZETTE_EN:3.6.1@p723:0",
+          "MPD47_FAQ:Q15@p13:0"
+        ]
+      },
+      {
+        "id": "gen-04",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.6951814889907837,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2@p750:0"
+        ]
+      },
+      {
+        "id": "gen-05",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.723197340965271,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0"
+        ]
+      },
+      {
+        "id": "gen-06",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7550023794174194,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-07",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.7296472787857056,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "gen-08",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8718281984329224,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p8:0",
+          "MPD47_FAQ:Q6@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q1@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-09",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.8023725748062134,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_FAQ:Q21:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-10",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7030785083770752,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:13:0"
+        ]
+      },
+      {
+        "id": "gen-11",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.6967977285385132,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "MPD47_GAZETTE_EN:p1013:0",
+          "MPD47_GAZETTE_EN:p1014:0",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0"
+        ]
+      },
+      {
+        "id": "gen-12",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7627661824226379,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:2:0"
+        ]
+      },
+      {
+        "id": "gen-13",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7013281583786011,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:11:0",
+          "NGT_OA572_GNCTD_REPORT:9@p9:0"
+        ]
+      },
+      {
+        "id": "gen-14",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7093546390533447,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_FAQ:Q3@p11:0",
+          "MPD47_GAZETTE_EN:8.1.2@p823:0"
+        ]
+      },
+      {
+        "id": "gen-15",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.7037407159805298,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.3:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q5@p20:0"
+        ]
+      },
+      {
+        "id": "gen-16",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8391671180725098,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:4.5.4:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-17",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.031754032258064516,
+        "top_dense_cosine": 0.7786182761192322,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0",
+          "MPD47_GAZETTE_EN:4.5.4:0"
+        ]
+      },
+      {
+        "id": "gen-18",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.6456615924835205,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:7.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0"
+        ]
+      },
+      {
+        "id": "gen-19",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.03128054740957967,
+        "top_dense_cosine": 0.6366062164306641,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:8.1.1:0",
+          "MPD47_GAZETTE_EN:8.1.2@p823:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:Annexure 18:0"
+        ]
+      },
+      {
+        "id": "gen-20",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7343878746032715,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.3.2@p831:0",
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0",
+          "MPD47_GAZETTE_EN:8.3.1:0",
+          "MPD47_FAQ:Q1@p5:0"
+        ]
+      },
+      {
+        "id": "gen-21",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7526110410690308,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:13.2:0",
+          "MPD47_GAZETTE_EN:9.1.2@p835:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-22",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.698645830154419,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:9.3.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0"
+        ]
+      },
+      {
+        "id": "gen-23",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.030090497737556562,
+        "top_dense_cosine": 0.7101504802703857,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:10.1@p843:0",
+          "MPD47_FAQ:Q8@p7:0",
+          "MPD47_FAQ:Q4@p18:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p974:0",
+          "MPD47_FAQ:Q16@p10:0"
+        ]
+      },
+      {
+        "id": "gen-24",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7433087229728699,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:11.1.1@p855:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "gen-25",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.830318033695221,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:5.1.4:0",
+          "MPD47_GAZETTE_EN:p988:0",
+          "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "MPD47_GAZETTE_EN:3.3.1@p696:0"
+        ]
+      },
+      {
+        "id": "abs-01",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.627111554145813,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p926:1",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p928:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p927:1",
+          "NGT_OA572_GNCTD_REPORT:1@p17:0"
+        ]
+      },
+      {
+        "id": "abs-02",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.7114709615707397,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:13.4.8:0",
+          "MPD47_GAZETTE_EN:4.4.3:0",
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p966:0"
+        ]
+      },
+      {
+        "id": "abs-03",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.030536130536130537,
+        "top_dense_cosine": 0.5834053158760071,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:Annexure 14@p956:0",
+          "MPD47_FAQ:Q9@p19:0",
+          "MPD47_GAZETTE_EN:p913:0",
+          "MPD47_FAQ:Q2@p2:0"
+        ]
+      },
+      {
+        "id": "abs-04",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.029206349206349208,
+        "top_dense_cosine": 0.6584579348564148,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_FAQ:Q1@p5:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0",
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_FAQ:Q3@p11:0"
+        ]
+      },
+      {
+        "id": "abs-05",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.03177805800756621,
+        "top_dense_cosine": 0.6570665240287781,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p5:0",
+          "MPD47_FAQ:Q15@p10:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_GAZETTE_EN:4.10@p1067:0"
+        ]
+      },
+      {
+        "id": "abs-06",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.030798389007344232,
+        "top_dense_cosine": 0.6345024108886719,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p1026:0",
+          "MPD47_GAZETTE_EN:p1027:0",
+          "MPD47_GAZETTE_EN:p1015:1",
+          "MPD47_GAZETTE_EN:p1140:0",
+          "MPD47_FAQ:Q18@p10:0"
+        ]
+      },
+      {
+        "id": "abs-07",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.6209841966629028,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:7:0",
+          "MPD47_FAQ:Q25:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p980:0",
+          "MPD47_GAZETTE_EN:3.3.1@p701:0",
+          "NGT_OA572_GNCTD_REPORT:3@p21:0"
+        ]
+      },
+      {
+        "id": "abs-08",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.030886196246139225,
+        "top_dense_cosine": 0.6764682531356812,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_FAQ:Q23:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "abs-09",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.028484848484848488,
+        "top_dense_cosine": 0.6695313453674316,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:4.3@p1092:1"
+        ]
+      },
+      {
+        "id": "abs-10",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.7440712451934814,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:2:0"
+        ]
+      }
+    ],
+    "hybrid+location": [
+      {
+        "id": "loc-01",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7908248901367188,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_FAQ:Q3@p11:0",
+          "MPD47_GAZETTE_EN:4.2.1:0"
+        ]
+      },
+      {
+        "id": "loc-02",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7511293888092041,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_FAQ:Q5@p11:0",
+          "MPD47_FAQ:Q1@p11:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "loc-03",
+        "category": "location",
+        "first_hit_rank": 5,
+        "top_score": 0.04517663043478261,
+        "top_dense_cosine": 0.7107160091400146,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.1:0"
+        ]
+      },
+      {
+        "id": "loc-04",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7620236873626709,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:4.2.5:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0"
+        ]
+      },
+      {
+        "id": "loc-05",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.047667087011349314,
+        "top_dense_cosine": 0.7394442558288574,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_FAQ:Q14@p13:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_FAQ:Q5@p11:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "loc-06",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.045804195804195806,
+        "top_dense_cosine": 0.7181864976882935,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_FAQ:Q5@p11:0"
+        ]
+      },
+      {
+        "id": "loc-07",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04918032786885246,
+        "top_dense_cosine": 0.7630534172058105,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0",
+          "MPD47_GAZETTE_EN:4.2.5:0",
+          "MPD47_GAZETTE_EN:4.2.2:0"
+        ]
+      },
+      {
+        "id": "loc-08",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7896630167961121,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "loc-09",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.047619047619047616,
+        "top_dense_cosine": 0.7642367482185364,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3.3@p760:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0"
+        ]
+      },
+      {
+        "id": "loc-10",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.047631048387096774,
+        "top_dense_cosine": 0.707482635974884,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:4.3.4@p761:1",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:4.3.1:0"
+        ]
+      },
+      {
+        "id": "loc-11",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.046886446886446886,
+        "top_dense_cosine": 0.7448657155036926,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q15@p16:0",
+          "MPD47_GAZETTE_EN:4.3.3@p758:0"
+        ]
+      },
+      {
+        "id": "loc-12",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.04727047146401985,
+        "top_dense_cosine": 0.7360251545906067,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q6@p15:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "loc-13",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.04697822363591876,
+        "top_dense_cosine": 0.7348694205284119,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q16@p10:0",
+          "MPD47_GAZETTE_EN:4.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "loc-14",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.046886446886446886,
+        "top_dense_cosine": 0.7815070748329163,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q5@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0"
+        ]
+      },
+      {
+        "id": "loc-15",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.814487636089325,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q7@p8:0",
+          "MPD47_GAZETTE_EN:4.1.3:0"
+        ]
+      },
+      {
+        "id": "loc-16",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.04382093316519546,
+        "top_dense_cosine": 0.7243082523345947,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q5@p8:0"
+        ]
+      },
+      {
+        "id": "loc-17",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.047667087011349314,
+        "top_dense_cosine": 0.8034876585006714,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q9@p9:0",
+          "MPD47_FAQ:Q14@p10:0",
+          "MPD47_FAQ:Q18@p10:0"
+        ]
+      },
+      {
+        "id": "loc-18",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.04658160808858931,
+        "top_dense_cosine": 0.7363716959953308,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:2:0",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1",
+          "NGT_OA572_GNCTD_REPORT:5@p30:0",
+          "NGT_OA572_GNCTD_REPORT:7@p7:0"
+        ]
+      },
+      {
+        "id": "loc-19",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.04060728004389976,
+        "top_dense_cosine": 0.6606379747390747,
+        "top_rerank_score": null,
+        "retrieved": [
+          "NGT_OA572_GNCTD_REPORT:1@p29:0",
+          "NGT_OA572_GNCTD_REPORT:1@p15:0",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:7@p7:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1"
+        ]
+      },
+      {
+        "id": "loc-20",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.04800307219662058,
+        "top_dense_cosine": 0.7394262552261353,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "NGT_OA572_GNCTD_REPORT:5@p30:0",
+          "NGT_OA572_GNCTD_REPORT:7@p7:0"
+        ]
+      },
+      {
+        "id": "loc-21",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04918032786885246,
+        "top_dense_cosine": 0.8170488476753235,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1",
+          "NGT_OA572_GNCTD_REPORT:p1:0",
+          "NGT_OA572_GNCTD_REPORT:5@p30:0",
+          "NGT_OA572_GNCTD_REPORT:7@p7:0"
+        ]
+      },
+      {
+        "id": "loc-22",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.6987278461456299,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_FAQ:Q5@p20:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_FAQ:Q1@p5:0"
+        ]
+      },
+      {
+        "id": "loc-23",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.026875901875901876,
+        "top_dense_cosine": 0.5903841257095337,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:3.4.2:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_FAQ:Q3@p20:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0"
+        ]
+      },
+      {
+        "id": "loc-24",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6404016017913818,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p7:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:0",
+          "MPD47_FAQ:Q6@p7:0",
+          "NGT_OA572_GNCTD_REPORT:1@p21:0",
+          "MPD47_GAZETTE_EN:10.1@p843:0"
+        ]
+      },
+      {
+        "id": "loc-25",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.030090497737556562,
+        "top_dense_cosine": 0.6370556354522705,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 21@p969:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p979:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p968:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p978:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p977:0"
+        ]
+      },
+      {
+        "id": "gen-01",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7948004007339478,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_GAZETTE_EN:1.5:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:p642:0"
+        ]
+      },
+      {
+        "id": "gen-02",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.7160084247589111,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p640:0",
+          "MPD47_FAQ:Q1@p2:0",
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:p1086:0",
+          "MPD47_GAZETTE_EN:p646:0"
+        ]
+      },
+      {
+        "id": "gen-03",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.663737952709198,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:3.6.1@p721:0",
+          "MPD47_GAZETTE_EN:11.1.1@p853:0",
+          "MPD47_GAZETTE_EN:3.6.1@p723:0",
+          "MPD47_FAQ:Q15@p13:0"
+        ]
+      },
+      {
+        "id": "gen-04",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.6951814889907837,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2@p750:0"
+        ]
+      },
+      {
+        "id": "gen-05",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.723197340965271,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0"
+        ]
+      },
+      {
+        "id": "gen-06",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7550023794174194,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-07",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.7296472787857056,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "gen-08",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8718281984329224,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p8:0",
+          "MPD47_FAQ:Q6@p8:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q1@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-09",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.8023725748062134,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_FAQ:Q21:0",
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-10",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7030785083770752,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:13:0"
+        ]
+      },
+      {
+        "id": "gen-11",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.6967977285385132,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "MPD47_GAZETTE_EN:p1013:0",
+          "MPD47_GAZETTE_EN:p1014:0",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0"
+        ]
+      },
+      {
+        "id": "gen-12",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7627661824226379,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:2:0"
+        ]
+      },
+      {
+        "id": "gen-13",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7013281583786011,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:11:0",
+          "NGT_OA572_GNCTD_REPORT:9@p9:0"
+        ]
+      },
+      {
+        "id": "gen-14",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7093546390533447,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_FAQ:Q3@p11:0",
+          "MPD47_GAZETTE_EN:8.1.2@p823:0"
+        ]
+      },
+      {
+        "id": "gen-15",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.7037407159805298,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.3:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_FAQ:Q5@p20:0"
+        ]
+      },
+      {
+        "id": "gen-16",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8391671180725098,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_GAZETTE_EN:13.1.2:0",
+          "MPD47_GAZETTE_EN:4.5.4:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-17",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.031754032258064516,
+        "top_dense_cosine": 0.7786182761192322,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0",
+          "MPD47_GAZETTE_EN:4.5.4:0"
+        ]
+      },
+      {
+        "id": "gen-18",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.6456615924835205,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:7.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0"
+        ]
+      },
+      {
+        "id": "gen-19",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.03128054740957967,
+        "top_dense_cosine": 0.6366062164306641,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.3@p860:0",
+          "MPD47_GAZETTE_EN:8.1.1:0",
+          "MPD47_GAZETTE_EN:8.1.2@p823:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:Annexure 18:0"
+        ]
+      },
+      {
+        "id": "gen-20",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7343878746032715,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.3.2@p831:0",
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0",
+          "MPD47_GAZETTE_EN:8.3.1:0",
+          "MPD47_FAQ:Q1@p5:0"
+        ]
+      },
+      {
+        "id": "gen-21",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7526110410690308,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:13.2:0",
+          "MPD47_GAZETTE_EN:9.1.2@p835:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-22",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.698645830154419,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:9.3.1:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0"
+        ]
+      },
+      {
+        "id": "gen-23",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.030090497737556562,
+        "top_dense_cosine": 0.7101504802703857,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:10.1@p843:0",
+          "MPD47_FAQ:Q8@p7:0",
+          "MPD47_FAQ:Q4@p18:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p974:0",
+          "MPD47_FAQ:Q16@p10:0"
+        ]
+      },
+      {
+        "id": "gen-24",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7433087229728699,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_FAQ:Q6@p19:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:11.1.1@p855:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0"
+        ]
+      },
+      {
+        "id": "gen-25",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.830318033695221,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:5.1.4:0",
+          "MPD47_GAZETTE_EN:p988:0",
+          "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "MPD47_GAZETTE_EN:3.3.1@p696:0"
+        ]
+      },
+      {
+        "id": "abs-01",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.627111554145813,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p926:1",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p928:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p927:1",
+          "NGT_OA572_GNCTD_REPORT:1@p17:0"
+        ]
+      },
+      {
+        "id": "abs-02",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.7114709615707397,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:13.4.8:0",
+          "MPD47_GAZETTE_EN:4.4.3:0",
+          "MPD47_GAZETTE_EN:11.1.2@p856:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p966:0"
+        ]
+      },
+      {
+        "id": "abs-03",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.030536130536130537,
+        "top_dense_cosine": 0.5834053158760071,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:Annexure 14@p956:0",
+          "MPD47_FAQ:Q9@p19:0",
+          "MPD47_GAZETTE_EN:p913:0",
+          "MPD47_FAQ:Q2@p2:0"
+        ]
+      },
+      {
+        "id": "abs-04",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.029206349206349208,
+        "top_dense_cosine": 0.6584579348564148,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_FAQ:Q1@p5:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0",
+          "MPD47_FAQ:Q5@p15:0",
+          "MPD47_FAQ:Q3@p11:0"
+        ]
+      },
+      {
+        "id": "abs-05",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7655093669891357,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_GAZETTE_EN:4.2.3@p752:0"
+        ]
+      },
+      {
+        "id": "abs-06",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7643812298774719,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_FAQ:Q5@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q14@p10:0"
+        ]
+      },
+      {
+        "id": "abs-07",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04800307219662058,
+        "top_dense_cosine": 0.694637656211853,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.5:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.2:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0"
+        ]
+      },
+      {
+        "id": "abs-08",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.6764682531356812,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:0",
+          "MPD47_GAZETTE_EN:4.6.3@p779:0"
+        ]
+      },
+      {
+        "id": "abs-09",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.028484848484848488,
+        "top_dense_cosine": 0.6695313453674316,
+        "top_rerank_score": null,
+        "retrieved": [
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_GAZETTE_EN:5.1.6@p800:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:4.3@p1092:1"
+        ]
+      },
+      {
+        "id": "abs-10",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.03225806451612903,
+        "top_dense_cosine": 0.7440712451934814,
+        "top_rerank_score": null,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:2:0"
+        ]
+      }
+    ],
+    "hybrid+location+rerank": [
+      {
+        "id": "loc-01",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7908248901367188,
+        "top_rerank_score": 2.229736328125,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1"
+        ]
+      },
+      {
+        "id": "loc-02",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.04293600490697199,
+        "top_dense_cosine": 0.6992783546447754,
+        "top_rerank_score": -0.3692193627357483,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p11:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:p642:0",
+          "MPD47_FAQ:Q5@p11:0"
+        ]
+      },
+      {
+        "id": "loc-03",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.04381663113006397,
+        "top_dense_cosine": 0.6962862014770508,
+        "top_rerank_score": -2.4882702827453613,
+        "retrieved": [
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "loc-04",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.03726851851851852,
+        "top_dense_cosine": 0.6959601640701294,
+        "top_rerank_score": -0.41250595450401306,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.3@p797:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "loc-05",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.047317436661698964,
+        "top_dense_cosine": 0.7864563465118408,
+        "top_rerank_score": 3.4688353538513184,
+        "retrieved": [
+          "MPD47_FAQ:Q14@p13:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.4@p754:0"
+        ]
+      },
+      {
+        "id": "loc-06",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.021739130434782608,
+        "top_dense_cosine": 0.6978594064712524,
+        "top_rerank_score": -1.9113359451293945,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.2:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1",
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:p642:0"
+        ]
+      },
+      {
+        "id": "loc-07",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04918032786885246,
+        "top_dense_cosine": 0.7630534172058105,
+        "top_rerank_score": 2.968134641647339,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "loc-08",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7896630167961121,
+        "top_rerank_score": 1.2747231721878052,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q14@p16:0"
+        ]
+      },
+      {
+        "id": "loc-09",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.046648987463838,
+        "top_dense_cosine": 0.7518117427825928,
+        "top_rerank_score": 2.748777389526367,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_FAQ:Q9@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3.3@p760:0"
+        ]
+      },
+      {
+        "id": "loc-10",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.04188181296615032,
+        "top_dense_cosine": 0.6670595407485962,
+        "top_rerank_score": -2.193484306335449,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:4.3.1:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "loc-11",
+        "category": "location",
+        "first_hit_rank": 5,
+        "top_score": 0.04651442307692308,
+        "top_dense_cosine": 0.7492276430130005,
+        "top_rerank_score": 2.0688157081604004,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q15@p16:0"
+        ]
+      },
+      {
+        "id": "loc-12",
+        "category": "location",
+        "first_hit_rank": 3,
+        "top_score": 0.04727047146401985,
+        "top_dense_cosine": 0.7360251545906067,
+        "top_rerank_score": 0.8404335975646973,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q6@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3.1:0"
+        ]
+      },
+      {
+        "id": "loc-13",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.04697822363591876,
+        "top_dense_cosine": 0.7348694205284119,
+        "top_rerank_score": -1.6930463314056396,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q15@p10:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:0"
+        ]
+      },
+      {
+        "id": "loc-14",
+        "category": "location",
+        "first_hit_rank": 1,
+        "top_score": 0.04266245309105274,
+        "top_dense_cosine": 0.8411544561386108,
+        "top_rerank_score": 1.2864832878112793,
+        "retrieved": [
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q1@p8:0"
+        ]
+      },
+      {
+        "id": "loc-15",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.814487636089325,
+        "top_rerank_score": 2.0627331733703613,
+        "retrieved": [
+          "MPD47_FAQ:Q13@p9:0",
+          "MPD47_FAQ:Q10@p9:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q12@p9:0",
+          "MPD47_FAQ:Q7@p8:0"
+        ]
+      },
+      {
+        "id": "loc-16",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.022388059701492536,
+        "top_dense_cosine": null,
+        "top_rerank_score": -2.171739101409912,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "loc-17",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.047667087011349314,
+        "top_dense_cosine": 0.8034876585006714,
+        "top_rerank_score": 3.1033759117126465,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_FAQ:Q9@p9:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q14@p10:0",
+          "MPD47_FAQ:Q1@p8:0"
+        ]
+      },
+      {
+        "id": "loc-18",
+        "category": "location",
+        "first_hit_rank": 5,
+        "top_score": 0.024193548387096774,
+        "top_dense_cosine": null,
+        "top_rerank_score": -0.8610098361968994,
+        "retrieved": [
+          "NGT_OA572_GNCTD_REPORT:7@p5:0",
+          "DHC_YAMUNA_20240708:2:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0"
+        ]
+      },
+      {
+        "id": "loc-19",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.022388059701492536,
+        "top_dense_cosine": null,
+        "top_rerank_score": -4.490638256072998,
+        "retrieved": [
+          "NGT_OA572_GNCTD_REPORT:15:0",
+          "NGT_OA572_GNCTD_REPORT:7@p5:0",
+          "DHC_YAMUNA_20240708:2:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "NGT_OA572_GNCTD_REPORT:p1:0"
+        ]
+      },
+      {
+        "id": "loc-20",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.030886196246139225,
+        "top_dense_cosine": 0.7451990842819214,
+        "top_rerank_score": -2.1218109130859375,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:3:0",
+          "MPD47_GAZETTE_EN:p1012:1",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:5@p30:0"
+        ]
+      },
+      {
+        "id": "loc-21",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.031054405392392875,
+        "top_dense_cosine": 0.7949389219284058,
+        "top_rerank_score": 2.6886379718780518,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:3:0",
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "NGT_OA572_GNCTD_REPORT:7@p5:0",
+          "NGT_OA572_GNCTD_REPORT:15:0",
+          "NGT_OA572_GNCTD_REPORT:3@p25:1"
+        ]
+      },
+      {
+        "id": "loc-22",
+        "category": "location",
+        "first_hit_rank": 2,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.6987278461456299,
+        "top_rerank_score": -2.9950754642486572,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:4.6.6@p790:0"
+        ]
+      },
+      {
+        "id": "loc-23",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.014492753623188406,
+        "top_dense_cosine": null,
+        "top_rerank_score": -8.478776931762695,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.1:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p934:1",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:4.6.2@p777:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p931:1"
+        ]
+      },
+      {
+        "id": "loc-24",
+        "category": "location",
+        "first_hit_rank": 4,
+        "top_score": 0.01639344262295082,
+        "top_dense_cosine": 0.6404016017913818,
+        "top_rerank_score": -9.89793872833252,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p7:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:4.6.2@p776:0",
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_FAQ:Q6@p7:0"
+        ]
+      },
+      {
+        "id": "loc-25",
+        "category": "location",
+        "first_hit_rank": null,
+        "top_score": 0.02715098147128967,
+        "top_dense_cosine": 0.6063785552978516,
+        "top_rerank_score": -10.227667808532715,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.8:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p968:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p979:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p969:0",
+          "MPD47_GAZETTE_EN:Annexure 21@p978:0"
+        ]
+      },
+      {
+        "id": "gen-01",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7948004007339478,
+        "top_rerank_score": 5.549699306488037,
+        "retrieved": [
+          "MPD47_FAQ:Q2@p2:0",
+          "MPD47_GAZETTE_EN:p647:0",
+          "MPD47_GAZETTE_EN:2.1:0",
+          "MPD47_GAZETTE_EN:p646:0",
+          "MPD47_GAZETTE_EN:p644:0"
+        ]
+      },
+      {
+        "id": "gen-02",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.02976190476190476,
+        "top_dense_cosine": 0.7110618948936462,
+        "top_rerank_score": 1.3438758850097656,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.4:0",
+          "MPD47_GAZETTE_EN:p640:0",
+          "NGT_OA572_GNCTD_REPORT:4@p28:0",
+          "MPD47_GAZETTE_EN:p646:0",
+          "MPD47_GAZETTE_EN:1.5:0"
+        ]
+      },
+      {
+        "id": "gen-03",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.02928692699490662,
+        "top_dense_cosine": 0.6336922645568848,
+        "top_rerank_score": -1.196556806564331,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p11:0",
+          "MPD47_GAZETTE_EN:11.1.1@p853:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:3.6.1@p721:0"
+        ]
+      },
+      {
+        "id": "gen-04",
+        "category": "general",
+        "first_hit_rank": 4,
+        "top_score": 0.03076923076923077,
+        "top_dense_cosine": 0.6650797128677368,
+        "top_rerank_score": -0.4820082485675812,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-05",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.723197340965271,
+        "top_rerank_score": 3.0687026977539062,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:4.5.1:0",
+          "MPD47_GAZETTE_EN:p642:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1"
+        ]
+      },
+      {
+        "id": "gen-06",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.7550023794174194,
+        "top_rerank_score": 7.370511054992676,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_GAZETTE_EN:p642:0",
+          "MPD47_FAQ:Q8@p3:0"
+        ]
+      },
+      {
+        "id": "gen-07",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.7296472787857056,
+        "top_rerank_score": 1.0197426080703735,
+        "retrieved": [
+          "MPD47_FAQ:Q1@p15:0",
+          "MPD47_GAZETTE_EN:1.7.1@p666:0",
+          "MPD47_GAZETTE_EN:4.3@p757:0",
+          "MPD47_FAQ:Q8@p3:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:0"
+        ]
+      },
+      {
+        "id": "gen-08",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8718281984329224,
+        "top_rerank_score": 8.268056869506836,
+        "retrieved": [
+          "MPD47_FAQ:Q3@p8:0",
+          "MPD47_FAQ:Q6@p8:0",
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_FAQ:Q1@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0"
+        ]
+      },
+      {
+        "id": "gen-09",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.02832415420928403,
+        "top_dense_cosine": 0.7571625113487244,
+        "top_rerank_score": 2.4771244525909424,
+        "retrieved": [
+          "MPD47_FAQ:Q11@p9:0",
+          "MPD47_FAQ:Q4@p8:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_GAZETTE_EN:4.1.2:0",
+          "MPD47_FAQ:Q21:0"
+        ]
+      },
+      {
+        "id": "gen-10",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7030785083770752,
+        "top_rerank_score": 4.105635166168213,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "MPD47_GAZETTE_EN:3.1.2@p680:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "MPD47_GAZETTE_EN:3.1.2@p685:0"
+        ]
+      },
+      {
+        "id": "gen-11",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.032266458495966696,
+        "top_dense_cosine": 0.6967977285385132,
+        "top_rerank_score": -2.3395984172821045,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "DHC_YAMUNA_20240708:3:0",
+          "NGT_OA572_GNCTD_REPORT:4@p8:0",
+          "NGT_OA572_GNCTD_REPORT:7@p7:0",
+          "MPD47_GAZETTE_EN:p1012:1"
+        ]
+      },
+      {
+        "id": "gen-12",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03200204813108039,
+        "top_dense_cosine": 0.7430161237716675,
+        "top_rerank_score": 5.452558517456055,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "NGT_OA572_GNCTD_REPORT:7@p5:0"
+        ]
+      },
+      {
+        "id": "gen-13",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03252247488101534,
+        "top_dense_cosine": 0.6824339628219604,
+        "top_rerank_score": 6.1688432693481445,
+        "retrieved": [
+          "DHC_YAMUNA_20240708:6:0",
+          "DHC_YAMUNA_20240708:5:0",
+          "NGT_OA572_GNCTD_REPORT:7@p5:0",
+          "NGT_OA572_GNCTD_REPORT:15:0",
+          "DHC_YAMUNA_20240708:4:0"
+        ]
+      },
+      {
+        "id": "gen-14",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7093546390533447,
+        "top_rerank_score": 3.300503730773926,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:3.2.2@p691:0",
+          "MPD47_GAZETTE_EN:13.4.7@p894:0"
+        ]
+      },
+      {
+        "id": "gen-15",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.015873015873015872,
+        "top_dense_cosine": 0.7198434472084045,
+        "top_rerank_score": -3.637021541595459,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.5.3:0",
+          "MPD47_GAZETTE_EN:4.6.2@p774:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:3.4.3:0",
+          "MPD47_FAQ:Q4@p20:0"
+        ]
+      },
+      {
+        "id": "gen-16",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.8391671180725098,
+        "top_rerank_score": 8.021717071533203,
+        "retrieved": [
+          "MPD47_FAQ:Q6@p3:0",
+          "MPD47_FAQ:Q5@p2:0",
+          "MPD47_FAQ:Q3@p6:0",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:13.1.2:0"
+        ]
+      },
+      {
+        "id": "gen-17",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.031754032258064516,
+        "top_dense_cosine": 0.7786182761192322,
+        "top_rerank_score": 2.0756523609161377,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:13.4.4:0",
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-18",
+        "category": "general",
+        "first_hit_rank": null,
+        "top_score": 0.030886196246139225,
+        "top_dense_cosine": 0.6559481620788574,
+        "top_rerank_score": 1.3554457426071167,
+        "retrieved": [
+          "MPD47_FAQ:Q10@p12:0",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:7.2.2@p815:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "gen-19",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.031024531024531024,
+        "top_dense_cosine": 0.62882000207901,
+        "top_rerank_score": 0.042607828974723816,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.1.2@p823:0",
+          "MPD47_GAZETTE_EN:5.1.7@p802:0",
+          "MPD47_GAZETTE_EN:4.5.6:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_GAZETTE_EN:11.1.3@p860:0"
+        ]
+      },
+      {
+        "id": "gen-20",
+        "category": "general",
+        "first_hit_rank": 3,
+        "top_score": 0.03200204813108039,
+        "top_dense_cosine": 0.6999192237854004,
+        "top_rerank_score": 2.16558575630188,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_GAZETTE_EN:8.3.2@p831:0",
+          "MPD47_GAZETTE_EN:8.3.2@p830:0",
+          "MPD47_GAZETTE_EN:8.1.3:0",
+          "MPD47_GAZETTE_EN:7.2.2@p817:0"
+        ]
+      },
+      {
+        "id": "gen-21",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.7526110410690308,
+        "top_rerank_score": 4.10683536529541,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.3:0",
+          "MPD47_FAQ:Q3@p6:0",
+          "MPD47_GAZETTE_EN:13.2:0",
+          "MPD47_GAZETTE_EN:3.2.5@p694:0",
+          "MPD47_FAQ:Q5@p2:0"
+        ]
+      },
+      {
+        "id": "gen-22",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.016129032258064516,
+        "top_dense_cosine": 0.6971144676208496,
+        "top_rerank_score": -4.239487648010254,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:9.1.2@p836:0",
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:p907:1",
+          "MPD47_GAZETTE_EN:9.2:0",
+          "MPD47_GAZETTE_EN:7.2.2@p818:0"
+        ]
+      },
+      {
+        "id": "gen-23",
+        "category": "general",
+        "first_hit_rank": 2,
+        "top_score": 0.02889344262295082,
+        "top_dense_cosine": 0.7419480085372925,
+        "top_rerank_score": 3.0332555770874023,
+        "retrieved": [
+          "MPD47_FAQ:Q4@p18:0",
+          "MPD47_FAQ:Q3@p2:0",
+          "MPD47_FAQ:Q7@p3:0",
+          "MPD47_GAZETTE_EN:11.3.1:0",
+          "MPD47_GAZETTE_EN:12.4.1:0"
+        ]
+      },
+      {
+        "id": "gen-24",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.029827662395050816,
+        "top_dense_cosine": 0.7387101650238037,
+        "top_rerank_score": 2.6330838203430176,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:11.1.1@p855:0",
+          "MPD47_GAZETTE_EN:4.4.4:0",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_FAQ:Q8@p19:0",
+          "MPD47_FAQ:Q6@p19:0"
+        ]
+      },
+      {
+        "id": "gen-25",
+        "category": "general",
+        "first_hit_rank": 1,
+        "top_score": 0.03278688524590164,
+        "top_dense_cosine": 0.830318033695221,
+        "top_rerank_score": 8.873547554016113,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.2:0",
+          "MPD47_GAZETTE_EN:5.1.4:0",
+          "MPD47_GAZETTE_EN:1.3:0",
+          "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "MPD47_GAZETTE_EN:p988:0"
+        ]
+      },
+      {
+        "id": "abs-01",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.028404512489927477,
+        "top_dense_cosine": 0.610709547996521,
+        "top_rerank_score": -6.594608306884766,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:Annexure 1@p927:1",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p926:1",
+          "MPD47_GAZETTE_EN:Annexure 1@p927:0",
+          "MPD47_GAZETTE_EN:Annexure 1@p925:0"
+        ]
+      },
+      {
+        "id": "abs-02",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.02761904761904762,
+        "top_dense_cosine": 0.6801981925964355,
+        "top_rerank_score": -6.639121055603027,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:13.4.8:0",
+          "MPD47_GAZETTE_EN:13.4.6@p891:0",
+          "MPD47_GAZETTE_EN:4.6.4@p782:1",
+          "MPD47_GAZETTE_EN:Annexure 21@p966:0",
+          "MPD47_GAZETTE_EN:4.4.3:0"
+        ]
+      },
+      {
+        "id": "abs-03",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.030536130536130537,
+        "top_dense_cosine": 0.5834053158760071,
+        "top_rerank_score": -9.680255889892578,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.4.5:0",
+          "MPD47_GAZETTE_EN:p913:0",
+          "MPD47_GAZETTE_EN:3.4.1:0",
+          "MPD47_GAZETTE_EN:3.7.1@p736:0",
+          "MPD47_GAZETTE_EN:1.6.2@p662:0"
+        ]
+      },
+      {
+        "id": "abs-04",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.024614919963757174,
+        "top_dense_cosine": 0.6299673318862915,
+        "top_rerank_score": -5.70067834854126,
+        "retrieved": [
+          "MPD47_FAQ:Q5@p19:0",
+          "MPD47_GAZETTE_EN:4.6.5@p785:0",
+          "MPD47_GAZETTE_EN:4.6.5@p784:0",
+          "MPD47_GAZETTE_EN:7.2.1@p814:0",
+          "MPD47_GAZETTE_EN:4.6.4@p781:0"
+        ]
+      },
+      {
+        "id": "abs-05",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04035150645624103,
+        "top_dense_cosine": 0.6906090974807739,
+        "top_rerank_score": 0.7437732815742493,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:1.7.1@p665:1",
+          "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "MPD47_GAZETTE_EN:4.2.1:0",
+          "MPD47_GAZETTE_EN:4.2.3@p751:0",
+          "MPD47_FAQ:Q17@p13:0"
+        ]
+      },
+      {
+        "id": "abs-06",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04878371232152301,
+        "top_dense_cosine": 0.7643812298774719,
+        "top_rerank_score": -1.7435978651046753,
+        "retrieved": [
+          "MPD47_FAQ:Q18@p10:0",
+          "MPD47_FAQ:Q1@p8:0",
+          "MPD47_FAQ:Q9@p9:0",
+          "MPD47_GAZETTE_EN:4.1@p746:0",
+          "MPD47_GAZETTE_EN:p1140:0"
+        ]
+      },
+      {
+        "id": "abs-07",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.04632929436920884,
+        "top_dense_cosine": 0.7206447124481201,
+        "top_rerank_score": -0.2169708013534546,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:4.2.4@p754:0",
+          "MPD47_GAZETTE_EN:4.2@p750:0",
+          "MPD47_GAZETTE_EN:4.2.4@p755:0",
+          "MPD47_GAZETTE_EN:3.6.1@p721:1",
+          "MPD47_GAZETTE_EN:4.2.3@p752:1"
+        ]
+      },
+      {
+        "id": "abs-08",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.032018442622950824,
+        "top_dense_cosine": 0.6764682531356812,
+        "top_rerank_score": 4.171451568603516,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:5.1.6@p799:0",
+          "MPD47_GAZETTE_EN:4.6.3@p779:0",
+          "MPD47_GAZETTE_EN:8.3.2@p832:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:4.6.6@p787:0"
+        ]
+      },
+      {
+        "id": "abs-09",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.015151515151515152,
+        "top_dense_cosine": null,
+        "top_rerank_score": -4.450815200805664,
+        "retrieved": [
+          "MPD47_GAZETTE_EN:3.6.1@p718:0",
+          "MPD47_GAZETTE_EN:1.6.2@p660:0",
+          "MPD47_GAZETTE_EN:1.3:0",
+          "MPD47_GAZETTE_EN:4.6.6@p786:0",
+          "MPD47_GAZETTE_EN:5.1.6@p799:0"
+        ]
+      },
+      {
+        "id": "abs-10",
+        "category": "abstain",
+        "first_hit_rank": null,
+        "top_score": 0.027984344422700584,
+        "top_dense_cosine": 0.6909841895103455,
+        "top_rerank_score": -0.09693565964698792,
+        "retrieved": [
+          "NGT_OA572_GNCTD_REPORT:15:0",
+          "DHC_YAMUNA_20240708:1:0",
+          "NGT_OA572_GNCTD_REPORT:7@p5:0",
+          "DHC_YAMUNA_20240708:4:0",
+          "NGT_OA572_GNCTD_REPORT:1@p29:0"
+        ]
+      }
+    ]
+  }
+}

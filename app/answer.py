@@ -8,7 +8,7 @@ The order matters, and two of the five steps never reach the model at all:
 
   1. Where is the point?        outside Delhi -> abstain, no LLM call
   2. Location-aware search      the top k clauses for that point
-  3. Is the evidence enough?    nothing retrieved, or too weak -> abstain, no LLM call
+  3. Is the evidence enough?    `is_weak` on a raw score -> abstain, no LLM call
   4. Ask the model              sources as [C1]..[Ck], temperature 0
   5. Check every citation       bad markers or an uncited sentence -> one retry, then abstain
 
@@ -29,7 +29,14 @@ from dataclasses import asdict, dataclass, field
 from app.config import settings
 from app.llm import LLM, get_llm, text_of
 from app.location import describe_zones
-from app.retrieval import Result, SearchIndex, SearchReport, get_index, search
+from app.retrieval import (
+    Result,
+    SearchIndex,
+    SearchReport,
+    get_index,
+    search,
+    signal_value,
+)
 from app.spatial import get_zones
 
 # --- why an answer was not given ------------------------------------------------
@@ -289,6 +296,30 @@ def _abstain(
     )
 
 
+def is_weak(results: list[Result]) -> bool:
+    """True when retrieval was too weak to be worth an API call.
+
+    The signal is a **raw** score, not the fused one, and that is the whole point of
+    D-071. A fused RRF score only encodes rank position: whatever the question, the
+    best chunk scores 2/61 if both indexes ranked it first, so a question about
+    property tax in Mumbai produced the same confident-looking 0.0328 as a question
+    the gazette answers in full. `settings.abstention_signal` names a score that is an
+    absolute judgement about this query and this chunk — the dense cosine similarity by
+    default, the cross-encoder's score when the reranker is on.
+
+    A result with no value for the signal is **not** treated as weak. A chunk only the
+    keyword index found has no cosine similarity, and that is a gap in what we know
+    about it, not evidence against it; refusing on a missing number would turn the
+    guard into a second exclusion rule.
+    """
+    if not results:
+        return True
+    value = signal_value(results[0], settings.abstention_signal)
+    if value is None:
+        return False
+    return value < settings.abstain_threshold
+
+
 def answer_point(
     question: str,
     lat: float,
@@ -312,7 +343,7 @@ def answer_point(
     report = SearchReport(query=question, expanded_query=question)
     results = search(question, k=k, mode="hybrid", zones=zones, index=index, report=report)
 
-    if not results or results[0].fused_score < settings.abstain_threshold:
+    if is_weak(results):
         return _abstain(question, lat, lon, zones, WEAK_RETRIEVAL, results, 0, started)
 
     client = llm or get_llm()

@@ -1,0 +1,107 @@
+name: CI
+
+# Runs on every push and every pull request. It checks the two things a clone of this
+# repository can check: that the Python tests pass, and that the frontend builds.
+#
+# What it cannot check is anything that needs the data. `data/processed`, `data/index`
+# and `data/layers/dda` are gitignored (D-014) — the PDFs are 109 MB, the DDA layers
+# have no stated licence, and the indexes are generated — so a runner has none of them.
+# Tests that need them are marked `needs_data` and deselected here, which is why the
+# step says `-m "not needs_data"` rather than plain `pytest`. 348 of the 379 tests run
+# without any data at all (D-078).
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first run: on a branch being iterated on,
+# the only result anyone reads is the latest one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Tests (no data)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          # the lockfile and pyproject.toml decide what is cached
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        # .python-version is committed, so the runner uses the same 3.12 as the laptop
+        run: uv python install
+
+      - name: Install dependencies
+        # --frozen means uv.lock is used exactly as committed. A lockfile that has
+        # drifted from pyproject.toml fails here rather than resolving something newer
+        # and passing on a version nobody has run locally.
+        run: uv sync --frozen
+
+      - name: Run the tests that need no data
+        run: uv run pytest -m "not needs_data" -q
+
+      - name: Check the data-dependent tests are only skipped, never missing
+        # If a `needs_data` marker is ever removed by accident, the suite above would
+        # silently start trying to read data that is not there. This asserts that the
+        # deselected set is non-empty, so the marker going missing is a CI failure
+        # rather than a surprise.
+        run: |
+          deselected=$(uv run pytest -m "needs_data" --collect-only -q 2>/dev/null | tail -1)
+          echo "needs_data collection: $deselected"
+          uv run python -c "
+          import subprocess, sys
+          out = subprocess.run(
+              ['uv', 'run', 'pytest', '-m', 'needs_data', '--collect-only', '-q'],
+              capture_output=True, text=True,
+          ).stdout
+          count = sum(1 for line in out.splitlines() if '::' in line)
+          print(f'{count} test(s) marked needs_data')
+          sys.exit(0 if count > 0 else 1)
+          "
+
+  web:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        # npm ci, not npm install: web/package-lock.json is committed, and `ci` installs
+        # exactly what it says and fails if it disagrees with package.json. `install`
+        # would quietly resolve something newer, so CI would be testing a dependency
+        # tree nobody has run locally.
+        working-directory: web
+        run: npm ci
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Check the bundle came out
+        working-directory: web
+        run: |
+          test -f dist/index.html || { echo "no dist/index.html"; exit 1; }
+          ls dist/assets/*.js >/dev/null || { echo "no javascript bundle"; exit 1; }
+          du -sh dist

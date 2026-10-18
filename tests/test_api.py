@@ -15,6 +15,13 @@ from app.api import app, limiter, llm_provider
 from app.config import settings
 from app.llm import FakeLLM, tool_use_response
 
+# Every test in this file goes through the real FastAPI lifespan, which loads the Chroma
+# collection, the BM25 corpus and the GeoJSON layers -- none of which is committed
+# (D-014). On a fresh clone, or in CI before the pipeline has run, there is nothing to
+# load, so the whole module is marked and skipped by `-m "not needs_data"` (D-078).
+pytestmark = pytest.mark.needs_data
+
+
 RAJIV_CHOWK = (28.6328, 77.2197)
 GURUGRAM = (28.4950, 77.0890)
 

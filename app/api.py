@@ -24,6 +24,12 @@ Four more endpoints live under `/api/dev/eval/` and serve the question verificat
 screen. They exist only when `ZONEWISE_DEV=1`: with the flag off every one of them is a
 404, because they read and write the evaluation files and have no business being
 reachable on a deployed server (D-075).
+
+Every request is size-checked and every response carries a small set of security headers
+(D-077), and a validation failure comes back as one readable sentence rather than
+pydantic's error list. Nothing here is configured in the file: the rate limits, the
+allowed origins, the question length and the body limit all come from `app/config.py`
+and therefore from the environment (D-065).
 """
 
 import json
@@ -34,6 +40,8 @@ from datetime import date
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -91,7 +99,7 @@ class LeakageRequest(BaseModel):
 class SearchRequest(BaseModel):
     """POST /api/search."""
 
-    query: str = Field(min_length=1, max_length=1000)
+    query: str = Field(min_length=1, max_length=settings.max_question_chars)
     lat: float | None = Field(default=None, ge=-90, le=90)
     lon: float | None = Field(default=None, ge=-180, le=180)
     k: int = Field(default=settings.default_k, ge=1, le=20)
@@ -99,9 +107,15 @@ class SearchRequest(BaseModel):
 
 
 class AskRequest(BaseModel):
-    """POST /api/ask."""
+    """POST /api/ask.
 
-    question: str = Field(min_length=1, max_length=1000)
+    The latitude and longitude bounds are the valid ranges for the coordinate
+    system, not a Delhi bounding box. A point in Gurugram is a legitimate request
+    with an honest answer -- `outside_delhi`, no LLM call (D-045) -- and rejecting
+    it at the edge would turn a useful reply into a validation error.
+    """
+
+    question: str = Field(min_length=1, max_length=settings.max_question_chars)
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
     k: int = Field(default=settings.default_k, ge=1, le=20)
@@ -110,7 +124,7 @@ class AskRequest(BaseModel):
 class AgentRequest(BaseModel):
     """POST /api/agent."""
 
-    question: str = Field(min_length=1, max_length=1000)
+    question: str = Field(min_length=1, max_length=settings.max_question_chars)
 
 
 # --- rate limiting --------------------------------------------------------------
@@ -252,6 +266,77 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+#: Headers added to every response. Modest on purpose: this is a read-only API and
+#: a map, so the headers worth setting are the ones that cost nothing and close a
+#: real hole (D-077).
+SECURITY_HEADERS = {
+    # the browser must not guess that a JSON body is HTML and run it
+    "X-Content-Type-Options": "nosniff",
+    # nothing here should ever be framed by another site
+    "X-Frame-Options": "DENY",
+    # a question is in the URL of nothing, but a referrer still leaks the origin
+    "Referrer-Policy": "no-referrer",
+    # no part of this app needs a camera, a microphone or a location permission
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add the security headers, and refuse a body larger than the configured limit.
+
+    The size check reads `Content-Length` rather than the body itself, so an
+    oversized request is refused before it is parsed or read into memory. A client
+    that sends no `Content-Length` (a chunked upload) is not refused here: there is
+    nothing to check yet, and the field limits on the request models catch it a
+    moment later (D-077).
+    """
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > settings.max_request_bytes:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "detail": {
+                    "error": "request_too_large",
+                    "message": (
+                        f"The request body is {declared} bytes, over the "
+                        f"{settings.max_request_bytes} byte limit. A question may be at "
+                        f"most {settings.max_question_chars} characters."
+                    ),
+                }
+            },
+            headers=SECURITY_HEADERS,
+        )
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_message(request: Request, exc: RequestValidationError):
+    """Turn pydantic's validation report into one sentence a person can act on.
+
+    FastAPI's default 422 body is a list of dicts with `loc`, `type` and `ctx`,
+    which is precise and unreadable. The interface shows `detail.message`, so the
+    message has to say which field and what the limit is -- and the raw errors are
+    still included under `errors` for anyone debugging a client (D-077).
+    """
+    problems = []
+    for error in exc.errors():
+        where = ".".join(str(part) for part in error.get("loc", ()) if part != "body")
+        problems.append(f"{where or 'request'}: {error.get('msg', 'is not valid')}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": {
+                "error": "invalid_request",
+                "message": "; ".join(problems) or "The request could not be read.",
+                "errors": jsonable_encoder(exc.errors()),
+            }
+        },
+    )
 
 
 def require_index(request: Request):

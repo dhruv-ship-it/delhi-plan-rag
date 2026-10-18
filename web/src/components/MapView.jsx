@@ -50,7 +50,14 @@ export default function MapView({ marker, onPick, visible, onLayerError }) {
       <MapContainer center={DELHI_CENTRE} zoom={DELHI_ZOOM} className="map" scrollWheelZoom>
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          // Both sources are credited, because both are someone else's work and the
+          // zone boundaries are the ones a user might act on. DDA states no licence on
+          // its GIS service, so the layers are displayed and never offered for download
+          // (D-030, D-077).
+          attribution={
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+            ' contributors &middot; Boundaries: <a href="https://gis.dda.org.in/">DDA GIS portal</a>'
+          }
           maxZoom={18}
         />
         <ClickHandler onPick={onPick} />

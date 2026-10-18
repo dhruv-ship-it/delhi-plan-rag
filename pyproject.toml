@@ -30,3 +30,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[tool.pytest.ini_options]
+markers = [
+    "needs_data: needs the built indexes and downloaded map layers, which are not committed",
+]

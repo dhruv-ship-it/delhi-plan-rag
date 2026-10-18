@@ -56,8 +56,15 @@ def test_the_built_page_is_served_at_the_root() -> None:
 
 
 @needs_build
+@pytest.mark.needs_data
 def test_the_api_still_works_when_the_frontend_is_mounted() -> None:
-    """The static mount is at /, so it must not shadow /api."""
+    """The static mount is at /, so it must not shadow /api.
+
+    Marked `needs_data` as well as `needs_build`: asserting `status == "ok"` asserts
+    that the index and the layers loaded, and neither is committed (D-078). The routing
+    question this test exists to answer is settled by the 200 either way, but a
+    "degraded" health report is the honest answer on a clone with no data.
+    """
     with TestClient(__import__("app.api", fromlist=["app"]).app) as client:
         body = client.get("/api/health").json()
         assert body["status"] == "ok"

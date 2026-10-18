@@ -1,0 +1,53 @@
+# What never reaches the build context. The Dockerfile COPYs explicitly, so this is a
+# second line of defence rather than the only one — and for .env it is the line that
+# matters, because a key baked into an image layer stays in that layer forever.
+
+# secrets, first and always
+.env
+.env.*
+!.env.example
+
+# 109 MB of source PDFs. The chunks derived from them are in the image; these are not,
+# because nothing at run time reads them (D-079).
+data/raw/
+
+# written by the running container, never baked in
+data/logs/
+
+# local python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# node: reinstalled inside the build stage, and a host node_modules may hold binaries
+# built for the wrong platform
+web/node_modules/
+web/dist/
+
+# git history and tooling
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# documents and reports: for people, not for the server
+docs/
+reports/
+*.md
+!README.md
+
+# tests do not run in the image
+tests/
+
+# editor and OS litter
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# reference material used by hand
+data/reference/

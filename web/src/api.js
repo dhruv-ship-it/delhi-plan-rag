@@ -73,3 +73,17 @@ const postJson = (path, payload) =>
 export const postSearch = (payload) => postJson('/api/search', payload)
 export const postAsk = (payload) => postJson('/api/ask', payload)
 export const postAgent = (payload) => postJson('/api/agent', payload)
+
+// The question verification screen. Every one of these is a 404 unless the backend was
+// started with ZONEWISE_DEV=1, which is why the interface asks /api/health first and
+// only shows the Verify tab when dev_mode is true (see app/api.py and D-075).
+export const getDevQuestions = () => request('/api/dev/eval/questions')
+
+export const getDevQuestion = (id) =>
+  request(`/api/dev/eval/questions/${encodeURIComponent(id)}`)
+
+export const postDevLeakage = (id, question) =>
+  postJson(`/api/dev/eval/questions/${encodeURIComponent(id)}/leakage`, { question })
+
+export const postDevDecision = (id, decision) =>
+  postJson(`/api/dev/eval/questions/${encodeURIComponent(id)}/decision`, decision)

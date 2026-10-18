@@ -1,20 +1,8 @@
 import { useEffect, useState } from 'react'
 import { GeoJSON, MapContainer, Marker, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
 import { getLayer } from '../api.js'
 import { DELHI_CENTRE, DELHI_ZOOM, LAYERS } from '../layers.js'
-
-// Leaflet's default marker icon is loaded from a relative path that breaks under a
-// bundler. Pointing it at the CDN copies keeps the marker visible in dev and in build.
-const markerIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
+import { markerIcon } from '../marker.js'
 
 function ClickHandler({ onPick }) {
   useMapEvents({

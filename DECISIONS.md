@@ -601,3 +601,41 @@ Nothing was worked around and nothing depends on it. `locate_place` treats an ab
 `docs/DATA.md` documents the file's shape, the Overpass query, the licence and the fact that the file is **not present in this repository**, with the one command that fills it in. It is first on the remaining-manual-work list in `reports/night3_run.md`.
 
 The one thing to check when it does run: the station count. Delhi Metro has roughly 290 stations, so a result in the low hundreds is plausible and a result of 12 or 4,000 means the query matched the wrong thing. The script prints the count, the number of OSM elements behind it, and the first and last station name for exactly that reason.
+
+## D-075 · 2026-10-17 · The verification endpoints are behind a flag and 404 without it
+Four endpoints under `/api/dev/eval/` serve the verification screen: list the questions, get one with its chunks and current top 5, check a rewritten question for leakage, save a decision. All four read and write files under `eval/`, and the last one writes `questions_verified.jsonl`, so none of them has any business being reachable on a deployed server.
+
+`require_dev_mode` is a FastAPI dependency that raises **404**, not 403, unless `ZONEWISE_DEV=1`. A 403 confirms the endpoint exists and that the flag is the thing standing between you and it; a 404 is indistinguishable from a path that was never written. `/api/health` reports `dev_mode`, which is how the frontend decides whether to show the Verify tab — so the flag is read in exactly one place on each side, and the browser's copy is a convenience rather than a second access control.
+
+`app/dev_eval.py` deliberately does **not** check the flag. A module that reads and writes evaluation files is not a security boundary, and putting the check in both places would leave the authority in neither. The endpoints are the boundary; the tests assert all four are 404 with the flag off and working with it on.
+
+The default is off: `env_bool("ZONEWISE_DEV", False)`, so a container that forgets to mention it is safe rather than exposed. `.env.example` says in as many words not to set it in production.
+
+Rejected: a shared-secret header instead of a flag (a secret that lives in `.env.example` is not a secret, and the screen is for one person on localhost); serving the screen from a separate app on another port (two servers to start, and the screen needs the same loaded index as everything else); and leaving the endpoints always on because the project has no users yet (the deploy kit exists in the same night's work, so "no users yet" stopped being true in Stage 7).
+
+## D-076 · 2026-10-17 · The verification screen, and what its shape is for
+Verifying 60 questions by editing JSONL in an editor means, per question: find the line, read the expected chunk id, run `show_chunk.py` in another terminal, read the clause, decide, maybe run `search.py` to find a better one, edit three fields, re-check the leakage rule by hand, save. Three hours of that is how a necessary task becomes one that does not get done — and the evaluation is the thing standing between this project and any number it can report (D-054).
+
+So the work gets a screen, and its shape follows the shape of the job. Verifying one question means answering four things — does the expected clause really answer this, is the one-line answer right, would a person ask it this way, does the rewrite still avoid naming the zone — and **all four need the clause text and the retrieval results visible at the same time as an editable question box**. So everything is on one wide screen, and the keyboard does the navigation: A accept, E save edit, R reject, S skip, arrows to move. Shortcuts are ignored while the caret is in a text box, because typing "a" in a question must not accept it.
+
+Four details are decisions rather than defaults.
+
+**Rejected and skipped questions are written down.** A rejected question goes into `questions_verified.jsonl` with `verified: false` and `status: "rejected"`. Without that record, "I read this and it is a bad question" is indistinguishable from "nobody reached this one", and the second is the state you want to find when you come back tomorrow. `run_eval.py` skips anything without `verified: true`, so a recorded rejection is never scored.
+
+**The draft file is never written.** `scripts/09_draft_questions.py` owns it and regenerates it, and a test asserts the bytes do not change across a save. The record of what was generated survives, and re-running the drafter cannot destroy an evening of verification.
+
+**The leakage check runs on the rewritten text, live, and again on save.** Rewriting the question in your own words is the step that makes it independent of the corpus (D-055), and it is also the step most likely to accidentally quote the clause sitting open on the screen beside it. The live warning is a convenience; the check on save is the enforcement, and a decision that fails it is refused with a 422 naming the phrase, because the person typing is the one who has to fix it.
+
+**The expected clause is shown in full, in a `<pre>`.** Not a snippet — the question is whether this clause answers that question, and a 200-character preview cannot answer it. `<pre>` rather than a paragraph because a gazette clause carries markdown tables and indented sub-items, and collapsing that whitespace makes a norms table unreadable.
+
+The same guards the drafter enforces on its own output are enforced on a hand-edited decision: the chunk ids must exist in the index, an answerable question needs 1 to 3 expected ids, a should-abstain question needs none, and nothing may quote its own answer. More so for a hand-edited one, in fact, since nothing else will look at it again.
+
+The tab is plain state in `App.jsx`, not a router. There are two views, one of which only exists in dev mode, so a routing package would be the seventh npm dependency for a boolean (D-059). `eval/README.md` is rewritten around the screen, with the exact PowerShell steps, how many questions to keep in each category, and two worked examples of a good rewrite against a bad one.
+
+`run_eval.py` now reads `questions_verified.jsonl` first, then `questions.jsonl` (the hand-edited file night 2's README described, still read so that work is not orphaned), then the drafts.
+
+`eval/questions_verified.jsonl` is **committed**, not gitignored. It was briefly added to `.gitignore` while writing this, on the reflex that generated files under `eval/` are not committed, and that was wrong: this file is not generated, it is the output of two hours of a person's judgement, it is a few kilobytes, and CLAUDE.md already lists the verified question set among the committed files. Losing it to a clean checkout would be losing the only part of the evaluation that cannot be rebuilt by a script.
+
+One bug the tests caught is worth recording because it would have been invisible in use: `save_decision` reported where it had written by calling `relative_to(project_root)`, which raises for any path outside the repo. It only showed up because the tests point the module at a tmp folder — but the same call would have raised for a checkout at an unexpected root. A message saying where a file was written must not be able to fail; `shown_path` falls back to the absolute path.
+
+Rejected: a Jupyter notebook for the verification (it would need a seventh dependency and a kernel, and it cannot show a map); editing the JSONL by hand with better instructions (that was night 2's answer, and three hours of context-switching is the reason to replace it); and writing accepted questions straight into `questions.jsonl` (it would mix generated and verified records in one file, which is the thing D-054 separated).

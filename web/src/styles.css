@@ -507,6 +507,171 @@ code {
   border-radius: 4px;
 }
 
+
+/* --- the question verification screen (dev only) --- */
+
+/* One wide column rather than map-plus-panel: the job is reading clause text beside an
+   editable question, and a 26rem panel is not wide enough to read a clause in. */
+.verify-layout {
+  grid-template-columns: 1fr;
+  overflow: hidden;
+}
+
+.views {
+  margin-left: auto;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.verify {
+  padding: 1rem 1.25rem 3rem;
+  overflow-y: auto;
+  max-width: 62rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.verify-top {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 2;
+}
+
+.verify-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.verify-help {
+  font-size: 0.8rem;
+}
+
+.verify-meta {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.verify-label {
+  display: block;
+  font-weight: 600;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.verify-question {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.verify-row {
+  margin: 0.6rem 0;
+}
+
+.verify-toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.verify-map {
+  margin: 0.8rem 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.verify-chunk {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.7rem;
+  background: var(--bg);
+}
+
+.verify-chunk-head {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.verify-chunk-path {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* pre, not a paragraph: a gazette clause carries markdown tables and indented list
+   items, and collapsing that whitespace makes a norms table unreadable. */
+.verify-chunk-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.verify-results {
+  padding-left: 1.2rem;
+}
+
+.verify-results li {
+  margin-bottom: 0.9rem;
+  padding-left: 0.3rem;
+}
+
+.verify-results li.hit {
+  border-left: 3px solid var(--ok, #16a34a);
+  padding-left: 0.6rem;
+  margin-left: -0.6rem;
+}
+
+.verify-result-head {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.verify-result-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.verify-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  position: sticky;
+  bottom: 0;
+  padding: 0.7rem 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+kbd {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.75em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  background: var(--bg);
+}
+
 /* --- phones: stack the map above the panel --- */
 
 @media (max-width: 900px) {
@@ -522,5 +687,19 @@ code {
 
   .drawer {
     width: 100vw;
+  }
+}
+
+@media (max-width: 900px) {
+  .verify-layout {
+    grid-template-rows: auto;
+  }
+
+  .verify {
+    padding: 0.8rem 0.9rem 3rem;
+  }
+
+  .verify-nav {
+    margin-left: 0;
   }
 }

@@ -19,6 +19,11 @@ That split is deliberate: without a key the app is a working clause search over 
 planning law with a map, and the two endpoints that need one return 503 **with the
 retrieval results included**, so the interface can still show the user the clauses it
 found and say that answers need a key (see D-050).
+
+Four more endpoints live under `/api/dev/eval/` and serve the question verification
+screen. They exist only when `ZONEWISE_DEV=1`: with the flag off every one of them is a
+404, because they read and write the evaluation files and have no business being
+reachable on a deployed server (D-075).
 """
 
 import json
@@ -37,7 +42,16 @@ from pydantic import BaseModel, Field
 from app.agent import run_agent
 from app.answer import answer_point
 from app.config import settings
+from app.dev_eval import (
+    Decision,
+    DevEvalError,
+    check_leakage,
+    question_detail,
+    question_list,
+    save_decision,
+)
 from app.llm import LLM, get_llm
+from app.rerank import available as reranker_available
 from app.retrieval import SearchReport, get_index, rank, search
 from app.spatial import CORE_LAYERS, get_zones, load_layers
 
@@ -55,6 +69,23 @@ NO_LLM_MESSAGE = (
 
 
 # --- what comes in and goes out -------------------------------------------------
+
+
+class DecisionRequest(BaseModel):
+    """POST /api/dev/eval/decision. One verification decision from the screen."""
+
+    question: str = Field(default="", max_length=settings.max_question_chars)
+    status: str = Field(pattern="^(accepted|edited|rejected|skipped)$")
+    expected_chunk_ids: list[str] = Field(default_factory=list, max_length=3)
+    acceptable_chunk_ids: list[str] = Field(default_factory=list, max_length=10)
+    should_abstain: bool = False
+    notes: str = Field(default="", max_length=1000)
+
+
+class LeakageRequest(BaseModel):
+    """POST /api/dev/eval/leakage. A rewritten question to check while typing."""
+
+    question: str = Field(default="", max_length=settings.max_question_chars)
 
 
 class SearchRequest(BaseModel):
@@ -268,6 +299,17 @@ def health(request: Request) -> dict:
         "llm_available": settings.llm_available,
         "model": settings.llm_model if settings.llm_available else None,
         "startup_errors": request.app.state.startup_errors,
+        "dev_mode": settings.dev_mode,
+        "reranker": {
+            "available": reranker_available(),
+            "enabled": settings.reranker_on,
+            "model": settings.rerank_model if settings.reranker_on else None,
+        },
+        "abstention": {
+            "signal": settings.abstention_signal,
+            "threshold": settings.abstain_threshold,
+            "provisional": True,
+        },
     }
 
 
@@ -492,6 +534,88 @@ def agent(
     result = run_agent(body.question, llm=llm, index=index)
     log_request("agent", answer_log_payload(body.question, result))
     return result.to_dict()
+
+
+# --- the question verification screen, dev only ---------------------------------
+
+
+def require_dev_mode() -> None:
+    """404 unless ZONEWISE_DEV=1.
+
+    A 404 rather than a 403, because a 403 confirms the endpoint exists. With the
+    flag off these routes should be indistinguishable from paths that were never
+    written, which is also what the frontend keys off: it asks /api/health whether
+    dev mode is on and only then shows the Verify tab (D-075).
+    """
+    if not settings.dev_mode:
+        raise HTTPException(status_code=404, detail={"error": "not_found"})
+
+
+@app.get("/api/dev/eval/questions")
+def dev_questions(_: None = Depends(require_dev_mode)) -> dict:
+    """Every drafted question with its verification status, and the progress count."""
+    return question_list()
+
+
+@app.get("/api/dev/eval/questions/{question_id}")
+def dev_question(
+    question_id: str,
+    index=Depends(require_index),
+    _: None = Depends(require_dev_mode),
+) -> dict:
+    """One question: its point, its expected chunks in full, and the current top 5."""
+    try:
+        return question_detail(question_id, index)
+    except DevEvalError as exc:
+        raise HTTPException(
+            status_code=404, detail={"error": "unknown_question", "message": str(exc)}
+        ) from exc
+
+
+@app.post("/api/dev/eval/questions/{question_id}/leakage")
+def dev_leakage(
+    question_id: str,
+    body: LeakageRequest,
+    index=Depends(require_index),
+    _: None = Depends(require_dev_mode),
+) -> dict:
+    """The 4-consecutive-word leakage check on a rewritten question (D-055)."""
+    try:
+        return check_leakage(question_id, body.question, index)
+    except DevEvalError as exc:
+        raise HTTPException(
+            status_code=404, detail={"error": "unknown_question", "message": str(exc)}
+        ) from exc
+
+
+@app.post("/api/dev/eval/questions/{question_id}/decision")
+def dev_decision(
+    question_id: str,
+    body: DecisionRequest,
+    index=Depends(require_index),
+    _: None = Depends(require_dev_mode),
+) -> dict:
+    """Save a decision into eval/questions_verified.jsonl, by id.
+
+    A 422 for a decision that breaks one of the guards — a question quoting its own
+    answer, a should-abstain question with expected chunks — with the reason in
+    words, because the person typing is the one who has to fix it.
+    """
+    decision = Decision(
+        id=question_id,
+        status=body.status,
+        question=body.question,
+        expected_chunk_ids=list(body.expected_chunk_ids),
+        acceptable_chunk_ids=list(body.acceptable_chunk_ids),
+        should_abstain=body.should_abstain,
+        notes=body.notes,
+    )
+    try:
+        return save_decision(decision, index)
+    except DevEvalError as exc:
+        raise HTTPException(
+            status_code=422, detail={"error": "bad_decision", "message": str(exc)}
+        ) from exc
 
 
 # --- the built frontend ---------------------------------------------------------

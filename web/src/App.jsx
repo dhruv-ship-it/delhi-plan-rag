@@ -5,14 +5,22 @@ import ZoneChips from './components/ZoneChips.jsx'
 import AnswerPanel from './components/AnswerPanel.jsx'
 import ClauseDrawer from './components/ClauseDrawer.jsx'
 import ToolTrace from './components/ToolTrace.jsx'
+import VerifyPanel from './components/VerifyPanel.jsx'
 import { EXAMPLE_POINT, LAYERS } from './layers.js'
 import { getChunk, getHealth, getZones, postAgent, postAsk, postSearch } from './api.js'
 
 const SPOT = 'spot'
 const AGENT = 'agent'
 
+// Two top-level views, switched by plain state rather than a router. There are two of
+// them, one of which only exists in dev mode, so a routing dependency would be the
+// seventh npm package for a boolean (D-059, D-076).
+const ASK_VIEW = 'ask'
+const VERIFY_VIEW = 'verify'
+
 export default function App() {
   const [health, setHealth] = useState(null)
+  const [view, setView] = useState(ASK_VIEW)
   const [visible, setVisible] = useState(
     Object.fromEntries(LAYERS.map((layer) => [layer.name, layer.defaultOn])),
   )
@@ -117,14 +125,42 @@ export default function App() {
   }
 
   const answersOff = health && health.llm_available === false
+  const devMode = health?.dev_mode === true
 
   return (
     <div className="app">
       <header className="banner">
         <strong>ZoneWise</strong>
         <span>Not legal advice. Always check official DDA documents.</span>
+        {devMode && (
+          <span className="views" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === ASK_VIEW}
+              className={view === ASK_VIEW ? 'mode on' : 'mode'}
+              onClick={() => setView(ASK_VIEW)}
+            >
+              Ask
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === VERIFY_VIEW}
+              className={view === VERIFY_VIEW ? 'mode on' : 'mode'}
+              onClick={() => setView(VERIFY_VIEW)}
+            >
+              Verify
+            </button>
+          </span>
+        )}
       </header>
 
+      {devMode && view === VERIFY_VIEW ? (
+        <main className="layout verify-layout">
+          <VerifyPanel />
+        </main>
+      ) : (
       <main className="layout">
         <MapView
           marker={marker}
@@ -263,6 +299,7 @@ export default function App() {
           </footer>
         </section>
       </main>
+      )}
 
       <ClauseDrawer
         chunk={chunk}

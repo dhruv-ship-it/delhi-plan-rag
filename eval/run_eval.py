@@ -120,11 +120,36 @@ def reranker(on: bool):
             module.settings = original
 
 
+#: Where the questions come from, in order of preference. The verification screen
+#: writes the first one (D-076); `questions.jsonl` is the hand-edited file night 2's
+#: README told Dhruv to create, and is still read so that work is not orphaned;
+#: the draft is the fallback and can only be scored with --include-unverified.
+QUESTION_FILES = (
+    "questions_verified.jsonl",
+    "questions.jsonl",
+    "questions_draft.jsonl",
+)
+
+
+def question_source() -> Path:
+    """The first question file that exists, in preference order."""
+    folder = settings.project_root / "eval"
+    for name in QUESTION_FILES:
+        if (folder / name).exists():
+            return folder / name
+    return folder / QUESTION_FILES[-1]
+
+
 def load_questions(include_unverified: bool) -> tuple[list[dict], Path, int]:
-    """The questions to run, where they came from, and how many were skipped."""
-    verified_path = settings.project_root / "eval" / "questions.jsonl"
-    draft_path = settings.project_root / "eval" / "questions_draft.jsonl"
-    path = verified_path if verified_path.exists() else draft_path
+    """The questions to run, where they came from, and how many were skipped.
+
+    A record with `verified: false` is skipped unless `--include-unverified` is
+    passed, whichever file it came from. That matters now that the verification
+    screen writes rejected and skipped questions into the same file: they are
+    recorded so that "looked at and rejected" is distinguishable from "not
+    reached", and they carry `verified: false` so they are never scored (D-076).
+    """
+    path = question_source()
     if not path.exists():
         return [], path, 0
 

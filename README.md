@@ -1,5 +1,8 @@
 # ZoneWise
 
+<!-- Replace OWNER/REPO once the repository is pushed and public. -->
+[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+
 **Click a point on a map of Delhi and ask what you are allowed to build there.**
 
 Delhi's development rules are not the same everywhere. The same question — "how much of
@@ -24,22 +27,38 @@ says so instead of guessing.
 
 - **Point-aware retrieval.** `get_zones(lat, lon)` answers from DDA's own GIS layers:
   which of the 17 planning zones, and whether the point is in a TOD zone, the High
-  Density Corridor, a land pooling area or Zone O (the Yamuna floodplain).
+  Density Corridor, a land pooling area, Zone O (the Yamuna floodplain), a Regional Park
+  (the Ridge) or a Low Density Area.
 - **Hybrid search.** Embeddings for meaning, BM25 for exact strings like `4.2.1`, `FAR`
   and `2000 sqm`, fused with reciprocal rank fusion.
 - **Three location steps.** Clauses whose own policy is a zone you are *not* in are
   dropped; your zone's words are added to the query; clauses about your zone are boosted.
+  Two of the six topics — Zone O and the Ridge — can only boost, because MPD-2047 has no
+  policy section for either, and the plan not containing something is a finding worth
+  encoding rather than papering over.
+- **An optional cross-encoder reranker.** Off by default: it rescores the top 20 by
+  reading query and chunk together, and costs 2.4 s a query against 0.031 s without it.
+  The evaluation scores it as its own configuration so the trade can be decided on
+  numbers.
 - **Citations on every sentence,** validated in code. A marker that names a source that
   was never supplied, or a sentence with no marker, is rejected and retried once; if the
   second attempt also fails the answer is thrown away.
 - **Abstention as a first-class outcome,** with four distinct reasons. Two of them never
-  reach the model at all.
+  reach the model at all, and the pre-check reads a raw retrieval score rather than the
+  fused one — a fused score only encodes rank position, so it is the same whatever was
+  asked.
 - **An agent** for questions that name a place instead of giving a point: it geocodes,
   looks up the zones, searches, and may only cite clauses its own search returned.
-- **A map interface** with toggleable zone overlays, zone chips for the clicked point,
-  clickable citation chips and a clause reader.
+  Geocoding tries a local metro-station gazetteer before the network.
+- **A map interface** with seven toggleable zone overlays, zone chips for the clicked
+  point, clickable citation chips and a clause reader.
 - **An evaluation harness** with recall@k, MRR and bootstrap confidence intervals,
   which refuses to score questions a human has not verified.
+- **A verification screen** for doing that checking: a dev-only tab that shows one
+  question with its clause text, its point and the current top 5, with a live leakage
+  warning and keyboard shortcuts.
+- **A deploy kit**: a two-stage Dockerfile with the indexes baked in, and
+  [docs/DEPLOY.md](docs/DEPLOY.md) for EC2 with automatic HTTPS.
 
 ---
 
@@ -51,10 +70,10 @@ flowchart TB
         PDF["Source PDFs<br/>data/raw/"] --> EX["02_extract<br/>app/extract.py"]
         EX --> PAGES["pages.jsonl<br/>560 pages"]
         PAGES --> CH["03_chunk<br/>app/cleaning.py<br/>app/chunking.py"]
-        CH --> CHUNKS["chunks.jsonl<br/>702 chunks"]
+        CH --> CHUNKS["chunks.jsonl<br/>700 chunks"]
         CHUNKS --> TAG["04_tag_zones<br/>app/tagging.py"]
         TAG --> IDX["05_build_index<br/>app/indexing.py"]
-        IDX --> CHROMA[("Chroma<br/>702 vectors")]
+        IDX --> CHROMA[("Chroma<br/>700 vectors")]
         IDX --> BM25[("BM25<br/>11,126 tokens")]
         GIS["DDA GIS<br/>gis.dda.org.in"] --> FETCH["06_fetch_layers"]
         FETCH --> LAYERS[("8 GeoJSON layers")]
@@ -124,7 +143,7 @@ full list with download dates lives in `data/sources.csv`.
 
 | Source | Publisher | Use |
 | --- | --- | --- |
-| [Master Plan for Delhi 2047, gazette notification](https://dda.gov.in/sites/default/files/notice/275618.pdf) | MoHUA / DDA, 20 Aug 2026 | The plan itself. English pages 640-1144 of the bilingual gazette. 548 of the 702 chunks. |
+| [Master Plan for Delhi 2047, gazette notification](https://dda.gov.in/sites/default/files/notice/275618.pdf) | MoHUA / DDA, 20 Aug 2026 | The plan itself. English pages 640-1144 of the bilingual gazette. 548 of the 700 chunks. |
 | [FAQs on MPD-2047](https://dda.gov.in/sites/default/files/notice/faqs_on_mpd-2047.pdf) | DDA | 99 question-and-answer chunks. |
 | [Delhi High Court order, 8 July 2024](https://indiankanoon.org/doc/28108780/) | Delhi High Court | Yamuna floodplain encroachments. 8 chunks. |
 | [GNCTD report to the NGT, OA 572/2024](https://www.greentribunal.gov.in/) | GNCTD | Floodplain demarcation. 47 chunks. |
@@ -261,8 +280,14 @@ guards are not verification. `eval/run_eval.py` therefore scores only questions 
 `verified: true`, and a dry run is written to a file prefixed `DRYRUN_` with a banner
 saying the numbers are not results.
 
-`eval/README.md` is the step-by-step procedure for verifying a question, and explains
-what each metric means in plain English.
+**There is now a screen for the verifying.** Start the backend with `ZONEWISE_DEV=1`,
+open the web app, and a **Verify** tab appears: one question at a time with its expected
+clause in full, the point on a small map, the current top 5 clickable to mark expected or
+acceptable, a live warning if the rewrite copies four consecutive words from its own
+answer, and A / E / R / S plus arrow keys so a pass takes a couple of minutes rather than
+a context switch. [eval/README.md](eval/README.md) has the exact steps, how many
+questions to keep in each category, and worked examples of a good rewrite against a bad
+one.
 
 ---
 
@@ -278,15 +303,65 @@ what each metric means in plain English.
   point there returns no zone letter rather than a guessed one.
 - **Zone boundaries are approximate.** They come from a web GIS service, not from a
   survey, and should never be used to decide where a legal boundary runs.
-- **Zone O can boost but never exclude.** MPD-2047 has no Zone O policy section to point
-  at, so floodplain questions work through mentions only (D-024, D-037).
+- **Zone O and the Ridge can boost but never exclude.** MPD-2047 has a policy section for
+  neither, so questions about them work through mentions only (D-024, D-037, D-069).
 - **English only.** The gazette's Hindi half is skipped.
-- **The abstention threshold is a placeholder** (D-042) until the evaluation can choose
-  it.
+- **The abstention threshold is provisional** (D-071), and the honest finding behind it
+  is that no single retrieval score separates the unanswerable questions from the
+  answerable ones cleanly. The configured value only catches a total retrieval failure;
+  what stands between an unanswerable question and a confident wrong answer is still the
+  model's own refusal rule and the citation check behind it.
 - **Retrieval is evaluated, answers are not.** Whether a cited clause really supports
   the sentence citing it is not yet measured.
+- **The metro station gazetteer is not in this repository.** `scripts/build_gazetteer.py`
+  builds it in one Overpass request; until it is run, geocoding uses Nominatim for every
+  query, which works (D-074).
+- **The Docker image has not been built.** The Dockerfile's paths, its `.dockerignore`
+  and the exact command it runs were all verified, but the build itself needs a registry
+  this was not able to reach (D-079).
 
 ---
+
+## Deploying it
+
+One container: FastAPI serves the API and the built frontend on one port, with the search
+indexes, the model weights and the map layers baked into the image. No database, no
+second service.
+
+```powershell
+# build the data first -- the container does not build it
+uv run python scripts\05_build_index.py
+uv run python scripts\06_fetch_layers.py
+docker build -t zonewise:latest .
+docker run --rm -p 8000:8000 --env-file zonewise.env zonewise:latest
+```
+
+[**docs/DEPLOY.md**](docs/DEPLOY.md) is the full walkthrough for someone who has not done
+this before: an EC2 `t3.small` with Docker and Caddy for automatic HTTPS, Lightsail
+Containers as the alternative with its trade-offs, where the logs live, what the rate
+limits protect, and a **cost-safety checklist** whose first item is setting a hard spend
+limit in the Anthropic console — the only control that cannot be defeated by a bug in
+this repository.
+
+The app is useful with no API key at all: five of the seven endpoints need none, so a
+deployment without one is a working map, zone lookup and clause search.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push: `uv sync
+--frozen`, then the Python tests, then `npm ci` and the frontend build.
+
+A runner has no `data/` — the PDFs are 109 MB, the indexes are generated, and the DDA
+layers have no stated licence — so the 31 tests that need them are marked `needs_data`
+and CI runs `pytest -m "not needs_data"`. **348 of the 379 tests run with no data at
+all**, which was proved by moving the data aside and running them, not by reasoning about
+it. A second CI step asserts the marked set is non-empty, so a marker going missing is a
+named failure rather than a surprise.
+
+```powershell
+uv run pytest                      # all 379, needs the built data
+uv run pytest -m "not needs_data"  # the 348 CI runs
+```
 
 ## Project structure
 

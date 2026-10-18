@@ -26,17 +26,36 @@ flowchart TB
     CMAP --> CHUNK
     CLEAN --> CHUNK["app/chunking.py<br/>chunk_gazette()<br/>chunk_faq()<br/>chunk_paragraph_document()"]
     CHUNK --> SPLIT["merge_small_sections()<br/>fold_heading_only_sections()<br/>split_section()"]
-    SPLIT --> CHUNKS["data/processed/chunks.jsonl<br/>702 chunks"]
+    SPLIT --> CHUNKS["data/processed/chunks.jsonl<br/>700 chunks"]
+
+    CHUNKS --> AUDIT["scripts/audit_chunks.py<br/>app/audit.py, 8 checks"]
+    AUDIT --> REP["reports/chunk_audit_*.md"]
 
     CHUNKS --> TAGS["scripts/04_tag_zones.py<br/>tagging.primary_zone()<br/>tagging.mentions_of()"]
-    ZS["data/zone_sections.json"] --> TAGS
+    ZS["data/zone_sections.json<br/>6 topics, 2 with no section"] --> TAGS
     TAGS --> CHUNKS2["chunks.jsonl + zone fields"]
 
     CHUNKS2 --> DENSE["indexing.build_dense_index()<br/>fastembed passage_embed"]
     CHUNKS2 --> SPARSE["indexing.build_bm25_index()<br/>indexing.tokenize()"]
-    DENSE --> CHROMA[("data/index/chroma<br/>702 vectors, cosine")]
+    DENSE --> CHROMA[("data/index/chroma<br/>700 vectors, cosine")]
     SPARSE --> PKL[("data/index/bm25.pkl<br/>11,126 tokens")]
 ```
+
+**The audit** (`app/audit.py`, run by `scripts/audit_chunks.py`) is not part of the
+pipeline — nothing downstream reads it — and it is the reason the chunks are worth
+trusting. Eight mechanical checks over `chunks.jsonl`, each naming up to five examples:
+chunks that start or end mid-sentence, broken markdown tables, leftover running headers
+and divider text, exact and near duplicates, gazette chunks in chapters 1-13 with no
+clause number, chunks outside the 40-to-500-word bounds, and chunks under 40% alphabetic.
+
+None of that shows up in a retrieval score. A clause cut in half is still retrieved,
+still cited, and reads as a model error rather than an extraction error. The audit found
+five systematic causes and all five are fixed (D-066): a divider title spread over three
+lines whose tail was being glued to the previous chapter's last clause; a sentence cut at
+every page break, because the page boundary inserted a paragraph break; an all-empty
+table header row repeated onto every piece of a split table; an annexure heading that
+could not reach its own content; and a table title stranded at the end of the chunk
+before the table.
 
 **Cleaning** (`app/cleaning.py`) strips six things per page: the gazette's bilingual
 running header (matched on wording, because the page number is inside the line), bare
@@ -46,6 +65,14 @@ came from, so a chunk that crosses a page break still reports an honest range.
 `page_lines_from_pdf()` additionally pulls tables out with `table.extract()`, converts
 them to markdown, and reads the text around them with `get_text(clip=...)` so nothing
 appears twice.
+
+Two of the cleaning rules exist because **a page is a printing unit and not a unit of
+meaning**. A capitalised `PART` or `CHAPTER` line opens a divider block, and the
+capitalised lines under it are the rest of its title and go too — guarded three ways so
+it fires on exactly the ten divider-title lines in this gazette and nothing else. And
+`join_pages()` joins a sentence that runs over a page break instead of letting the page
+boundary become a paragraph break the chunker may cut at: it fires at 57 page breaks
+here, and both conditions are required, because a heading has no full stop either.
 
 **Chunking** (`app/chunking.py`) gives each part of the gazette the rules that fit it:
 decimal section headings for chapters 1-13, `Annexure N` headings for the annexures, one
@@ -61,6 +88,19 @@ difference matters at query time:
   heading path. A strong claim, and the only tag search may **exclude** on.
 - `zone_mentions` — every topic the text names. A weak claim, used only to **boost**,
   because a clause that names Zone O to exclude it is still what a user in Zone O needs.
+
+There are **six** topics — `tod`, `hdc`, `zone_o`, `land_pooling`, `ridge`, `lda` — and
+two of them have no policy section at all. `data/zone_sections.json` maps `zone_o` and
+`ridge` to empty lists, so no chunk can ever carry them as a `zone_primary` and the
+exclusion step has nothing to find for them. That is the plan's own shape rather than a
+gap in the tagging: MPD-2047 defines planning zone O and then names it only inside other
+policies' exclusion lists, and it names the Ridge only inside sections about every green
+asset or every recreational use in Delhi. Listing either would let search drop general
+park norms for an ordinary plot (D-024, D-037, D-069).
+
+One naming seam: DDA calls the layer `regional_park` and the plan calls the thing the
+Ridge, so `get_zones` reports `regional_park` while the tagging topic is `ridge`.
+`spatial.TOPIC_KEYS` is the single place the two are mapped.
 
 ---
 
@@ -107,7 +147,10 @@ flowchart TB
     BP --> EXCL
     EXCL --> FUSE["reciprocal_rank_fusion()<br/>sum 1/(60 + rank), top 30 each"]
     FUSE --> BOOST["location.matches_point()<br/>score x 1.5 for this point's zones"]
-    BOOST --> TOPK(["top k results<br/>with the score breakdown"])
+    BOOST --> RR{"settings.reranker_on?"}
+    RR -->|no| TOPK(["top k results<br/>dense_cosine, bm25_score, fused_score"])
+    RR -->|yes| CROSS["retrieval.apply_reranker()<br/>cross-encoder reads query + chunk<br/>top 20 rescored"]
+    CROSS --> TOPK
 ```
 
 Three things about the order are deliberate:
@@ -123,6 +166,32 @@ Three things about the order are deliberate:
   a boosted chunk that both indexes returned beats any unboosted chunk inside the pool,
   so the 1.5 had better be spent on a pool that no longer holds the wrong zone's rules.
 
+### The reranker, and why it is off
+
+`app/rerank.py` wraps fastembed's `TextCrossEncoder`. The distinction that matters:
+
+|  | bi-encoder (both indexes here) | cross-encoder (the reranker) |
+| --- | --- | --- |
+| how | query and chunk turned into numbers **separately**, then compared | query and chunk read **together**, as one input |
+| cost | chunk side precomputed at index time; a query is one embedding | one forward pass per (query, chunk) pair |
+| scales to | a whole corpus | a shortlist |
+| measured here | 0.031 s a query | **2.4 s a query** for 20 chunks |
+
+So fusion picks the top 20 and the cross-encoder reorders them. It reads the **expanded**
+query, the same text both indexes searched with, so it judges the question retrieval
+actually asked. A failure is caught, recorded in `SearchReport.rerank_error`, and
+followed by returning the fused order — the reranker is an optimisation, and losing it
+should cost result quality, not the answer.
+
+`use_reranker` is false by default. On the drafted questions it lifts recall@1 from 0.340
+to 0.460, which is large and is **not evidence**: those questions were written by Claude
+from the chunks, and a component that reads query and chunk together is exactly the one
+that would benefit most from a question phrased in the chunk's own words. The evaluation
+scores it as `hybrid+location+rerank` so the decision arrives as a number (D-070). One
+counter-example is already visible in `reports/day2_queries_v3.md`: for "Can a fuel
+station be built in Zone O?" the reranker **demotes** the correct clause from rank 1 to
+rank 2.
+
 ---
 
 ## 4. Answering, and checking the answer
@@ -133,7 +202,7 @@ flowchart TB
     Z --> INDELHI{"inside Delhi?"}
     INDELHI -->|no| A1(["abstain: outside_delhi<br/>no LLM call"])
     INDELHI -->|yes| SEARCH["location-aware search, top k"]
-    SEARCH --> WEAK{"results, and<br/>top score >=<br/>abstain_threshold?"}
+    SEARCH --> WEAK{"answer.is_weak()<br/>top-1 raw signal >=<br/>abstain_threshold?"}
     WEAK -->|no| A2(["abstain: weak_retrieval<br/>no LLM call"])
     WEAK -->|yes| PROMPT["build_user_message()<br/>sources as C1..Ck with<br/>doc, clause, pages, authority"]
     PROMPT --> CALL["llm.chat()<br/>SYSTEM_PROMPT, temperature 0"]
@@ -146,6 +215,34 @@ flowchart TB
     RETRY --> CALL
     OK -->|"no, second time"| A4(["abstain: citation_check_failed<br/>clauses still returned"])
 ```
+
+### What the abstention pre-check reads, and why it changed
+
+For two nights the pre-check compared `results[0].fused_score` against a threshold. That
+was wrong in a way worth spelling out: **an RRF score encodes rank position and nothing
+else.** A chunk both indexes ranked first scores 2/(60+1) = 0.0328 whatever was asked, so
+a question about property tax in Mumbai produced the same confident-looking number as a
+question the gazette answers in full. The guard was reading a value that is constant with
+respect to the thing it was trying to measure, and the measurement confirms it: the
+median top fused score is 0.0328 for answerable questions and 0.0310 for should-abstain
+ones.
+
+Every result now carries its **raw** scores — `dense_cosine` (cosine similarity, 1 minus
+the distance Chroma returns), `bm25_score`, and `rerank_score` when the cross-encoder ran
+— and `settings.abstain_signal` picks which one the pre-check reads.
+`retrieval.signal_value()` is the single place a signal is read by name, so the
+pre-check, the API's score breakdown and the evaluation's percentile tables cannot drift
+apart. A result with no value for the signal is **not** weak: a chunk only the keyword
+index found has no cosine similarity, and that is a gap in what we know rather than
+evidence against it.
+
+The threshold is **provisional** (D-071), and the finding underneath it is worth more
+than the number: on this question set, no single retrieval score separates the two groups
+cleanly. The dense signal's distributions overlap almost entirely; the cross-encoder
+separates the medians well but has a long low tail of answerable questions. So the
+pre-check is a **cost guard, not a correctness guard** — what stands between an
+unanswerable question and a confident wrong answer is rule 3 of the system prompt and the
+citation check below it.
 
 `citation_problems()` in `app/answer.py` is the part that makes an answer trustworthy
 without trusting the model. It checks two syntactic things, both of which need no
@@ -181,8 +278,8 @@ sequenceDiagram
     U->>A: "What can I build near Connaught Place?"
     A->>M: question + 3 tool schemas
     M-->>A: tool_use locate_place
-    A->>T: geocode.locate_place()
-    T-->>A: 28.63177, 77.21938
+    A->>T: geocode.locate_place()<br/>normalise, gazetteer, Nominatim
+    T-->>A: 28.63177, 77.21938 + the path that answered
     A->>M: tool_result
     M-->>A: tool_use get_zones
     A->>T: spatial.get_zones()
@@ -212,14 +309,41 @@ outside that set is rejected. Citing with no search at all is its own named prob
 out is an abstention with reason `max_rounds_reached`, and whatever the tools found is
 still returned.
 
+### Geocoding: four steps, and which one answered
+
+`locate_place` was one bounded Nominatim request, and night 2 found it returns nothing
+for "Dwarka Sector 21 metro station" — close to the phrase the interface itself suggests
+typing (D-049). It now tries four things and records which one worked:
+
+1. **normalise** — proximity words ("near", "nearest") come out wherever they appear,
+   because no Delhi place name contains one; station words ("metro station", "metro",
+   and a trailing ", New Delhi") come off **the end only**, repeatedly, because they
+   *do* appear in place names. Station Road stays a road, Metro Vihar stays a colony.
+2. **the gazetteer** — `difflib` against the local metro station list at cutoff 0.85,
+   accepted only when the best match is **unique**. Ambiguity is refused rather than
+   guessed: choosing between "Civil Lines" and "Civic Centre" is worse than asking
+   Nominatim.
+3. **Nominatim, twice at most** — the user's words plus ", Delhi", then the normalised
+   form plus ", Delhi". A timeout stops the sequence rather than spending the second
+   request, because a service that is currently unhappy says nothing about the name.
+4. **not_found**, with the reason, rather than a point somewhere else.
+
+The Dwarka query now resolves to 28.55192, 77.05856, inside Delhi, and the fix came from
+the normalisation rather than the gazetteer. Results are cached — but a **remembered miss
+is invalidated when it predates this lookup**, because a cached "not found" is a statement
+about the algorithm as much as about the name, and night 2's cached miss would otherwise
+have made a working fix look broken (D-073).
+
 ---
 
 ## 6. Serving it
 
 ```mermaid
 flowchart LR
-    BROWSER(["Browser"]) -->|"/api/*"| FASTAPI["app/api.py"]
+    BROWSER(["Browser"]) -->|"/api/*"| MW["security headers<br/>+ body size check"]
+    MW --> FASTAPI["app/api.py"]
     BROWSER -->|"/"| STATIC["web/dist<br/>StaticFiles mount"]
+    FASTAPI -.->|"ZONEWISE_DEV=1 only"| DEV["/api/dev/eval/*<br/>app/dev_eval.py<br/>404 otherwise"]
 
     subgraph LIFESPAN["lifespan, once at startup"]
         IDX["retrieval.get_index()<br/>model + Chroma + BM25"]
@@ -245,13 +369,27 @@ demonstrable with none: the map, the zone lookup, clause search and the clause r
 all work. The two that do need one return 503 **with the retrieval results in the body**,
 so the interface can show the clauses and explain the state rather than showing an error.
 
+Four more endpoints exist under `/api/dev/eval/` and are **404 unless `ZONEWISE_DEV=1`**
+— a 404 rather than a 403, because a 403 confirms the endpoint exists. They read and
+write the evaluation files, so they have no business being reachable on a deployed
+server; `/api/health` reports `dev_mode`, which is how the frontend decides whether to
+show the Verify tab, and `app/dev_eval.py` deliberately does not check the flag itself
+because the authority belongs in one place (D-075).
+
+Every response carries four security headers and every request is size-checked from
+`Content-Length` before it is parsed, so an oversized body is refused without being read
+into memory. A validation failure comes back as one sentence naming the field and the
+limit, because the interface shows `detail.message` and pydantic's error list is not
+something to show a person (D-077).
+
 ---
 
 ## 7. The frontend
 
 ```mermaid
 flowchart TB
-    APP["web/src/App.jsx<br/>all the state"] --> MAP["MapView.jsx<br/>react-leaflet, 5 overlays"]
+    APP["web/src/App.jsx<br/>all the state, 2 views"] --> MAP["MapView.jsx<br/>react-leaflet, 7 overlays"]
+    APP -.->|"dev_mode only"| VERIFY["VerifyPanel.jsx<br/>one question at a time"]
     APP --> LEG["Legend.jsx<br/>colour swatch + toggle"]
     APP --> CHIPS["ZoneChips.jsx<br/>the get_zones result"]
     APP --> ANS["AnswerPanel.jsx<br/>markers -> clickable chips"]
@@ -263,6 +401,13 @@ flowchart TB
     ANS -->|"citation chip"| API3["/api/chunks/{id}"]
     API3 --> DRAWER
 ```
+
+The **Verify tab** is shown only when `/api/health` reports dev mode, and it is plain
+state in `App.jsx` rather than a router: there are two views, one of which only exists in
+dev mode, so a routing package would be the seventh npm dependency for a boolean. Its
+shape follows the shape of the job — verifying one question needs the clause text, the
+point and the retrieval results visible at the same time as an editable question box, so
+all of it is on one wide screen and the keyboard does the navigation (D-076).
 
 `AnswerPanel` absorbs the fact that the two endpoints cite differently: `/api/ask` emits
 `[C1]` against the numbered sources it was handed, while `/api/agent` emits the whole
@@ -285,8 +430,17 @@ ones worth reading first:
 | D-028 | pool depth, RRF and k = 60 |
 | D-033, D-034 | the three location steps, and what the 1.5 boost is actually worth |
 | D-040, D-041 | the one LLM door and the FakeLLM; the seven prompt rules |
-| D-042 | why the abstention threshold is a placeholder |
 | D-043, D-044, D-045 | citation validation, the single retry, the four abstention reasons |
 | D-047, D-048 | the agent's tools and why it may only cite what it retrieved |
 | D-050, D-051, D-052 | the no-key split, the rate limits, the request log |
 | D-054, D-055, D-056 | why the drafted questions are unverified, and the metrics |
+| **D-063, D-065** | the model id, and reading every setting from the environment |
+| **D-066, D-067, D-068** | the chunk audit and its five fixes; remapping ids; not pinning corpus numbers in tests |
+| **D-069** | the ridge and lda topics, and why one may exclude and the other may not |
+| **D-070, D-071, D-072** | the cross-encoder; why a fused score cannot drive abstention and what can |
+| **D-073, D-074** | four-step geocoding, and the gazetteer that could not be built |
+| **D-075, D-076** | the dev flag, and the verification screen |
+| **D-077, D-078, D-079** | hardening; the `needs_data` marker; the image and the deploy kit |
+
+D-042 is superseded by D-071: the abstention threshold was a placeholder on a signal that
+could not work, and both the signal and the threshold changed.

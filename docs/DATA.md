@@ -15,11 +15,11 @@ hand, and eight are deliberately out.
 
 | doc_id | What it is | Authority | Pages | Chunks | Words |
 | --- | --- | --- | --- | --- | --- |
-| `MPD47_GAZETTE_EN` | Master Plan for Delhi 2047, gazette notification, 20 Aug 2026 | 1 — the law | 505 (640-1144) | 548 | 147,490 |
+| `MPD47_GAZETTE_EN` | Master Plan for Delhi 2047, gazette notification, 20 Aug 2026 | 1 — the law | 505 (640-1144) | 546 | 147,469 |
 | `MPD47_FAQ` | DDA's FAQs on MPD-2047 | 3 — FAQ | 20 | 99 | 5,485 |
 | `DHC_YAMUNA_20240708` | Delhi High Court order on Yamuna floodplain encroachments | 2 — court order | 3 | 8 | 730 |
-| `NGT_OA572_GNCTD_REPORT` | GNCTD report to the NGT on floodplain demarcation, OA 572/2024 | 3 — report | 32 | 47 | 8,756 |
-| | | | **560** | **702** | **162,461** |
+| `NGT_OA572_GNCTD_REPORT` | GNCTD report to the NGT on floodplain demarcation, OA 572/2024 | 3 — report | 32 | 47 | 8,752 |
+| | | | **560** | **700** | **162,436** |
 
 `authority_rank` is used by the answering prompt: when two sources disagree, the model
 is told to follow the lower rank and to say that they differ. 1 is the gazette, which is
@@ -158,7 +158,7 @@ the breadcrumb a question about TOD cannot reach it (D-022).
 **Chunk ids are deterministic and unique.** Clause numbers are not: the FAQ restarts at
 Q1 in each of its nine sections, and the nine service plans each number from 1.1 inside
 the same `doc_id`. An id that would repeat gets its page appended — `MPD47_FAQ:Q12@p16:0`
-— so all 702 are distinct (D-021). Re-running the pipeline on the same input produces a
+— so all 700 are distinct (D-021). Re-running the pipeline on the same input produces a
 byte-identical `chunks.jsonl`.
 
 ---
@@ -167,7 +167,7 @@ byte-identical `chunks.jsonl`.
 
 `app/tagging.py`. Four topics: `tod`, `hdc`, `zone_o`, `land_pooling`.
 
-**192 of 702 chunks (27%) carry at least one tag.**
+**192 of 700 chunks (27%) carry at least one tag.**
 
 | Topic | `zone_primary` | mentioned in text |
 | --- | --- | --- |
@@ -242,13 +242,13 @@ The capital-O-as-a-whole-word rule is what makes "zone of", "Zone of the river" 
 
 | Index | What | Size |
 | --- | --- | --- |
-| Chroma | 702 vectors, BAAI/bge-small-en-v1.5, 384 dimensions, cosine | 12.3 MB |
-| BM25 | 702 documents, 11,126 distinct tokens | 963 KB |
+| Chroma | 700 vectors, BAAI/bge-small-en-v1.5, 384 dimensions, cosine | 12.3 MB |
+| BM25 | 700 documents, 11,126 distinct tokens | 963 KB |
 | Model weights | downloaded once into `data/index/models` | 64 MB |
 
 Both run over `embed_text`. The keyword tokenizer keeps a dotted clause number whole, so
 searching "4.2.1" finds clause 4.2.1 rather than every chunk containing a 4, a 2 and a 1
-(D-027). Embedding all 702 chunks takes about 150 seconds on a laptop CPU.
+(D-027). Embedding all 700 chunks takes about 150 seconds on a laptop CPU.
 
 ---
 

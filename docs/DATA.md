@@ -310,3 +310,44 @@ uv run python scripts/06_fetch_layers.py   # the layers + manifest.json
 
 Every one is safe to re-run and prints its own summary. `03` then `04` reproduces a
 byte-identical `chunks.jsonl`.
+
+---
+
+## The place-name gazetteer
+
+`data/gazetteer/metro_stations.json`, built by `scripts/build_gazetteer.py` from
+OpenStreetMap in **one** Overpass request bounded to the NCT Delhi bounding box. One
+record per distinct station name:
+
+```json
+{"name": "Rajiv Chowk", "alt_names": ["Rajiv Chowk Metro Station"],
+ "lat": 28.632800, "lon": 77.219700}
+```
+
+The query asks for `railway=station` with either `station=subway` or a `network` matching
+"Delhi Metro", over nodes, ways and relations — OSM models a station sometimes as a
+point, sometimes as the building's outline, sometimes as a relation over both. Records
+are keyed by lower-case name and the first element with coordinates wins, because the
+gazetteer answers "roughly where is Rajiv Chowk" and not "where is platform 3".
+
+Every tag that can hold a name is read, in preference order: `name`, `name:en`,
+`official_name`, `alt_name`, `old_name`, `short_name`. The first becomes `name` and the
+rest become `alt_names`, so a station is findable under the name on the signage and the
+name people use. `alt_name` and `old_name` are split on semicolons, which is OSM's
+convention for a multi-valued tag.
+
+**Why it exists.** `app/geocode.locate_place` tries the gazetteer before Nominatim, so
+the commonest way a Delhi resident describes a location — a metro station — is a local
+string match with no network request. Night 2 found that Nominatim returns nothing for
+"Dwarka Sector 21 metro station" with a bounded search (D-049), which is close to the
+phrase the interface itself suggests typing.
+
+**Licence and attribution.** OpenStreetMap data, &copy; OpenStreetMap contributors,
+published under the [Open Database License](https://opendatacommons.org/licenses/odbl/).
+`data/gazetteer/` is gitignored: the data is OSM's, and one script call rebuilds it.
+
+**State in this repository.** The file is **not present**. The Overpass request could not
+be made on the machine this was built on, so `locate_place` falls through to Nominatim
+for every query, which is a supported state and not an error — the gazetteer is an
+optimisation, and its logic is covered by tests that write their own fixture. Running
+`uv run python scripts/build_gazetteer.py` fills it in. See D-073.

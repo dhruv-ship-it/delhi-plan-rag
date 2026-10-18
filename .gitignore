@@ -32,3 +32,8 @@ data/reference/*.pdf
 
 # os
 .DS_Store
+
+# place-name gazetteers built from OpenStreetMap (ODbL). Rebuildable in one request by
+# scripts/build_gazetteer.py, so the data itself is not committed (see D-073).
+data/gazetteer/*
+!data/gazetteer/.gitkeep

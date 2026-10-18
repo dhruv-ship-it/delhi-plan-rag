@@ -187,6 +187,9 @@ class Settings:
     geocode_user_agent: str = "ZoneWise/0.1 (student project)"
     geocode_min_interval_s: float = 1.0
     geocode_timeout_s: int = 30
+    #: How close a normalised query has to be to a gazetteer name to count as a match.
+    #: difflib's ratio, 0 to 1. See D-073 for why 0.85 and why the match must be unique.
+    gazetteer_cutoff: float = 0.85
 
     # --- the API --------------------------------------------------------------
     #: Which browser origins may call the API. See D-076.
@@ -206,6 +209,16 @@ class Settings:
     def bm25_path(self) -> Path:
         """Where the pickled BM25 model lives."""
         return self.index_dir / "bm25.pkl"
+
+    @property
+    def gazetteer_dir(self) -> Path:
+        """Where locally built place-name lists live. Gitignored: see D-073."""
+        return DATA_DIR / "gazetteer"
+
+    @property
+    def gazetteer_path(self) -> Path:
+        """The Delhi Metro station gazetteer, built by scripts/build_gazetteer.py."""
+        return self.gazetteer_dir / "metro_stations.json"
 
     @property
     def geocode_cache_path(self) -> Path:

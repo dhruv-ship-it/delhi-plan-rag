@@ -128,10 +128,17 @@ full list with download dates lives in `data/sources.csv`.
 | [FAQs on MPD-2047](https://dda.gov.in/sites/default/files/notice/faqs_on_mpd-2047.pdf) | DDA | 99 question-and-answer chunks. |
 | [Delhi High Court order, 8 July 2024](https://indiankanoon.org/doc/28108780/) | Delhi High Court | Yamuna floodplain encroachments. 8 chunks. |
 | [GNCTD report to the NGT, OA 572/2024](https://www.greentribunal.gov.in/) | GNCTD | Floodplain demarcation. 47 chunks. |
-| [DDA GIS portal](https://gis.dda.org.in/) | DDA | The zone polygons: NCT boundary, planning zones, TOD, HDC, land pooling, and three more. |
+| [DDA GIS portal](https://gis.dda.org.in/) | DDA | The zone polygons: NCT boundary, planning zones, TOD, HDC, land pooling, regional parks, low density areas. |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) via the Overpass API | OSM contributors | The Delhi Metro station gazetteer, used to resolve a place name without a geocoding request. |
 
-Map tiles are &copy; [OpenStreetMap](https://www.openstreetmap.org/copyright)
-contributors; geocoding is by [Nominatim](https://nominatim.openstreetmap.org/).
+**OpenStreetMap attribution.** Map tiles, the geocoder and the station gazetteer are all
+OpenStreetMap data: &copy; [OpenStreetMap](https://www.openstreetmap.org/copyright)
+contributors, published under the
+[Open Database License](https://opendatacommons.org/licenses/odbl/). Geocoding is by
+[Nominatim](https://nominatim.openstreetmap.org/), used within its usage policy: one
+request a second, an identifying User-Agent, every result cached, and the search bounded
+to a box around Delhi. The gazetteer is built by `scripts/build_gazetteer.py` in a single
+Overpass request and is gitignored, because it is OSM's data and the script rebuilds it.
 
 **On the GIS layers.** DDA states no licence or terms of use anywhere on the service, so
 ZoneWise does not redistribute the data. `scripts/06_fetch_layers.py` downloads it

@@ -374,7 +374,10 @@ def llm_provider() -> LLM | None:
 
 @app.get("/api/health")
 def health(request: Request) -> dict:
-    """What is loaded, and whether answers are possible at all."""
+    """What is loaded, and whether answers are possible at all.
+
+    Reports the provider and the model, never a key (D-082).
+    """
     index = request.app.state.index
     layers = request.app.state.layers
     return {
@@ -382,6 +385,7 @@ def health(request: Request) -> dict:
         "chunks": len(index) if index is not None else 0,
         "layers_loaded": sorted(layers) if layers else [],
         "llm_available": settings.llm_available,
+        "provider": settings.llm_provider,
         "model": settings.llm_model if settings.llm_available else None,
         "startup_errors": request.app.state.startup_errors,
         "dev_mode": settings.dev_mode,

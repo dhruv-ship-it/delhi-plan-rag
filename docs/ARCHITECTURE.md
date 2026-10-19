@@ -196,6 +196,69 @@ rank 2.
 
 ## 4. Answering, and checking the answer
 
+### One door, two providers
+
+Every LLM call goes through `app/llm.py`, and `LLM_PROVIDER` decides who answers:
+
+| Client | Needs | Notes |
+| --- | --- | --- |
+| `AnthropicLLM` | `ANTHROPIC_API_KEY` (`sk-ant-`) | the Messages API, unchanged since day 1 |
+| `GroqLLM` | `GROQ_API_KEY` (`gsk_`) | Groq's OpenAI-compatible endpoint, through the `openai` SDK pointed at `https://api.groq.com/openai/v1` (D-082) |
+| `FakeLLM` | nothing | scripted responses; what every test uses |
+
+**The Anthropic response shape is this project's internal shape**, and that is the whole
+design. A response has `.content` (blocks, each with a `.type`), `.stop_reason` and
+`.usage`. `GroqLLM` therefore translates in both directions and `app/answer.py` and
+`app/agent.py` contain **no provider logic at all** — not one branch, not one import:
+
+```
+to_openai_messages()     system prompt -> a `system` message in front
+                         a string turn -> the same turn
+                         assistant blocks -> one message, tool_use -> `tool_calls`
+                         user tool_result blocks -> one `tool` message each, in order
+to_openai_tools()        `input_schema` -> `parameters`, wrapped as a function
+from_openai_response()   `message.content` -> a text block
+                         `message.tool_calls` -> tool_use blocks, arguments parsed
+                         `finish_reason` -> `stop_reason`
+                         `usage.prompt_tokens` -> `usage.input_tokens`
+```
+
+Order is what makes the tool round trip work. OpenAI requires each `tool` message to
+follow the assistant message whose call it answers, and Anthropic's layout — an
+assistant `tool_use` turn, then a user turn of `tool_result` blocks — lands in exactly
+that order when translated turn by turn. `tests/test_llm_groq.py` asserts it using
+`app/agent.py`'s own `assistant_content()` to build the middle turn, so the test cannot
+drift from what the agent really sends.
+
+Three things the Groq adapter has to handle that the Anthropic one does not:
+
+- **Reasoning text.** `openai/gpt-oss-120b` is a reasoning model and Groq returns its
+  chain of thought in a separate field on the message. `from_openai_response` reads
+  `message.content` and nothing else, so reasoning cannot reach an answer, a citation
+  or the request log. It is sent `reasoning_effort=low`, because reading six clauses is
+  not a job that needs planning and reasoning tokens are billed and rate-limited like
+  any others. A model that rejects the setting is retried once without it.
+- **What `max_tokens` means.** On Anthropic it bounds the answer; on Groq a reasoning
+  model's thinking is counted in the same completion budget. Passing
+  `answer_max_tokens` straight through would let the reasoning eat the answer and
+  truncate it mid-sentence, which the citation check would then reject — a provider
+  difference arriving as an abstention. So the caller's number keeps its meaning and
+  the hidden part gets `REASONING_TOKEN_HEADROOM` of its own.
+- **Rate limits.** A free tier is a real constraint rather than a bill. A 429 or a quota
+  refusal is retried up to four times with exponential backoff, honouring `retry-after`
+  when Groq sends one; `LLM_MIN_INTERVAL_S` holds a minimum gap between calls through a
+  `Pacer` written the same way `app/geocode.py`'s limiter is; and the rate-limit headers
+  are logged and kept on the client, so a batch run can report what it used.
+
+`uv run python -m app.llm` is the check: it lists the models the key may use, confirms
+`LLM_MODEL` is among them, sends one plain ping and one tool-call ping, and prints
+`ZoneWise online (groq/<model>, tools OK)` or the exact error. `GET /api/health` reports
+`provider` and `model` and never a key.
+
+**None of this touches retrieval.** `recall@k` and `MRR` score which clauses hybrid
+search returns; no model is called to compute them. Switching provider changes answer
+quality, latency and cost, and changes nothing in § 1 to § 3 or in `eval/`.
+
 ```mermaid
 flowchart TB
     ASK(["answer_point(question, lat, lon)"]) --> Z["spatial.get_zones()"]
@@ -272,7 +335,7 @@ For questions with a place name instead of a point.
 sequenceDiagram
     participant U as User
     participant A as agent.run_agent()
-    participant M as Claude
+    participant M as Model
     participant T as Tools
 
     U->>A: "What can I build near Connaught Place?"
@@ -441,6 +504,7 @@ ones worth reading first:
 | **D-073, D-074** | four-step geocoding, and the gazetteer that could not be built |
 | **D-075, D-076** | the dev flag, and the verification screen |
 | **D-077, D-078, D-079** | hardening; the `needs_data` marker; the image and the deploy kit |
+| **D-082** | two providers behind one door, and what the Groq adapter has to translate |
 
 D-042 is superseded by D-071: the abstention threshold was a placeholder on a signal that
 could not work, and both the signal and the threshold changed.

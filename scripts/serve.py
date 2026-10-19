@@ -17,8 +17,15 @@ http://localhost:8000/ as well. During development run the Vite dev server inste
 import argparse
 import sys
 
-from app.config import settings
+from app.config import PROVIDER_ANTHROPIC, PROVIDER_GROQ, settings
 from app.extract import use_utf8_output
+
+#: Which environment variable holds each provider's key, so the message names the one
+#: that is actually missing rather than always naming Anthropic's (D-082).
+KEY_VARIABLES = {
+    PROVIDER_ANTHROPIC: "ANTHROPIC_API_KEY=sk-ant-",
+    PROVIDER_GROQ: "GROQ_API_KEY=gsk_",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,11 +50,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  health: http://{args.host}:{args.port}/api/health")
     print(f"  docs:   http://{args.host}:{args.port}/docs")
     if settings.llm_available:
-        print(f"  answers: enabled ({settings.llm_model})")
+        print(f"  answers: enabled ({settings.llm_provider}/{settings.llm_model})")
     else:
-        print("  answers: DISABLED, no API key set, so /api/ask and /api/agent return 503.")
-        print("           Search, zones, layers and clauses all work. Put a key in .env")
-        print("           as ANTHROPIC_API_KEY=sk-ant-... and restart to enable answers.")
+        print(f"  answers: DISABLED, no {settings.llm_provider} key set, so /api/ask and")
+        print("           /api/agent return 503. Search, zones, layers and clauses all")
+        print("           work. Put a key in .env and restart to enable answers:")
+        print(f"           {KEY_VARIABLES[settings.llm_provider]}=... (LLM_PROVIDER={settings.llm_provider})")
     if settings.web_dist_dir.is_dir():
         print(f"  app:    http://{args.host}:{args.port}/ (serving web/dist)")
     else:

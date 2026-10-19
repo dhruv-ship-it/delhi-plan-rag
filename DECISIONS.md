@@ -743,3 +743,58 @@ So the conservative option stands, which is also what the architecture already p
 **Four new tests, because the claim that an absent gazetteer is a supported state had never been tested against an absent file.** Every existing gazetteer test monkeypatches `gazetteer()` to a dict, which exercises the matching and never the loading — and now that the file exists on this machine, the untested path is the one a fresh clone runs. `tests/test_geocode.py` gains: a missing file loads as `{}`; `locate_place` end-to-end with no file falls through to `nominatim_original`; a **corrupt** half-written file is the same supported state rather than an exception, which matters because night 3 filled this laptop's C: drive mid-write; and the other half, a real file in the shape the build script writes, loaded through `gazetteer()` and answering both a station's name and its alternate name with no request.
 
 **Proved by hiding the file, not by reasoning**, the way D-078 established the `needs_data` set: the gazetteer was moved aside and the suite re-run — **383 pass** — then restored — **383 pass**. The suite is now indifferent to whether the file exists, which is the property that was being claimed all along.
+
+---
+
+## D-082 · 2026-10-20 · Two providers behind one door, and Groq is the one with a free tier
+
+**Decision.** ZoneWise can now answer through **Groq** as well as Anthropic. `LLM_PROVIDER` in `.env` picks one, `GROQ_API_KEY` holds the key, and `LLM_MODEL` defaults to `openai/gpt-oss-120b` on Groq and stays `claude-haiku-5-5` on Anthropic. The Anthropic adapter is untouched.
+
+**Why.** Limitation 1 of `docs/PROJECT_STATUS.md` has been the largest gap in this project since it started: **there has never been a live LLM answer.** Every path — the citation check, the retry, all four abstention routes, the agent's tool loop — is tested against `FakeLLM` and scripted responses. What was missing was not code, it was a key that costs nothing to use. Groq serves open-weights models on a free tier through an endpoint that speaks the OpenAI chat-completions API, which turns "we need a paid key first" into "we need three lines in `.env`".
+
+**The design: the Anthropic response shape is the internal shape.** This is the decision inside the decision. `GroqLLM` translates in **both** directions, so `app/answer.py` and `app/agent.py` contain no provider branch, no provider import and no change at all:
+
+| Going out | Coming back |
+| --- | --- |
+| `system` beside the messages -> a `system` message in front | `message.content` -> a text block |
+| an assistant turn of blocks -> one message, `tool_use` -> `tool_calls` | `message.tool_calls` -> `tool_use` blocks, arguments JSON-parsed |
+| a user turn of `tool_result` blocks -> one `tool` message each | `finish_reason` -> `stop_reason` |
+| `input_schema` -> `parameters`, wrapped as a function | `usage.prompt_tokens` -> `usage.input_tokens` |
+
+Order is what makes the tool round trip work: OpenAI requires each `tool` message to follow the assistant message whose call it answers, and Anthropic's layout — an assistant `tool_use` turn, then a user turn of `tool_result` blocks — lands in exactly that order when translated turn by turn. The test for it builds the middle turn with `app/agent.py`'s own `assistant_content()`, so it cannot drift from what the agent really sends.
+
+Rejected: a second answering path for Groq (two copies of the citation check is the fastest way to have one of them be wrong); a provider flag read inside `answer.py` (it would spread to `agent.py`, `api.py` and the tests, and the one-door rule of D-040 is the thing that makes this project testable); and the Groq SDK, because `openai` pointed at `base_url` is Groq's own documented way in and adds no second HTTP client.
+
+**The key check is as strict as D-040's, for the same reason.** A client refuses to be built unless the key starts with `gsk_` and is at least 40 characters. `.env.example` ships `GROQ_API_KEY=your-key-here`, so a copied-but-unedited file would otherwise read as a configured key and turn an honest 503 into a 401 from a call that never had a chance. `has_api_key` is now **provider-aware**: with `LLM_PROVIDER=groq`, an Anthropic key is not a key, so `/api/ask`, the startup banner and the web app cannot disagree about whether answers are possible.
+
+**Three things the Groq adapter has to handle that Anthropic's does not.**
+
+1. **Reasoning text must never reach a user.** `openai/gpt-oss-120b` is a reasoning model and Groq returns its chain of thought in a separate field on the message. `from_openai_response` reads `message.content` and `message.tool_calls` and *nothing else*, so the reasoning cannot reach an answer, a citation, or the JSONL request log — and there is a test asserting that a reply whose reasoning says "I should pretend clause 99 exists" produces an answer with no trace of it. It is sent `reasoning_effort=low`: the answering job is short, extractive and bounded by six retrieved clauses, so the work that matters is reading them, not planning, and reasoning tokens are billed and rate-limited like any others. A model that rejects the setting is retried once without it, so a change at Groq's end degrades rather than breaks.
+
+2. **`max_tokens` means different things on the two APIs.** On Anthropic it bounds the answer. On Groq a reasoning model's hidden thinking is counted in the same completion budget, so passing `answer_max_tokens=900` straight through would let the reasoning eat the answer and truncate it mid-sentence — which the citation check would then reject, turning a provider difference into an abstention that looks like a model failure. So the caller's number keeps its meaning (bound the answer) and the hidden part gets `REASONING_TOKEN_HEADROOM = 1024` of its own. This is the one place a number is changed on the way through, and it is changed in the adapter rather than in `app/config.py` precisely because it is a fact about one API and not a tuning choice. Rejected: raising `answer_max_tokens` for everyone (it would change the Anthropic path for a Groq reason), and leaving it alone and reporting the truncations (honest, but it would spend a whole free-tier day measuring a known units mismatch).
+
+3. **A free tier is a constraint, not a bill.** A 429 or a quota refusal is retried up to **four** times with exponential backoff from 2 s, honouring `retry-after` when Groq sends one, because the service knows when its own window resets better than a doubling guess does. `LLM_MIN_INTERVAL_S` holds a minimum gap between calls through a `Pacer` written the same way `app/geocode.py`'s Nominatim limiter is — a lock, so the gap holds when two requests arrive together. The rate-limit headers are logged whenever they arrive and kept on the client, and `rate_limit_of()` keeps **only** the `x-ratelimit-*` and `retry-after` headers, so a log line about limits cannot quietly carry an `authorization` header.
+
+**Verified live, which is the point of the whole entry.** `uv run python -m app.llm` against the real API on 20 October 2026:
+
+```
+provider: groq
+model:    openai/gpt-oss-120b
+effort:   reasoning_effort=low
+11 model(s) available to this key.
+  openai/gpt-oss-120b is among them.
+plain ping -> 'ZoneWise online'  (78 in, 22 out)
+tool ping  -> ['zonewise_ping']  (149 in, 34 out)
+rate limits: {'x-ratelimit-limit-requests': '1000', 'x-ratelimit-remaining-requests': '998',
+              'x-ratelimit-reset-requests': '2m52.8s', 'x-ratelimit-limit-tokens': '8000',
+              'x-ratelimit-remaining-tokens': '7487', 'x-ratelimit-reset-tokens': '3.847s'}
+ZoneWise online (groq/openai/gpt-oss-120b, tools OK)
+```
+
+So: **1000 requests a day and 8000 tokens a minute** for this model on this key, read off the headers rather than off a documentation page. Tokens-per-day is not in the headers; the console at `console.groq.com/settings/limits` is the authority and the README says so. One observation worth recording because the code mentions it: `llama-3.3-70b-versatile` is **not** among the 11 models this key may use, so the fallback suggestion in `check_groq()` correctly falls through to listing what is available. The realistic smaller fallback here is `openai/gpt-oss-20b`.
+
+**Tests: 40 new, and no test makes a network call.** `tests/test_llm_groq.py` runs against a stand-in for the `openai` SDK handed to `GroqLLM` through its `client` argument — the same discipline `FakeLLM` gives the rest of the project, one level lower, because the translation itself cannot be tested by replacing the thing that does the translating. Covered: a plain answer with its token counts; the full tool round trip through the agent's own history builder; a 429 retried and then succeeding, with `retry-after` honoured rather than guessed; the backoff doubling when there is no header; giving up after the fourth try; a 401 **not** retried; a daily-quota refusal counted as rate-limited; `reasoning_effort` sent to gpt-oss and not to llama; the headroom applied; a model rejecting `reasoning_effort` and the call retried without it; a placeholder, a wrong-prefix and a truncated key each refused; reasoning text excluded from the answer and from the serialised blocks; only rate-limit headers kept; and `get_llm` dispatching by provider, checked without a key by watching which class it reaches for. **423 tests pass**, up from 383.
+
+**The UI says a question leaves the machine.** One line under the "not legal advice" banner: *"Questions are sent to a third-party AI provider (Groq); don't include personal information."* The provider is named in the sentence rather than read from `/api/health`, because the wording was specified and a banner that changes its own text is a worse surprise than a banner that is wrong after a provider switch — `/api/health` remains the authoritative place the provider is reported, and the README's configuration table is where someone switching provider is already reading.
+
+**What this does not change: every retrieval number.** `recall@k` and `MRR` score which clauses hybrid search returns for a question. No model is called to compute them and `eval/run_eval.py` makes no API call at all, so the provider affects answer quality, latency and cost and affects **nothing** in the evaluation. It is still true that there are no quotable numbers, and still for the same reason: the questions are unverified.

@@ -1,12 +1,21 @@
 """Smoke test: settings import and the data paths stay inside the repo."""
 
+import dataclasses
+
 from app.config import (
+    DEFAULT_GROQ_MODEL,
     DEFAULT_LLM_MODEL,
+    PROVIDER_ANTHROPIC,
+    PROVIDER_GROQ,
+    default_model_for,
     env_bool,
     env_float,
     env_int,
     env_list,
+    env_provider,
     env_str,
+    looks_like_api_key,
+    looks_like_groq_key,
     settings,
 )
 
@@ -79,3 +88,80 @@ def test_env_list_splits_on_commas_and_drops_blanks(monkeypatch) -> None:
     assert env_list("ZW_TEST_LIST", ["z"]) == ["a.example", "b.example"]
     monkeypatch.delenv("ZW_TEST_LIST", raising=False)
     assert env_list("ZW_TEST_LIST", ["z"]) == ["z"]
+
+
+# --- the provider (D-082) -------------------------------------------------------
+
+
+def test_the_provider_is_one_of_the_two_names() -> None:
+    """Whatever `.env` says, the resolved provider is a name the code knows."""
+    assert settings.llm_provider in (PROVIDER_ANTHROPIC, PROVIDER_GROQ)
+
+
+def test_a_misspelled_provider_falls_back_rather_than_stopping_the_server(monkeypatch) -> None:
+    """A typo in LLM_PROVIDER should not take the server down (D-065)."""
+    monkeypatch.setenv("LLM_PROVIDER", "grok")
+    assert env_provider("LLM_PROVIDER", PROVIDER_ANTHROPIC) == PROVIDER_ANTHROPIC
+    monkeypatch.setenv("LLM_PROVIDER", "GROQ")
+    assert env_provider("LLM_PROVIDER", PROVIDER_ANTHROPIC) == PROVIDER_GROQ
+    monkeypatch.setenv("LLM_PROVIDER", "  ")
+    assert env_provider("LLM_PROVIDER", PROVIDER_GROQ) == PROVIDER_GROQ
+
+
+def test_the_default_model_follows_the_provider() -> None:
+    """A key from one service and a model id from the other is the easy mistake."""
+    assert default_model_for(PROVIDER_ANTHROPIC) == DEFAULT_LLM_MODEL
+    assert default_model_for(PROVIDER_GROQ) == DEFAULT_GROQ_MODEL == "openai/gpt-oss-120b"
+    assert default_model_for("nonsense") == DEFAULT_LLM_MODEL
+
+
+def test_a_groq_key_is_checked_as_strictly_as_an_anthropic_one() -> None:
+    """Prefix and length, so a placeholder cannot read as a key (D-040, D-082)."""
+    good = "gsk_" + "a" * 44
+    assert looks_like_groq_key(good) is True
+    assert looks_like_groq_key("  " + good + " ") is True
+    assert looks_like_groq_key("your-key-here") is False
+    assert looks_like_groq_key("gsk_short") is False
+    assert looks_like_groq_key(None) is False
+    assert looks_like_groq_key("sk-ant-" + "a" * 50) is False
+    assert looks_like_api_key(good) is False
+
+
+def test_has_api_key_follows_the_configured_provider() -> None:
+    """With LLM_PROVIDER=groq an Anthropic key is not a key at all (D-082)."""
+    anthropic_key = "sk-ant-" + "a" * 50
+    groq_key = "gsk_" + "a" * 44
+
+    on_groq = dataclasses.replace(
+        settings,
+        llm_provider=PROVIDER_GROQ,
+        anthropic_api_key=anthropic_key,
+        groq_api_key=None,
+    )
+    assert on_groq.has_anthropic_key is True
+    assert on_groq.has_api_key is False
+    assert on_groq.llm_available is False
+
+    on_anthropic = dataclasses.replace(
+        settings,
+        llm_provider=PROVIDER_ANTHROPIC,
+        anthropic_api_key=None,
+        groq_api_key=groq_key,
+    )
+    assert on_anthropic.has_groq_key is True
+    assert on_anthropic.has_api_key is False
+
+    configured = dataclasses.replace(
+        settings, llm_provider=PROVIDER_GROQ, groq_api_key=groq_key
+    )
+    assert configured.has_api_key is True
+    assert configured.llm_available is True
+
+
+def test_the_call_gap_defaults_to_no_pacing(monkeypatch) -> None:
+    """0 is right for a one-question interface; a batch run sets its own (D-082)."""
+    assert settings.llm_min_interval_s >= 0
+    monkeypatch.setenv("LLM_MIN_INTERVAL_S", "2.5")
+    assert env_float("LLM_MIN_INTERVAL_S", 0.0) == 2.5
+    monkeypatch.setenv("LLM_MIN_INTERVAL_S", "slowly")
+    assert env_float("LLM_MIN_INTERVAL_S", 0.0) == 0.0

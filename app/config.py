@@ -11,6 +11,10 @@ deliberately stricter than a truthiness check: `.env.example` ships the placehol
 `your-key-here`, so a copied-but-unedited `.env` would otherwise read as a configured
 key and turn an honest "no key yet" into a confusing 401 (D-040).
 
+There are two providers. `LLM_PROVIDER` picks one — `anthropic` or `groq` — and the
+key check, the default model and `has_api_key` all follow it, so a Groq key with
+`LLM_PROVIDER=anthropic` reads as no key rather than as a key that will 401 (D-082).
+
 Every setting a deployment might need to change is read from the environment through the
 four `env_*` readers below, each with the value in this file as its default, so a
 container is configured with variables and nothing has to be edited inside the image
@@ -33,6 +37,17 @@ load_dotenv(PROJECT_ROOT / ".env")
 API_KEY_PREFIX = "sk-ant-"
 API_KEY_MIN_LENGTH = 40
 
+#: Groq keys start with this. Same length floor, same reason (D-082).
+GROQ_KEY_PREFIX = "gsk_"
+GROQ_KEY_MIN_LENGTH = 40
+
+#: Which service answers. `anthropic` is the original; `groq` serves open models
+#: through an OpenAI-compatible endpoint. See D-082.
+PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_GROQ = "groq"
+LLM_PROVIDERS = (PROVIDER_ANTHROPIC, PROVIDER_GROQ)
+DEFAULT_LLM_PROVIDER = PROVIDER_ANTHROPIC
+
 
 def looks_like_api_key(key: str | None) -> bool:
     """True only for something that could be a real Anthropic key.
@@ -44,6 +59,28 @@ def looks_like_api_key(key: str | None) -> bool:
     """
     text = (key or "").strip()
     return text.startswith(API_KEY_PREFIX) and len(text) >= API_KEY_MIN_LENGTH
+
+
+def looks_like_groq_key(key: str | None) -> bool:
+    """True only for something that could be a real Groq key.
+
+    The same guard as `looks_like_api_key` and for the same reason: `.env.example`
+    ships `GROQ_API_KEY=your-key-here`, and a placeholder that reads as a key turns
+    "no key yet" into a 401 nobody can interpret. Groq keys are prefixed `gsk_`.
+    """
+    text = (key or "").strip()
+    return text.startswith(GROQ_KEY_PREFIX) and len(text) >= GROQ_KEY_MIN_LENGTH
+
+
+def env_provider(name: str, default: str) -> str:
+    """An environment variable as a provider name, or `default` when it is not one.
+
+    Forgiving in the same way the readers above are (D-065): `LLM_PROVIDER=grok` is a
+    typo, and falling back to the default beats refusing to boot. The fallback is
+    visible, because `/api/health` reports the provider actually in use.
+    """
+    text = env_str(name, default).lower()
+    return text if text in LLM_PROVIDERS else default
 
 
 def env_str(name: str, default: str) -> str:
@@ -88,6 +125,29 @@ def env_list(name: str, default: list[str]) -> list[str]:
 #: pay for; `LLM_MODEL` in .env overrides it without a code change (D-063).
 DEFAULT_LLM_MODEL = "claude-haiku-5-5"
 
+#: The default Groq model. `openai/gpt-oss-120b` is an open-weights reasoning model
+#: served on Groq's free tier, which is what makes a live run possible on this project
+#: at all (D-082). `LLM_MODEL` overrides it, exactly as it does for Anthropic.
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+
+#: The model each provider uses when `LLM_MODEL` is unset. A key and a model id from
+#: two different services would be the easiest mistake to make here, so the default
+#: follows the provider rather than being one value for both.
+DEFAULT_MODELS = {
+    PROVIDER_ANTHROPIC: DEFAULT_LLM_MODEL,
+    PROVIDER_GROQ: DEFAULT_GROQ_MODEL,
+}
+
+#: The smallest gap between two LLM calls, in seconds. 0 means no pacing, which is the
+#: right default for a one-question interface; a batch run sets it to stay under a
+#: provider's requests-per-minute limit (D-082).
+DEFAULT_LLM_MIN_INTERVAL_S = 0.0
+
+
+def default_model_for(provider: str) -> str:
+    """The model id a provider uses when `LLM_MODEL` is unset."""
+    return DEFAULT_MODELS.get(provider, DEFAULT_LLM_MODEL)
+
 #: Which retrieval score the abstention pre-check reads. See D-071.
 DENSE_COSINE = "dense_cosine"
 RERANK_SCORE = "rerank_score"
@@ -126,6 +186,8 @@ class Settings:
     reports_dir: Path
     sources_csv: Path
     anthropic_api_key: str | None
+    groq_api_key: str | None
+    llm_provider: str
     llm_model: str
 
     # --- search ---------------------------------------------------------------
@@ -178,6 +240,8 @@ class Settings:
     citation_retries: int = 1
     #: True forces the FakeLLM everywhere, even if a real key is present.
     use_fake_llm: bool = False
+    #: The smallest gap between two LLM calls, in seconds. See D-082.
+    llm_min_interval_s: float = DEFAULT_LLM_MIN_INTERVAL_S
 
     # --- the agent ------------------------------------------------------------
     #: How many rounds of tool calling the agent may take before it has to answer.
@@ -236,9 +300,28 @@ class Settings:
         return self.project_root / "web" / "dist"
 
     @property
-    def has_api_key(self) -> bool:
+    def has_anthropic_key(self) -> bool:
         """True only when a real-looking Anthropic key is configured. See D-040."""
         return looks_like_api_key(self.anthropic_api_key)
+
+    @property
+    def has_groq_key(self) -> bool:
+        """True only when a real-looking Groq key is configured. See D-082."""
+        return looks_like_groq_key(self.groq_api_key)
+
+    @property
+    def has_api_key(self) -> bool:
+        """True when the **configured provider** has a usable key.
+
+        Provider-aware on purpose: with `LLM_PROVIDER=groq` an Anthropic key is not a
+        key at all, and reporting one would make `/api/ask` promise an answer it
+        cannot produce. Everything that gates on a key — `llm_available`, the 503 in
+        `app/api.py`, the banner in the web app — reads this one property, so switching
+        provider cannot leave half the app thinking answers are possible (D-082).
+        """
+        if self.llm_provider == PROVIDER_GROQ:
+            return self.has_groq_key
+        return self.has_anthropic_key
 
     @property
     def reranker_on(self) -> bool:
@@ -265,6 +348,9 @@ class Settings:
         return self.use_fake_llm or self.has_api_key
 
 
+#: Resolved before `settings` is built, because the default model depends on it.
+LLM_PROVIDER = env_provider("LLM_PROVIDER", DEFAULT_LLM_PROVIDER)
+
 settings = Settings(
     project_root=PROJECT_ROOT,
     raw_dir=DATA_DIR / "raw",
@@ -278,7 +364,10 @@ settings = Settings(
     reports_dir=PROJECT_ROOT / "reports",
     sources_csv=DATA_DIR / "sources.csv",
     anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-    llm_model=env_str("LLM_MODEL", DEFAULT_LLM_MODEL),
+    groq_api_key=os.getenv("GROQ_API_KEY"),
+    llm_provider=LLM_PROVIDER,
+    llm_model=env_str("LLM_MODEL", default_model_for(LLM_PROVIDER)),
+    llm_min_interval_s=env_float("LLM_MIN_INTERVAL_S", DEFAULT_LLM_MIN_INTERVAL_S),
     use_fake_llm=env_bool("ZONEWISE_USE_FAKE_LLM", False),
     use_reranker=env_bool("USE_RERANKER", False),
     abstain_signal=env_str("ABSTAIN_SIGNAL", DEFAULT_ABSTAIN_SIGNAL),

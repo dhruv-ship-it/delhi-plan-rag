@@ -61,6 +61,16 @@ body {
   letter-spacing: 0.01em;
 }
 
+/* One line under the banner, because a question leaves this machine (D-082). */
+.privacy-note {
+  margin: 0;
+  padding: 0.4rem 1rem;
+  background: var(--warn-soft);
+  border-bottom: 1px solid #fcd34d;
+  color: var(--warn);
+  font-size: 0.82rem;
+}
+
 /* --- layout --- */
 
 .layout {

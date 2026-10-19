@@ -8,9 +8,14 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - Python 3.12 managed with uv. Run everything with `uv run`.
 - PDF: PyMuPDF. Embeddings: fastembed with BAAI/bge-small-en-v1.5. Keyword search: rank_bm25. Vector store: Chroma (local, persistent). Fusion: reciprocal rank fusion, k = 60.
 - Geo: GeoPandas + Shapely. Buffers computed in EPSG:32643 (UTM 43N), stored as EPSG:4326 GeoJSON.
-- LLM: Anthropic API through one wrapper, app/llm.py. Model name lives in app/config.py.
-  Nothing else imports `anthropic`. `get_llm()` chooses the client; `FakeLLM` is the
-  scripted stand-in every test uses, so no test ever needs a key or a network call.
+- LLM: two providers behind one wrapper, app/llm.py. `LLM_PROVIDER` picks `anthropic`
+  (the Messages API) or `groq` (OpenAI-compatible, through the `openai` SDK, default
+  model `openai/gpt-oss-120b`). The provider, model name and key checks all live in
+  app/config.py. Nothing else imports `anthropic` or `openai`, and app/answer.py and
+  app/agent.py hold no provider logic: `GroqLLM` translates to and from the
+  Anthropic response shape, which is the internal one (D-082). `get_llm()` chooses the
+  client; `FakeLLM` is the scripted stand-in every test uses, so no test ever needs a
+  key or a network call.
 - Geocoding: Nominatim, bounded to Delhi, 1 request/second, cached. The only
   non-Anthropic service we call.
 - Reranking: optional cross-encoder (fastembed TextCrossEncoder,
@@ -31,10 +36,10 @@ The developer is learning AI engineering. Architecture decisions are made by the
   machine where the pipeline has run (D-079). docs/DEPLOY.md is the runbook.
 - CI: .github/workflows/ci.yml. Two jobs: ruff + `uv run pytest -m "not needs_data"`,
   and the web build. The 31 tests needing built data are marked `needs_data` (D-078);
-  352 of the 383 run on a clean clone.
+  392 of the 423 run on a clean clone.
 - Lint: ruff, a dev dependency, configured in pyproject.toml with F, E9 and I only.
   `uv run ruff check .` must be clean. We do **not** run `ruff format` (D-080).
-- Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first.
+- Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first. `openai` is allowed, and only as the client for Groq's OpenAI-compatible API.
 
 ## Repo layout
 - app/        Python package: config, llm, extract, cleaning, chunking, tagging,

@@ -156,6 +156,11 @@ export default function App() {
         )}
       </header>
 
+      <p className="privacy-note">
+        Questions are sent to a third-party AI provider (Groq); don&apos;t include personal
+        information.
+      </p>
+
       {devMode && view === VERIFY_VIEW ? (
         <main className="layout verify-layout">
           <VerifyPanel />

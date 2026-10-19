@@ -229,7 +229,7 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 **Tests:**
 
 ```powershell
-uv run pytest                      # 383
+uv run pytest                      # 423
 uv run pytest -m "not needs_data"  # 352, the ones needing no built data
 ```
 
@@ -304,14 +304,71 @@ their defaults; the ones worth knowing about:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | none | Without it the app runs in search-only mode. |
-| `LLM_MODEL` | `claude-haiku-5-5` | Which Anthropic model answers. Haiku because the job is short, extractive and bounded by the retrieved sources, so the smallest current model is the right one to pay for. Override to try a larger one without a code change. |
+| `LLM_PROVIDER` | `anthropic` | Which service answers: `anthropic` or `groq`. See [Using Groq](#using-groq). |
+| `ANTHROPIC_API_KEY` | none | Used when the provider is `anthropic`. Without a usable key for the configured provider the app runs in search-only mode. |
+| `GROQ_API_KEY` | none | Used when the provider is `groq`. Keys start with `gsk_`. |
+| `LLM_MODEL` | follows the provider | `claude-haiku-5-5` on Anthropic, `openai/gpt-oss-120b` on Groq. Small models, because the job is short, extractive and bounded by the retrieved sources. Override to try a larger one without a code change. |
+| `LLM_MIN_INTERVAL_S` | `0` | The smallest gap between two LLM calls. 0 for the interactive app; a batch run sets its own to stay inside a requests-per-minute limit. |
 | `ZONEWISE_DEV` | off | Enables the dev-only question verification screen. Never set it in production. |
 | `ABSTAIN_SIGNAL` | `dense_cosine` | Which score decides retrieval was too weak to ask the model: `dense_cosine` or `rerank_score`. |
 | `ABSTAIN_THRESHOLD` | provisional | The cut-off for that signal. See [Evaluation](#evaluation). |
 | `USE_RERANKER` | off | Rerank the top 20 with a cross-encoder after fusion. |
 | `RATE_LIMIT_PER_DAY` | 300 | The cap that stands between a bug and an unbounded bill. |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated list of browser origins allowed to call the API. |
+
+### Using Groq
+
+Groq serves open-weights models through an endpoint that speaks the OpenAI
+chat-completions API, and it has a free tier — which is what makes a live run of this
+project possible without an Anthropic bill. Three lines in `.env`:
+
+```ini
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+LLM_MODEL=openai/gpt-oss-120b
+```
+
+Then check it before trusting it:
+
+```powershell
+uv run python -m app.llm
+```
+
+That lists the models the key may use, says whether `LLM_MODEL` is among them, sends one
+plain ping and one tool-call ping, and prints
+`ZoneWise online (groq/openai/gpt-oss-120b, tools OK)` or the exact error.
+`GET /api/health` reports `provider` and `model` — never a key.
+
+`app/llm.py` translates in both directions, so nothing else in the project knows which
+provider is in use: the system prompt, the messages, the tool definitions, the tool
+calls and the tool results go out in OpenAI format and the completion comes back as the
+Anthropic-shaped blocks `app/answer.py` and `app/agent.py` already read.
+`openai/gpt-oss-120b` is a **reasoning** model, sent `reasoning_effort=low`; its chain of
+thought arrives in a separate field that is never read, so reasoning text cannot reach an
+answer, a citation or the request log (D-082).
+
+**The free-tier limits.** Groq publishes them per model and the console at
+[console.groq.com/settings/limits](https://console.groq.com/settings/limits) shows the
+exact numbers for your account — that page is the authority, not this table. What the
+response headers reported for `openai/gpt-oss-120b` on 20 October 2026:
+
+| Limit | Observed in the headers |
+| --- | --- |
+| Requests | `x-ratelimit-limit-requests: 1000` a day |
+| Tokens | `x-ratelimit-limit-tokens: 8000` a minute |
+| Requests a minute | not in the headers; 30 on the published free tier, which is why `LLM_MIN_INTERVAL_S=2.5` is enough for a batch run |
+| Tokens a day | not in the headers; see the console |
+
+A 429 is retried up to four times with exponential backoff, honouring `retry-after` when
+Groq sends one, and the rate-limit headers are logged whenever they arrive.
+
+**Retrieval metrics do not depend on the LLM.** `recall@k` and `MRR` score which clauses
+come back from hybrid search for a question; no model is called to compute them, and
+`eval/run_eval.py` makes no API call at all. Changing the provider or the model changes
+answer quality, latency and cost, and changes **nothing** in
+[Evaluation](#evaluation). What the provider does affect is everything downstream of
+retrieval: the written answer, whether the citation check passes, and the two abstention
+routes that need a model (`model_abstained` and `citation_check_failed`).
 
 ### API
 
@@ -326,7 +383,8 @@ their defaults; the ones worth knowing about:
 | `POST /api/agent` | **yes** | a cited answer about a place named in the question |
 
 The two answering endpoints are rate limited (10 per minute per address, 300 a day
-overall) and return 503 **with the retrieved clauses included** when no key is set.
+overall) and return 503 **with the retrieved clauses included** when the configured
+provider has no usable key.
 
 ---
 
@@ -457,7 +515,7 @@ reports/        run reports and generated reports; README.md says which are curr
 docs/           PROJECT_STATUS.md, ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md,
                 DEMO.md, DEPLOY.md
 web/            the React + Vite frontend
-tests/          383 pytest tests (352 of them need no data)
+tests/          423 pytest tests (392 of them need no data)
 Dockerfile      two stages: node builds the frontend, python serves everything
 DECISIONS.md    every design choice, numbered, with the alternatives rejected
 ```
@@ -477,7 +535,7 @@ DECISIONS.md    every design choice, numbered, with the alternatives rejected
 | API | FastAPI | typed request bodies and generated docs |
 | Frontend | React + Vite + react-leaflet | plain JavaScript, six dependencies, no UI framework |
 | Lint | ruff, with F, E9 and I only | catches real errors and import order; no reformatting |
-| Tests | pytest | 383, all with fixtures written in the test; no key, no network |
+| Tests | pytest | 423, all with fixtures written in the test; no key, no network |
 
 No RAG or agent framework is used. The chunking, the hybrid search, the fusion, the
 citation validation and the agent loop are all written here, so every step is visible

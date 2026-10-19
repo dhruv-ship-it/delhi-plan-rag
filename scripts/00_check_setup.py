@@ -24,7 +24,7 @@ def check_python() -> list[str]:
 def check_imports() -> list[str]:
     """Print whether each required package imports."""
     problems = []
-    for module in ("anthropic", "dotenv"):
+    for module in ("anthropic", "openai", "dotenv"):
         try:
             importlib.import_module(module)
         except ImportError:
@@ -42,8 +42,21 @@ def check_env() -> list[str]:
         print(".env file: found")
     else:
         print(".env file: not found (expected until Day 4; copy .env.example to .env)")
-    state = "set" if settings.anthropic_api_key else "missing"
-    print(f"ANTHROPIC_API_KEY: {state}")
+    print(f"LLM_PROVIDER: {settings.llm_provider}   LLM_MODEL: {settings.llm_model}")
+    for variable, present, usable in (
+        ("ANTHROPIC_API_KEY", bool(settings.anthropic_api_key), settings.has_anthropic_key),
+        ("GROQ_API_KEY", bool(settings.groq_api_key), settings.has_groq_key),
+    ):
+        if not present:
+            print(f"{variable}: missing")
+        elif usable:
+            print(f"{variable}: set")
+        else:
+            print(f"{variable}: set but not usable (a placeholder, or the wrong prefix)")
+    if settings.has_api_key:
+        print(f"answers: enabled, using {settings.llm_provider}")
+    else:
+        print(f"answers: disabled, no usable {settings.llm_provider} key (search still works)")
     return []
 
 

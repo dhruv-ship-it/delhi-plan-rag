@@ -115,7 +115,7 @@ n, and saying the questions were human-verified.
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
 | Tests | **423 pass**; 392 run with no data at all, 31 marked `needs_data` |
-| Decisions recorded | **82** in `DECISIONS.md` |
+| Decisions recorded | **83** in `DECISIONS.md` |
 | API endpoints | **7** public + **4** dev-only behind `ZONEWISE_DEV=1` |
 | Metro gazetteer | **278** stations from OpenStreetMap (gitignored, so a clone rebuilds it in one request) |
 | Requests logged | 727 lines in `data/logs/requests.jsonl`, all local testing |
@@ -149,13 +149,20 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
    MPD-2047, so for a point in the Ridge, search can boost Ridge clauses but cannot drop
    clauses belonging elsewhere. At P_RIDGE the plan simply does not contain a clause
    saying you may not build there.
-4. **One known retrieval miss, found on 19 October.** At P_ZONEO, "Can a fuel station be
-   built here?" does **not** return 11.1.1 — the clause that says fuel stations are
-   allowed "in all Use Zones except … Zone O" — under either that wording or the explicit
-   "in Zone O" one. The same question asked **without** a point has 11.1.1 at rank 1 in
-   hybrid mode (`reports/day2_queries_v3.md`), so the location path is costing it. Not
-   diagnosed; recorded in `docs/DEMO.md` and worth a look before anyone quotes a recall
-   figure.
+4. **One known retrieval miss, found on 19 October and diagnosed on 20 October.** At
+   P_ZONEO, "Can a fuel station be built here?" does **not** return 11.1.1 — the clause
+   that says fuel stations are allowed "in all Use Zones except … Zone O". It sits at
+   rank 14 as shipped against rank 3 with no point at all. **The step responsible is
+   query expansion** (step 2 of three), and the mechanism is that `zone_o` has no policy
+   section to expand towards, so its terms `Zone O Yamuna floodplain` act as a new
+   *subject* rather than as a qualifier: the clause's dense cosine actually *rises*
+   (0.6143 → 0.6519) while its dense rank collapses from 11 to 173, because ~160
+   floodplain chunks rise further. Exclusion changes nothing and the boost is helping.
+   With expansion suppressed for the two topics that have no policy section the clause
+   is **rank 1**, and three of the five demo beats come back bit-identical. **A fix is
+   proposed and deliberately not applied** (D-083), because it waits on the verified
+   question set like every other retrieval change and it moves two published demo beats.
+   Full diagnosis: `reports/diagnosis_fuel_station.md`.
 5. **The corpus is what it is.** 45 of the FAQ's 99 chunks are under 40 words (one Q+A is
    one chunk); 18 chunks are under 40% alphabetic because they are norms tables; the NGT
    report is a scan; nine drainage tables defeated table detection. Documented in
@@ -229,7 +236,7 @@ dependency order:
 | How it works, with diagrams | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | The documents, chunks, tags, layers | [docs/DATA.md](DATA.md) |
 | Every AI-engineering concept used, explained | [docs/LEARNING_NOTES.md](LEARNING_NOTES.md) |
-| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 82 entries |
+| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 83 entries |
 | To demo it in 3 minutes | [docs/DEMO.md](DEMO.md) |
 | To deploy it | [docs/DEPLOY.md](DEPLOY.md) |
 | To verify evaluation questions | [eval/README.md](../eval/README.md) |

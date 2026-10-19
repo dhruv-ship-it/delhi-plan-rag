@@ -48,6 +48,7 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - scripts/    numbered pipeline scripts, run in order (00_ .. 09_), plus build_chapter_map,
               build_gazetteer, search, show_chunk, show_page, serve, audit_chunks,
               tune_abstention, check_geocoding, summarize_logs, remap_eval_ids,
+              diagnose_fuel_station,
               compare_plan_versions, day2_queries, day3_location_compare,
               and the Windows helpers rebuild_all.ps1, dev.ps1, check.ps1
 - data/sources.csv   every document: id, title, type, issuer, date, url, download date, authority rank

@@ -23,6 +23,8 @@ Read these. They describe the system as it stands.
 
 | Report | What it is |
 | --- | --- |
+| [diagnosis_fuel_station.md](diagnosis_fuel_station.md) | **Why clause 11.1.1 does not come back at P_ZONEO** (20 Oct 2026). Names the step responsible — query expansion — explains the mechanism, and proposes a fix that is **not applied**. Regenerate the tables with `uv run python scripts\diagnose_fuel_station.py`. |
+| [diagnosis_fuel_station_tables.md](diagnosis_fuel_station_tables.md) | The generated measurements behind the file above: 2 wordings x 7 configurations, all five chunks of 11.1.1, and the five demo beats under the proposal. 700 chunks. |
 | [night4_run.md](night4_run.md) | **Latest run report** (19 Oct 2026): the documentation night 3 left over, PROJECT_STATUS, the Windows helper scripts, the demo script, ruff. Its last section is the ordered manual to-do list. |
 | [night3_run.md](night3_run.md) | Run report, 17-18 Oct 2026: the chunk audit, the ridge and LDA topics, the abstention signal, four-step geocoding, the Verify screen, hardening and the deploy kit. Section 4 is the manual to-do list night 4 inherits. |
 | [chunk_audit_after.md](chunk_audit_after.md) | Chunk quality, 700 chunks, **after** the five extraction fixes. Eight mechanical checks with five examples each. The file to read when judging whether chunking is good enough. |

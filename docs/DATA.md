@@ -165,16 +165,18 @@ byte-identical `chunks.jsonl`.
 
 ## 4. Zone tagging
 
-`app/tagging.py`. Four topics: `tod`, `hdc`, `zone_o`, `land_pooling`.
+`app/tagging.py`. **Six topics**: `tod`, `hdc`, `zone_o`, `land_pooling`, `ridge`, `lda`.
 
-**192 of 700 chunks (27%) carry at least one tag.**
+**227 of 700 chunks (32.4%) carry at least one zone tag.**
 
-| Topic | `zone_primary` | mentioned in text |
-| --- | --- | --- |
-| tod | 29 | 64 |
-| hdc | 36 | 47 |
-| zone_o | 0 | 53 |
-| land_pooling | 23 | 55 |
+| Topic | Name | `zone_primary` | mentioned in text | either |
+| --- | --- | --- | --- | --- |
+| tod | Transit Oriented Development | 29 | 64 | 64 |
+| hdc | High Density Corridor | 36 | 47 | 53 |
+| zone_o | Zone O (Yamuna floodplain) | 0 | 54 | 54 |
+| land_pooling | Land Pooling | 23 | 55 | 63 |
+| ridge | the Ridge / Regional Park | 0 | 37 | 37 |
+| lda | Low Density Area | 15 | 31 | 37 |
 
 ### The two kinds of tag
 
@@ -184,6 +186,45 @@ search may exclude on**. `zone_mentions` comes from the text and can only boost:
 stations are allowed "in all Use Zones except ... Zone O" — a chunk that mentions a zone
 to exclude it is exactly what a user standing in that zone needs (D-023).
 
+### Which topics may exclude, and which may not
+
+This is the single most consequential thing in this section, so it is a table of its own.
+"May exclude" means: for a point **outside** this zone, search is allowed to drop chunks
+whose `zone_primary` is this topic, because they are rules that apply inside it and
+nowhere else.
+
+| Topic | May exclude | Why |
+| --- | --- | --- |
+| tod | **yes** | 4.2 is a dedicated TOD policy chapter — Applicability, norms, the lot |
+| hdc | **yes** | 4.3 is the HDC policy, including the UER-II corridor |
+| land_pooling | **yes** | 4.1 is the Land Pooling policy |
+| lda | **yes** | 4.4 LOW DENSITY AREA (LDA), with its own Applicability, Guiding principles and Development Control Norms, plus a "FAQs on LDA" section (D-069) |
+| zone_o | **no** | MPD-2047 contains no Zone O policy at all (D-024, D-037) |
+| ridge | **no** | MPD-2047 contains no Ridge policy at all (D-069) |
+
+Four of six may exclude; two may only boost and expand. That two of them behave this way
+makes it a **pattern rather than an exception**, and the reason is the same both times:
+the plan never gives the area a policy section of its own, so there is no heading path
+that means "this rule is about that place".
+
+**Why `zone_o` has no sections.** Section 1.7.2 defines planning zone O as "River Yamuna
+/ Riverfront", one of the 17 planning zones, and after that the plan names it only inside
+other policies' exclusion lists — "this shall not apply to ... Zone 'O'" in 4.2.2, 4.5.1
+and 4.6.1, and "all Use Zones except ... Zone O" in 11.1.1. The closest candidate, 3.1.2
+Green-Blue Infrastructure, carries the real floodplain rule ("Active floodplain shall be
+a 'no construction zone'") but is about every green and blue asset in Delhi, so claiming
+it would let search drop it for any point outside the floodplain.
+
+**Why `ridge` has no sections.** The gazette's headings were searched for a dedicated
+Ridge or Regional Park policy and there is none. 37 chunks mention the Ridge and **every
+one of them sits in a section about something else**. Chapter 10 defines Regional Park,
+but it is the norms for *all* recreational land; 3.1.2 was rejected again for exactly the
+reason it was rejected for Zone O. So `ridge` boosts and expands but can never exclude.
+The visible cost is recorded honestly: at P_RIDGE, location-aware search returns 10.1's
+definition of a Regional Park at rank 1, and what it does *not* return is a clause saying
+you may not build there — because the plan does not phrase it that way. A question at
+P_RIDGE is probably a should-abstain question (`reports/location_compare_v3.md`).
+
 ### The mapping, `data/zone_sections.json`
 
 | Topic | Gazette sections | FAQ heading phrases |
@@ -192,34 +233,27 @@ to exclude it is exactly what a user standing in that zone needs (D-023).
 | hdc | 4.3 | "High Density Corridor", "HDC Policy" |
 | zone_o | *(none)* | *(none)* |
 | land_pooling | 4.1 | "Land Pooling" |
+| ridge | *(none)* | *(none)* |
+| lda | 4.4 | "LDA", "Low Density Area" |
 
-A gazette section number covers everything under it, so 4.2 covers 4.2.1 and 4.2.3.1.
-The FAQ has no section numbers, so its headings are matched on words, and **only an
-explicit topic name counts** — three of the eight FAQ sections match and five do not:
+A gazette section number covers everything under it, so 4.2 covers 4.2.1 and 4.2.3.1,
+and 4.4 covers 4.4.3 LDA Development Control Norms. The FAQ has no section numbers, so
+its headings are matched on words, and **only an explicit topic name counts** — four of
+the eight FAQ sections match and four do not:
 
 | FAQ section heading | Tagged |
 | --- | --- |
 | FAQs - Transit Oriented Development (TOD) Policy | tod |
 | FAQs on High Density Corridor (HDC) Policy | hdc |
 | FAQs – Land Pooling Policy | land_pooling |
+| FAQs on LDA | lda |
 | FAQs - GENERIC | — |
 | FAQs – Development Control Norms (DCN) for already existing developed areas | — |
 | FAQs – Heritage, Culture & Public Spaces | — |
-| FAQs on LDA | — |
 | FAQs - Slum and JJ Clusters | — |
 
 That table is regenerated into `data/processed/tag_report.md` on every run, so a renamed
 section cannot silently change what is tagged (D-038).
-
-### Why zone_o has no sections
-
-**MPD-2047 contains no Zone O policy.** Section 1.7.2 defines planning zone O as "River
-Yamuna / Riverfront", one of the 17 planning zones, and after that the plan names it only
-inside other policies' exclusion lists. The closest candidate, 3.1.2 Green-Blue
-Infrastructure, carries the real floodplain rule ("Active floodplain shall be a 'no
-construction zone'") but is about every green and blue asset in Delhi, so claiming it
-would let search drop it for any point outside the floodplain. Zone O therefore boosts
-and expands but never excludes (D-024, D-037).
 
 ### The mention patterns
 
@@ -231,10 +265,20 @@ Case matters where the short form is also an ordinary word.
 | hdc | `high[- ]density corridor`, `\bHDC\b`, `\bUER[- ]?II\b`, `urban extension road` |
 | zone_o | `\bZone\s*['"]?O\b`, `Zone O-1`, `Zone O-2`, `Yamuna flood ?plain`, and "river Yamuna" together with "flood" |
 | land_pooling | `land pooling`, `pooled land` |
+| ridge | `\bridge\b`, `regional park`, `\bAravalli` (all case-insensitive) |
+| lda | `\bLDA\b` (capitals only), `low density (area\|residential)`, `\bfarm ?house` |
 
 The capital-O-as-a-whole-word rule is what makes "zone of", "Zone of the river" and
 "TOD Zone or" fail to match while "Zone O" and "Zone 'O'" match. All of those are in
 `tests/test_tagging.py`.
+
+Two of the newer patterns are judgement calls worth flagging. `\bridge\b` is
+case-insensitive and matches the ordinary English word, which is safe here only because
+"ridge" in a Delhi planning document means the Ridge — but it would not survive a corpus
+that discussed roof ridges. And `farm house` counts as an LDA mention because all four
+occurrences in this plan fall inside the LDA sections or the definition of the term, so
+it adds signal; it is still a word that could appear elsewhere in a future edition
+(D-069).
 
 ---
 

@@ -13,18 +13,37 @@ The developer is learning AI engineering. Architecture decisions are made by the
   scripted stand-in every test uses, so no test ever needs a key or a network call.
 - Geocoding: Nominatim, bounded to Delhi, 1 request/second, cached. The only
   non-Anthropic service we call.
-- API: FastAPI, app/api.py. Seven endpoints; five need no API key, and /api/ask and
-  /api/agent return 503 with the retrieved clauses when there is none, so the app stays
-  useful in "search-only mode". Rate limits and the request log live there too.
+- Reranking: optional cross-encoder (fastembed TextCrossEncoder,
+  Xenova/ms-marco-MiniLM-L-6-v2) in app/rerank.py. Off by default: 2.4 s a query against
+  0.031 s without it, and no verified question set yet to justify it (D-070).
+- Abstention: the pre-check reads a raw score, never the fused RRF score, through
+  `signal_value()` in app/retrieval.py. `ABSTAIN_SIGNAL` is dense_cosine or rerank_score
+  and `ABSTAIN_THRESHOLD` is **provisional** until the verified questions exist (D-071).
+- API: FastAPI, app/api.py. Seven public endpoints; five need no API key, and /api/ask
+  and /api/agent return 503 with the retrieved clauses when there is none, so the app
+  stays useful in "search-only mode". Four more under /api/dev/eval/ (app/dev_eval.py)
+  are 404 unless ZONEWISE_DEV=1 (D-075). Rate limits, the body-size check, the security
+  headers and the request log live in app/api.py too.
 - Frontend: React (Vite) + react-leaflet in web/, plain JavaScript, built files served
   by FastAPI at /. Frontend dependencies are also subject to the rule below.
+- Deployment: one Dockerfile, two stages (node builds web/, python serves). The image
+  carries the built data rather than building at startup, so `docker build` needs a
+  machine where the pipeline has run (D-079). docs/DEPLOY.md is the runbook.
+- CI: .github/workflows/ci.yml. Two jobs: `uv run pytest -m "not needs_data"` and the
+  web build. The 31 tests needing built data are marked `needs_data` (D-078).
+- Lint: ruff, a dev dependency, configured in pyproject.toml with F, E9 and I only.
+  `uv run ruff check .` must be clean. We do **not** run `ruff format` (D-080).
 - Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first.
 
 ## Repo layout
-- app/        Python package: config, llm, extract, cleaning, chunking, tagging, indexing,
-              retrieval, location, spatial, geocode, answer, agent, api
-- scripts/    numbered pipeline scripts, run in order (00_, 01_, 02_ ...), plus
-              search.py, show_chunk.py and serve.py
+- app/        Python package: config, llm, extract, cleaning, chunking, tagging,
+              indexing, retrieval, rerank, location, spatial, geocode, answer, agent,
+              api, audit, dev_eval
+- scripts/    numbered pipeline scripts, run in order (00_ .. 09_), plus build_chapter_map,
+              build_gazetteer, search, show_chunk, show_page, serve, audit_chunks,
+              tune_abstention, check_geocoding, summarize_logs, remap_eval_ids,
+              compare_plan_versions, day2_queries, day3_location_compare,
+              and the Windows helpers rebuild_all.ps1, dev.ps1, check.ps1
 - data/sources.csv   every document: id, title, type, issuer, date, url, download date, authority rank
 - data/chapter_map.json, data/zone_sections.json, data/test_points.json  (committed)
 - data/raw/          source PDFs, named <doc_id>.pdf (not committed)
@@ -33,13 +52,21 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - data/layers/       manifest.json describing the map layers (committed)
 - data/layers/dda/   layers downloaded from gis.dda.org.in (not committed: DDA states no licence)
 - data/index/        search indexes, model weights, geocode cache (not committed)
+- data/gazetteer/    metro_stations.json from OpenStreetMap Overpass (not committed:
+                     ODbL data, rebuilt in one request by scripts/build_gazetteer.py)
 - data/logs/         requests.jsonl, one line per API request (not committed)
-- eval/       points.json, questions_draft.jsonl, questions.jsonl (Dhruv's verified set),
-              metrics.py, run_eval.py, results/, README.md
-- reports/    run reports written for a human to read (committed)
-- docs/       ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md (committed)
+- eval/       points.json, questions_draft.jsonl, questions_verified.jsonl (Dhruv's
+              verified set, committed, written only by the Verify screen), metrics.py,
+              run_eval.py, remap_log.json, results/, README.md
+- reports/    run reports written for a human to read (committed); README.md says which
+              are current and which are superseded
+- docs/       ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md, DEPLOY.md, DEMO.md,
+              PROJECT_STATUS.md (committed)
 - web/        React + Vite frontend; src/components/ holds the UI pieces
+              (MapView, ZoneChips, AnswerPanel, ClauseDrawer, ToolTrace, Legend,
+              VerifyPanel)
 - tests/      pytest tests
+- Dockerfile, .dockerignore, .github/workflows/ci.yml   build and CI
 
 ## Rules
 1. Every script in scripts/ runs on its own with `uv run python scripts/NN_name.py`, is safe to re-run, and ends by printing a short summary (counts, warnings, output paths).

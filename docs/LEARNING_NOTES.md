@@ -421,9 +421,287 @@ because an unexpected extra call is a bug, not something to paper over."
 
 ---
 
+## 16. Cross-encoder reranking, and why it is not the search
+
+**What it is.** The two indexes in this project are **bi-encoders** in the loose sense:
+the question and the chunk are turned into numbers *separately* and then compared. That
+separation is what makes search possible at all — the 700 chunk vectors were computed
+once, at index time, so a query costs one embedding and a dot product against a stored
+matrix. It is also the limit: the chunk's vector was computed without any knowledge of
+the question. "What is the **maximum** ground coverage?" and "What is the **minimum**
+ground coverage?" have nearly the same embedding, and BM25 sees the same tokens in both.
+
+A **cross-encoder** reads the query and the chunk together, as one concatenated input,
+and returns a single relevance score. Because the two halves attend to each other, it
+can tell those two questions apart. The price is that nothing can be precomputed: there
+is no chunk vector to store, so scoring a corpus means one forward pass per chunk. That
+is why a cross-encoder cannot *search* — it can only **rerank** a shortlist something
+cheaper already found. The standard shape is therefore two stages: retrieve 20 with the
+fast method, reorder those 20 with the accurate one.
+
+**Where it lives here.** `app/rerank.py` — `available()`, `reranker()` and
+`rerank_scores()`, wrapping fastembed's `TextCrossEncoder` with
+`Xenova/ms-marco-MiniLM-L-6-v2`. It is applied by `apply_reranker()` in
+`app/retrieval.py`, which rescores the top `settings.rerank_pool` (20) results after
+fusion and returns the best k. The switch is `settings.use_reranker`
+(`USE_RERANKER` in `.env`), and `settings.reranker_on` is the one the code reads —
+it is `use_reranker and available()`, because `fastembed.rerank.cross_encoder` arrived
+in a later fastembed than this project first pinned, so availability is **asked** rather
+than assumed.
+
+**Why we chose it this way: measured, and off.** On this laptop's CPU reranking costs
+**2.4 seconds a query against 0.031 seconds without it** — about 77 times the cost of
+the entire search that produced the shortlist, because 20 cross-encoder passes over
+400-word chunks is simply more arithmetic than one query embedding and a BM25 scan. The
+first guess was 0.4 s; measuring it changed the decision. On the drafted questions it
+lifts recall@1 from 0.340 to 0.460, but those questions were written by Claude *from the
+chunks*, and a cross-encoder is precisely the component that flatters itself on
+questions phrased like their answers — so that number is not evidence. There is also a
+visible counter-example in `reports/day2_queries_v3.md`: for "Can a fuel station be built
+in Zone O?" the reranker demotes the correct clause from rank 1 to rank 2. So it stays
+**off** (D-070), `eval/run_eval.py` scores `hybrid+location+rerank` as a fourth
+configuration, and the decision waits on human-verified questions.
+
+**How to explain it in an interview.** "My retrievers are bi-encoders — the chunk
+vectors are precomputed, which is what makes search fast and also means the chunk was
+embedded without knowing the question, so 'maximum FAR' and 'minimum FAR' look almost
+identical. A cross-encoder reads query and chunk together so it can tell those apart,
+but it can't be precomputed, so it only reranks a shortlist. I measured it at 2.4
+seconds a query versus 0.031 — 77× the search it reranks — and left it off, because the
+only recall gain I have is on questions I generated from my own chunks, which is exactly
+the setup a cross-encoder looks best on."
+
+---
+
+## 17. Why a fused score cannot drive abstention, and what can
+
+**What it is.** Abstention needs a number that answers "is this evidence any good?".
+The tempting one is the score the retriever already produced. For reciprocal rank
+fusion that is a mistake, and it is worth understanding exactly why: **RRF throws the
+scores away and keeps only the positions** (see entry 4). A chunk's fused score is
+`1/(k + rank)` summed over the lists it appears in. So a chunk that both indexes ranked
+first scores `2/61 = 0.0328` — *whatever the question was*. Ask about property tax in
+Mumbai, and if some chunk happens to come first in both lists, the pre-check sees the
+same confident 0.0328 it sees for a question the gazette answers in full. The number is
+a statement about the shape of the result list, not about relevance.
+
+What **can** work is a score that is an absolute judgement about this query against this
+chunk: a **dense cosine similarity** (how close are these two vectors, on a fixed 0-1
+scale) or a **cross-encoder score** (a model's direct verdict, roughly -11 to +11). Both
+mean something on their own, so a threshold can be set on them.
+
+**Where it lives here.** `is_weak()` in `app/answer.py` is the pre-check — step 3 of the
+five-step answer path, before any API call. It reads one raw score through
+`signal_value()` in `app/retrieval.py`, so the pre-check, the API's score breakdown and
+the evaluation's percentile tables all read the same field by the same name. The choice
+is `settings.abstain_signal` (`dense_cosine` or `rerank_score`) and the cut-off is
+`settings.abstain_threshold`. `Settings.abstention_signal` falls back to
+`dense_cosine` when `rerank_score` is asked for with the reranker off, because that
+field would be `None` on every result. `scripts/tune_abstention.py` sweeps the
+thresholds and prints the percentile table. Every `Result` carries its raw
+`dense_cosine`, `bm25_score` and `rerank_score` alongside the fused score precisely so
+this is possible (D-071).
+
+**Why we chose it this way, and the honest finding.** Measured over the 60 drafted
+questions, the answerable and should-abstain groups overlap almost completely on *every*
+signal:
+
+| signal | answerable p5 / p50 / p95 | should-abstain p5 / p50 / p95 |
+| --- | --- | --- |
+| `fused_score` | 0.0301 / 0.0328 / 0.0488 | 0.0285 / 0.0310 / 0.0488 |
+| `dense_cosine` | 0.6371 / 0.7349 / 0.8303 | 0.5834 / 0.6765 / 0.7655 |
+| `rerank_score` | -8.479 / 1.344 / 8.022 | -9.680 / -4.451 / 4.172 |
+
+So the configured value — `ABSTAIN_SIGNAL=dense_cosine`,
+`ABSTAIN_THRESHOLD=0.5804` — is deliberately set a hair below the lowest top-1 cosine
+any answerable draft produced. It refuses none of the 50 answerable questions and
+catches none of the 10 should-abstain ones, and it is labelled **provisional**
+everywhere it appears. That is the most conservative honest choice: the alternative was
+a threshold fitted to questions Claude wrote about chunks Claude could see.
+
+**The finding is bigger than the number: no single retrieval score separates those two
+groups cleanly, so the pre-check is a cost guard, not a correctness guard.** What
+actually stands between an unanswerable question and a confident wrong answer is rule 3
+of the system prompt and the citation check (entries 7, 8, 9). A bug found while
+building the sweep makes the same point twice: the first `provisional()` clamped its
+result at zero, which is harmless for a cosine and turned "refuse nothing" into a
+threshold of 0.0 on the cross-encoder scale — a value that would have refused 40% of the
+answerable questions.
+
+**How to explain it in an interview.** "I tried to use the fused retrieval score as an
+abstention signal and it can't work, which took measuring to see: an RRF score only
+encodes rank position, so the top chunk for a question about Mumbai property tax scores
+exactly what the top chunk for a real question scores — 2/61. I switched the pre-check to
+a raw dense cosine, which is an absolute judgement about this query and this chunk. The
+real result was negative though: the answerable and should-abstain distributions overlap
+on every signal I had, so I set the most conservative threshold, labelled it provisional,
+and was explicit that the pre-check is a cost guard and the citation check is the
+correctness guard."
+
+---
+
+## 18. Fuzzy matching and gazetteers
+
+**What it is.** A **gazetteer** is a local list of place names with their coordinates.
+Instead of asking a geocoding service what "Dwarka Sector 21 metro station" means, you
+hold the ~290 Delhi Metro station names yourself and match against them. The matching
+cannot be exact, because people type "Dwarka Sec 21", "dwarka sector-21" or "near
+Dwarka Sector 21 metro" — so it is **fuzzy**: score how similar two strings are and
+accept the best one if it is similar enough. `difflib.SequenceMatcher` scores on the
+longest matching subsequences, returning a ratio from 0 to 1; the cut-off decides how
+much mangling you forgive. Too high and real variants miss; too low and "Dwarka Sector
+21" quietly matches "Dwarka Sector 12", which is a different place and a wrong answer
+rather than a missing one.
+
+**Where it lives here.** `app/geocode.py`. `normalise()` lower-cases and strips the
+noise words ("near", "metro station", "metro", "station") and punctuation — and strips
+station words **from the end only**, because the first version turned "Station Road"
+into "road". `gazetteer()` loads `data/gazetteer/metro_stations.json`, keyed by every
+normalised name a station has, and returns `{}` when the file is absent.
+`gazetteer_match()` does the matching: an exact key hit wins outright, otherwise
+`difflib.get_close_matches(..., n=3, cutoff=settings.gazetteer_cutoff)` with the cut-off
+at **0.85**, and the match is accepted **only when the best candidate is uniquely best**
+— if a second name ties on ratio, it returns `None` and lets Nominatim decide.
+`scripts/build_gazetteer.py` builds the file from one OpenStreetMap Overpass query.
+It is step 2 of the four in `locate_place()`, tried before Nominatim.
+
+**Why we chose it this way.** Night 2 found that Nominatim returns **nothing** for
+"Dwarka Sector 21 metro station" with `bounded=1` and `limit=1` (D-049) — close to the
+phrase the agent's own example suggests typing. One geocoder's indexing of one naming
+convention should not be the only thing between a user and an answer. A metro station is
+the most likely way a Delhi resident describes where they are, there are only a few
+hundred, so holding them locally turns the commonest case into a string match with **no
+network call at all**: free, instant, and not rate-limited. The tie rule is the
+conservative half of the design — a unique-best requirement means an ambiguous query
+falls through to a real geocoder instead of guessing between two sector numbers.
+
+The honest state: **the gazetteer has never been built**, because `overpass-api.de` is
+unreachable from the sandboxes this project has run in. That is a *supported* state, not
+a failure (D-074): `gazetteer()` returns an empty dict, `gazetteer_match()` returns
+`None` immediately, and `locate_place()` falls through to Nominatim — which is what
+actually fixed the Dwarka miss, via `normalise()` rather than the station list.
+
+**How to explain it in an interview.** "My geocoder missed the single most likely phrasing
+a user would type — a Delhi Metro station name — so I added a local gazetteer of the ~290
+stations and fuzzy-match against it with difflib at a 0.85 cut-off, which costs no network
+call. The part I'd point at is the tie rule: I only accept a fuzzy match when it is
+*uniquely* best, because 'Dwarka Sector 21' matching 'Dwarka Sector 12' is a confidently
+wrong coordinate, and a wrong answer is worse than falling through to the real geocoder.
+The whole thing is also optional — if the file isn't there the code degrades to
+Nominatim, and there's a test for exactly that."
+
+---
+
+## 19. Docker multi-stage builds
+
+**What it is.** A Dockerfile can contain several `FROM` lines. Each one starts a new
+**stage** with its own base image, and a later stage can copy files out of an earlier one
+with `COPY --from=`. Everything else in that earlier stage — its compilers, its
+`node_modules`, its source — is discarded. The reason to want this is that the tools
+needed to *build* software are almost never the tools needed to *run* it. The classic
+case is exactly ours: building the frontend needs Node and 200 MB of npm packages;
+serving it needs a directory of static files.
+
+The second idea in the same file is **layer caching**. Each instruction is a layer, and
+Docker reuses a layer when neither the instruction nor the files it copied have changed —
+so the *order* of instructions decides how much a rebuild costs. Copying dependency
+manifests and installing before copying source means editing a Python file does not
+re-resolve the dependency tree.
+
+**Where it lives here.** The `Dockerfile` at the repo root, two stages:
+
+- **`FROM node:20-slim AS web`** — copies `web/package.json` and the lockfile, runs
+  `npm install`, *then* copies the source and runs `npm run build`.
+- **`FROM python:3.12-slim AS server`** — the image that ships. It brings `uv` in with
+  `COPY --from=ghcr.io/astral-sh/uv:0.5.11`, so the version is pinned by a tag and
+  nothing needs a compiler; runs `uv sync --frozen --no-install-project --no-dev` before
+  copying `app/`; and takes the built frontend with
+  `COPY --from=web /build/dist ./web/dist`. Node never exists in the final image.
+
+Three other decisions in that file are worth knowing (D-079). It **bakes the built data
+in** — the Chroma store, the BM25 pickle, the cached model weights, the layers — rather
+than building at startup, because embedding 700 chunks takes about 160 seconds on a CPU
+and a self-building container would pay that on every restart and every replica; the
+cost is that `docker build` must run on a machine where the pipeline has already run,
+which `docs/DEPLOY.md` says first and in bold. It runs as a **non-root** user (uid
+10001) and creates `data/logs` with the right owner first, because `app/api.py` logs
+best-effort and a container that could not write its log would swallow the failure
+silently. And its `HEALTHCHECK` asks for `status == "ok"` from `/api/health` rather than
+a 200, because a container with no index serves 503s from a perfectly healthy process.
+
+**Why we chose it this way.** One image, one process, no build step at run time — the
+smallest thing that can be deployed and the smallest thing that can go wrong at 3am. The
+build itself **could not be run** in the sessions that wrote it: `docker pull` returns
+zero bytes from the sandbox. So it was verified the other way — all sixteen `COPY` paths
+exist, no `.dockerignore` pattern excludes anything copied, `uv sync --frozen` is
+consistent, and the exact `CMD` was run outside a container and smoke-tested against
+`/api/health`, `/api/zones` and `/api/layers`. What remains untested is the layer
+caching, the two `uv sync` steps and the non-root log directory.
+
+**How to explain it in an interview.** "Two stages: Node builds the frontend, the Python
+image copies just the `dist` out of it, so Node and `node_modules` never ship. I ordered
+the instructions so dependencies install before source gets copied — editing a Python
+file shouldn't re-resolve the lockfile. The decision I'd actually defend is baking the
+search index into the image instead of building it at startup: embedding the corpus is
+~160 seconds, and paying that on every restart and every replica to avoid a build-time
+prerequisite is the wrong trade."
+
+---
+
+## 20. Continuous integration, and marking the tests that need data
+
+**What it is.** CI runs the checks automatically on a fresh machine on every push. The
+value is not that it runs the tests — you can do that locally — it is that it runs them
+**on a clean clone**, which catches the whole class of bug where something passes only
+because of a file sitting on your laptop.
+
+That is also the problem it creates here. Three directories this project needs are
+deliberately not committed (D-014): `data/processed`, `data/index` and
+`data/layers/dda` — the PDFs are 109 MB, the indexes are generated, and the DDA states
+no licence for its layers. A CI runner has none of them, so the tests that read them
+cannot pass there. The fix is a **pytest marker**: a label on a test that lets you
+select or deselect it by name, so one suite can be run two ways instead of maintaining
+two suites.
+
+**Where it lives here.** `.github/workflows/ci.yml`, two jobs: `python` (uv,
+`uv sync --frozen`, `uv run pytest -m "not needs_data" -q`) and `web` (`npm ci`,
+`npm run build`, then an assertion that `dist/index.html` and a JS bundle exist). The
+marker is declared in `pyproject.toml` under `[tool.pytest.ini_options]`, applied
+module-wide in `tests/test_api.py` with `pytestmark = pytest.mark.needs_data` and on one
+case in `tests/test_web_build.py`. **31 tests are marked; 348 of the 379 run with no data
+at all.**
+
+Two details carry most of the value. `concurrency` with `cancel-in-progress` means a
+second push to a branch cancels the first run, because on a branch being iterated the
+only result anyone reads is the latest. And the second step of the Python job asserts
+that **the deselected set is non-empty** — if a `needs_data` marker is ever deleted by
+accident, the main suite would silently start trying to read data that is not there, so
+the marker going missing is a CI failure rather than a surprise.
+
+**Why we chose it this way, and how the set was proved.** The membership of
+`needs_data` was **not reasoned about** — it was established by experiment. `data/index`,
+`data/processed` and `data/layers/dda` were moved aside, the suite was re-run — **348
+passed, 31 deselected, nothing failed** — and then restored, 379 pass (D-078). The first
+attempt at that found a case in `test_web_build.py` that no reading of test names would
+have caught: it mounts the frontend and asserts `status == "ok"`, which is an assertion
+about the index, not the bundle. `npm ci` rather than `npm install` for the same family
+of reason: `ci` installs exactly what the committed lockfile says and fails if it
+disagrees with `package.json`, where `install` would quietly resolve something newer and
+leave CI testing a dependency tree nobody has run locally.
+
+**How to explain it in an interview.** "My indexes and source PDFs aren't committed, so a
+CI runner can't run every test. I marked the 31 that need built data with a pytest marker
+and CI runs `-m 'not needs_data'` — 348 tests on a clean clone. Two things I'd point at:
+I found the membership of that set by actually hiding the data directories and re-running,
+which caught a test whose name gave no hint it depended on the index; and CI asserts the
+deselected set is non-empty, so if someone deletes the marker it fails loudly instead of
+quietly trying to read data that isn't there."
+
+---
+
 ## Where to read more
 
-- `DECISIONS.md` — all 62 decisions with the alternatives rejected. The "why" for
+- `DECISIONS.md` — all 79 decisions with the alternatives rejected. The "why" for
   everything above.
 - `docs/ARCHITECTURE.md` — the same pipeline with diagrams and function names.
 - `docs/DATA.md` — the documents, the cleaning rules, the chunk statistics, the layers.

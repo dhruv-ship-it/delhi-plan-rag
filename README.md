@@ -24,6 +24,8 @@ says so instead of guessing.
 > **Picking this project up?** [**docs/PROJECT_STATUS.md**](docs/PROJECT_STATUS.md) is one
 > page covering what is built, what a human has actually checked and what is still open —
 > including why none of the retrieval numbers are quotable yet. Start there.
+> **Showing it to someone?** [**docs/DEMO.md**](docs/DEMO.md) is a three-minute script
+> with the observed clause ids at each point.
 
 ---
 

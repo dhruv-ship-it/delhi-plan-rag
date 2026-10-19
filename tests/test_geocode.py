@@ -12,12 +12,17 @@ import pytest
 from app.config import settings
 from app.geocode import (
     PATH_GAZETTEER,
+    PATH_GAZETTEER_INTERCHANGE,
     PATH_NOMINATIM_NORMALISED,
     PATH_NOMINATIM_ORIGINAL,
     PATH_NOT_FOUND,
+    all_within,
+    base_name,
     gazetteer,
     gazetteer_match,
+    interchange_entries,
     locate_place,
+    metres_between,
     normalise,
 )
 
@@ -508,3 +513,206 @@ def test_a_real_gazetteer_file_is_loaded_and_answers_with_no_request(
         assert place.path == PATH_GAZETTEER
         assert place.lat == pytest.approx(28.5519)
     assert session.queries == []
+
+
+# --- interchanges: one entry per line, one answer for the bare name (D-084) -----
+#
+# OSM names an interchange once per line, so "Hauz Khas" matched nothing and fell
+# through to Nominatim. These go through the real loader with a written file, because
+# the grouping happens at load time and a monkeypatched dict would skip it entirely.
+
+
+def _station(name: str, lat: float, lon: float, **extra) -> dict:
+    """One station record in the shape build_gazetteer.py writes."""
+    return {"name": name, "alt_names": [], "lat": lat, "lon": lon, **extra}
+
+
+def _write_gazetteer(monkeypatch, tmp_path, stations: list[dict]):
+    """Write a gazetteer file and point the loader at it."""
+    path = tmp_path / "metro_stations.json"
+    path.write_text(json.dumps({"stations": stations}), encoding="utf-8")
+    _point_gazetteer_at(monkeypatch, path)
+    return path
+
+
+#: The real Hauz Khas platforms, to six decimals, 190 m apart.
+HAUZ_KHAS = [
+    _station("Hauz Khas (Magenta Line)", 28.543369, 77.205045),
+    _station("Hauz Khas (Yellow Line)", 28.544256, 77.206707),
+]
+
+
+def test_the_base_name_is_the_name_without_its_parenthesised_suffix() -> None:
+    assert base_name("Hauz Khas (Yellow Line)") == "Hauz Khas"
+    assert base_name("Dilli Haat - INA (Pink Line)") == "Dilli Haat - INA"
+    assert base_name("Rajiv Chowk") == "Rajiv Chowk"
+    assert base_name("") == ""
+    # not anchored anywhere but the end, so a bracket inside a name is left alone
+    assert base_name("Some (Odd) Name") == "Some (Odd) Name"
+
+
+def test_the_distance_helper_is_right_to_the_metre() -> None:
+    """One degree of latitude is about 111 km, and the real pair is 190 m apart."""
+    assert metres_between(28.0, 77.0, 29.0, 77.0) == pytest.approx(111195, rel=0.001)
+    assert metres_between(28.5, 77.2, 28.5, 77.2) == 0.0
+    gap = metres_between(28.543369, 77.205045, 28.544256, 77.206707)
+    assert gap == pytest.approx(190, abs=5)
+
+
+def test_hauz_khas_resolves_from_the_gazetteer(monkeypatch, tmp_path) -> None:
+    """The finding D-081 recorded and left unfixed. No network call at all."""
+    _write_gazetteer(monkeypatch, tmp_path, HAUZ_KHAS)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    assert "hauz khas" in gazetteer()
+
+    session = StubSession([])  # any request would raise
+    place = locate_place("Hauz Khas", use_cache=False, session=session)
+
+    assert place.found is True
+    assert place.path == PATH_GAZETTEER_INTERCHANGE
+    assert session.queries == []
+    # the centre of the two platforms, which is inside both of them
+    assert place.lat == pytest.approx(28.5438, abs=0.0002)
+    assert place.lon == pytest.approx(77.2059, abs=0.0002)
+    assert "interchange" in place.display_name
+
+
+def test_the_wordier_ways_of_asking_for_it_resolve_too(monkeypatch, tmp_path) -> None:
+    """Normalisation runs first, so the qualifier is gone before the key is looked up."""
+    _write_gazetteer(monkeypatch, tmp_path, HAUZ_KHAS)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    for query in ("Hauz Khas metro station", "near Hauz Khas", "hauz khas, new delhi"):
+        place = locate_place(query, use_cache=False, session=StubSession([]))
+        assert place.found is True, query
+        assert place.path == PATH_GAZETTEER_INTERCHANGE, query
+
+
+def test_each_platform_still_answers_under_its_own_name(monkeypatch, tmp_path) -> None:
+    """The group is an extra entry, not a replacement: the line names still work."""
+    _write_gazetteer(monkeypatch, tmp_path, HAUZ_KHAS)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    place = locate_place("Hauz Khas (Yellow Line)", use_cache=False, session=StubSession([]))
+    assert place.found is True
+    assert place.path == PATH_GAZETTEER  # the platform itself, not the centre
+    assert place.lat == pytest.approx(28.544256)
+
+
+def test_two_different_stations_with_similar_names_are_not_merged(monkeypatch, tmp_path) -> None:
+    """The rule that matters most: never merge entries more than 300 m apart.
+
+    Two real stations that share a base name and sit 2 km apart have not been
+    identified by the bare name, so inventing a midpoint between them would be a wrong
+    coordinate rather than a missing one. No bare-name entry is made, and the query
+    falls through to Nominatim — the same call D-073 makes for an ambiguous match.
+    """
+    far_apart = [
+        _station("Mayur Vihar (Phase I)", 28.6040, 77.2895),
+        _station("Mayur Vihar (Phase III)", 28.6120, 77.3120),  # about 2.3 km away
+    ]
+    assert metres_between(28.6040, 77.2895, 28.6120, 77.3120) > 300
+    _write_gazetteer(monkeypatch, tmp_path, far_apart)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    keys = set(gazetteer())
+    assert "mayur vihar phase i" in keys
+    assert "mayur vihar phase iii" in keys
+    assert "mayur vihar" not in keys  # the thing being asserted
+
+    session = StubSession([[RAJIV_CHOWK]])
+    place = locate_place("Mayur Vihar", use_cache=False, session=session)
+    assert place.path == PATH_NOMINATIM_ORIGINAL
+    assert session.queries == ["Mayur Vihar, Delhi"]
+
+
+def test_three_platforms_are_merged_only_if_every_pair_is_close(monkeypatch, tmp_path) -> None:
+    """All-pairs, not a chain. A 250 m from B and B 250 m from C is 500 m A to C."""
+    chained = [
+        _station("Chain Street (Line One)", 28.60000, 77.20000),
+        _station("Chain Street (Line Two)", 28.60225, 77.20000),  # ~250 m from the first
+        _station("Chain Street (Line Three)", 28.60450, 77.20000),  # ~500 m from the first
+    ]
+    assert metres_between(28.60000, 77.20000, 28.60225, 77.20000) < 300
+    assert metres_between(28.60000, 77.20000, 28.60450, 77.20000) > 300
+    _write_gazetteer(monkeypatch, tmp_path, chained)
+
+    assert "chain street" not in gazetteer()
+
+
+def test_a_station_really_named_without_a_suffix_keeps_its_own_coordinate(
+    monkeypatch, tmp_path
+) -> None:
+    """The Botanical Garden case, which is in the real data.
+
+    OSM holds `Botanical Garden` **and** `Botanical Garden (Blue Line)` and
+    `Botanical Garden (Magenta Line)`. A computed centre must not displace a name the
+    source actually carries, so group entries are added last and never overwrite.
+    """
+    stations = [
+        _station("Botanical Garden", 28.564100, 77.334500),
+        _station("Botanical Garden (Blue Line)", 28.563943, 77.334400),
+        _station("Botanical Garden (Magenta Line)", 28.563905, 77.333837),
+    ]
+    _write_gazetteer(monkeypatch, tmp_path, stations)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    place = locate_place("Botanical Garden", use_cache=False, session=StubSession([]))
+    assert place.found is True
+    assert place.path == PATH_GAZETTEER  # the real entry, not a computed centre
+    assert place.lat == pytest.approx(28.564100)
+
+
+def test_one_suffixed_entry_on_its_own_is_not_grouped(monkeypatch, tmp_path) -> None:
+    """A single platform is already findable under its own name; a group adds nothing.
+
+    It would also be a guess: with one member there is nothing to check a radius
+    against.
+    """
+    _write_gazetteer(
+        monkeypatch, tmp_path, [_station("Lonely Halt (Orange Line)", 28.60, 77.20)]
+    )
+    keys = set(gazetteer())
+    assert keys == {"lonely halt orange line"}
+
+
+def test_an_unsuffixed_gazetteer_gains_nothing(monkeypatch, tmp_path) -> None:
+    """Grouping is inert on names that carry no parenthesised suffix."""
+    stations = [
+        _station("Rajiv Chowk", 28.6328, 77.2197),
+        _station("Dwarka Sector 21", 28.5522, 77.0587),
+    ]
+    _write_gazetteer(monkeypatch, tmp_path, stations)
+    assert set(gazetteer()) == {"rajiv chowk", "dwarka sector 21"}
+    assert interchange_entries(stations) == []
+
+
+def test_the_group_entry_records_which_platforms_it_came_from() -> None:
+    """So a surprising coordinate can be traced back to the entries that produced it."""
+    entries = interchange_entries(HAUZ_KHAS)
+    assert len(entries) == 1
+    assert entries[0]["name"] == "Hauz Khas"
+    assert entries[0]["interchange_of"] == [
+        "Hauz Khas (Magenta Line)",
+        "Hauz Khas (Yellow Line)",
+    ]
+
+
+def test_a_station_with_no_coordinates_is_skipped(monkeypatch, tmp_path) -> None:
+    """A malformed record should not take the loader down (D-073)."""
+    stations = [
+        {"name": "No Point (Blue Line)", "alt_names": [], "lat": None, "lon": None},
+        _station("Hauz Khas (Magenta Line)", 28.543369, 77.205045),
+        _station("Hauz Khas (Yellow Line)", 28.544256, 77.206707),
+    ]
+    _write_gazetteer(monkeypatch, tmp_path, stations)
+    keys = set(gazetteer())
+    assert "hauz khas" in keys
+    assert "no point blue line" not in keys
+
+
+def test_all_within_is_true_for_one_station_and_for_none() -> None:
+    """There is no pair to be too far apart, which is vacuously fine."""
+    assert all_within([], 300.0) is True
+    assert all_within([_station("Only", 28.6, 77.2)], 300.0) is True

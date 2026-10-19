@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import settings  # noqa: E402
 from app.extract import use_utf8_output  # noqa: E402
-from app.geocode import DELHI_VIEWBOX  # noqa: E402
+from app.geocode import DELHI_VIEWBOX, interchange_entries  # noqa: E402
 
 #: Overpass takes (south, west, north, east), which is not the order a viewbox uses.
 LEFT, TOP, RIGHT, BOTTOM = DELHI_VIEWBOX
@@ -145,7 +145,11 @@ def main() -> int:
     out_path = settings.gazetteer_path
     if out_path.exists() and not args.force:
         existing = json.loads(out_path.read_text(encoding="utf-8"))
-        print(f"{out_path.as_posix()} already has {len(existing.get('stations', []))} stations.")
+        stations = existing.get("stations", [])
+        groups = interchange_entries(stations)
+        print(f"{out_path.as_posix()} already has {len(stations)} stations.")
+        print(f"  {len(groups)} interchange(s) grouped under a bare name (D-084):")
+        print(f"      {', '.join(entry['name'] for entry in groups) or '(none)'}")
         print("Nothing downloaded. Pass --force to fetch it again.")
         return 0
 
@@ -176,9 +180,12 @@ def main() -> int:
     )
 
     with_alternates = sum(1 for station in stations if station["alt_names"])
+    groups = interchange_entries(stations)
     print()
     print(f"{len(payload.get('elements', []))} OSM elements -> {len(stations)} distinct stations")
     print(f"  {with_alternates} have at least one alternate name")
+    print(f"  {len(groups)} interchange(s) grouped under a bare name (D-084):")
+    print(f"      {', '.join(entry['name'] for entry in groups) or '(none)'}")
     print(f"  first: {stations[0]['name']}   last: {stations[-1]['name']}")
     print(f"wrote {out_path.as_posix()}")
     print("Attribution: (c) OpenStreetMap contributors, ODbL. The folder is gitignored.")

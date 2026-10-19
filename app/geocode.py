@@ -18,6 +18,16 @@ now tries four things in order and reports which one worked:
   3. **Nominatim**   the original query + ", Delhi", then the normalised query + ", Delhi"
   4. **not_found**   and say so, rather than returning a point somewhere else
 
+The gazetteer in step 2 also holds **interchanges under their bare name**. OSM names an
+interchange once per line, so the downloaded list has `Hauz Khas (Magenta Line)` and
+`Hauz Khas (Yellow Line)` and no plain `Hauz Khas` — the name a person types, and one
+that fuzzy-matches neither (0.58 and 0.60 against a 0.85 cutoff). `gazetteer()` groups
+entries whose names differ only by a parenthesised suffix **and** every pair of which is
+within `INTERCHANGE_RADIUS_M`, and adds one entry at the group's centre. Entries further
+apart than that are never merged: two stations sharing a base name have not been
+identified by it, and a midpoint between them would be a wrong coordinate rather than a
+missing one (D-084).
+
 Every result carries `path`, naming the step that produced it, and every result is
 cached. The point of recording the path is that a miss is then diagnosable from the
 cache alone, without spending more live requests to find out what happened.
@@ -31,6 +41,7 @@ that `get_zones` would then report as outside Delhi.
 
 import difflib
 import json
+import math
 import re
 import threading
 import time
@@ -51,6 +62,8 @@ COUNTRY_CODES = "in"
 
 #: Which step produced a result. Reported so a miss can be diagnosed from the cache.
 PATH_GAZETTEER = "gazetteer"
+#: The gazetteer answered with the centre of an interchange's platforms (D-084).
+PATH_GAZETTEER_INTERCHANGE = "gazetteer_interchange"
 PATH_NOMINATIM_ORIGINAL = "nominatim_original"
 PATH_NOMINATIM_NORMALISED = "nominatim_normalised"
 PATH_CACHE = "cache"
@@ -96,6 +109,46 @@ DELHI_SUFFIX = ", Delhi"
 
 #: Punctuation goes; everything else is collapsed to single spaces.
 PUNCTUATION = re.compile(r"[^\w\s]+")
+
+#: A parenthesised suffix at the end of a name: the "(Yellow Line)" of
+#: "Hauz Khas (Yellow Line)". Anchored to the end, and it does not nest, because the
+#: only thing it is meant to catch is OSM's line qualifier.
+PAREN_SUFFIX = re.compile(r"\s*\([^()]*\)\s*$")
+
+#: How far apart two entries sharing a base name may be and still be one station.
+#:
+#: 300 m, and the data says it is the right order of magnitude: of the 14 interchanges
+#: OSM names per line, the widest pair of platforms is Rajouri Garden at 281 m and the
+#: narrowest is Anand Vihar at 41 m. Two stations that merely have similar names are
+#: kilometres apart, so nothing near this line is a judgement call (D-084).
+INTERCHANGE_RADIUS_M = 300.0
+
+#: Mean Earth radius in metres, for the haversine below.
+EARTH_RADIUS_M = 6371008.8
+
+
+def metres_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance between two points in metres.
+
+    A haversine rather than a projected distance. `app/spatial.py` buffers in
+    EPSG:32643 because a buffer is a geometry and has to be right; this is a
+    straight-line comparison between two points a few hundred metres apart, where the
+    haversine is accurate to well under a metre and needs neither a projection nor a
+    GeoPandas round trip for 278 stations at import time.
+    """
+    first, second = math.radians(lat1), math.radians(lat2)
+    delta_lat = second - first
+    delta_lon = math.radians(lon2 - lon1)
+    half_chord = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(first) * math.cos(second) * math.sin(delta_lon / 2) ** 2
+    )
+    return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(half_chord))
+
+
+def base_name(name: str) -> str:
+    """A station name without its parenthesised suffix. "Hauz Khas (Yellow Line)" -> "Hauz Khas"."""
+    return PAREN_SUFFIX.sub("", name or "").strip()
 
 
 @dataclass(frozen=True)
@@ -205,9 +258,72 @@ def normalise(query: str) -> str:
 # --- the local gazetteer --------------------------------------------------------
 
 
+def interchange_entries(stations: list[dict]) -> list[dict]:
+    """One extra entry per interchange, under its bare name, at the platforms' centre.
+
+    OSM names an interchange **once per line**, so the list holds
+    `Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain `Hauz Khas` —
+    which is the name a person types. Against the normalised query `hauz khas` the two
+    suffixed names score 0.58 and 0.60, far below the 0.85 cutoff, so the query used to
+    fall through to Nominatim (D-081).
+
+    Entries are grouped only when **both** conditions hold: their names differ only by
+    a parenthesised suffix, and **every pair** of them is within
+    `INTERCHANGE_RADIUS_M`. The all-pairs test rather than a chain is deliberate — with
+    single linkage, A 250 m from B and B 250 m from C would merge points 500 m apart,
+    which is the thing the radius exists to forbid.
+
+    A base name whose entries are **not** all that close gets no entry at all. Two
+    stations that happen to share a base name have not been identified by the bare
+    name, and inventing a midpoint between them would be a wrong coordinate rather
+    than a missing one — the same call D-073 makes for an ambiguous fuzzy match: fall
+    through to Nominatim rather than guess.
+    """
+    groups: dict[str, list[dict]] = {}
+    for station in stations:
+        name = station.get("name") or ""
+        base = base_name(name)
+        if not base or base == name:
+            continue  # no parenthesised suffix, so nothing to group under
+        groups.setdefault(base, []).append(station)
+
+    entries: list[dict] = []
+    for base, members in sorted(groups.items()):
+        if len(members) < 2:
+            continue  # one platform is already findable under its own name
+        if not all_within(members, INTERCHANGE_RADIUS_M):
+            continue
+        entries.append(
+            {
+                "name": base,
+                "alt_names": [],
+                "lat": round(sum(member["lat"] for member in members) / len(members), 6),
+                "lon": round(sum(member["lon"] for member in members) / len(members), 6),
+                "interchange_of": [member["name"] for member in members],
+            }
+        )
+    return entries
+
+
+def all_within(stations: list[dict], radius_m: float) -> bool:
+    """True when every pair of stations is within `radius_m` of every other."""
+    for index, first in enumerate(stations):
+        for second in stations[index + 1 :]:
+            gap = metres_between(first["lat"], first["lon"], second["lat"], second["lon"])
+            if gap > radius_m:
+                return False
+    return True
+
+
 @lru_cache(maxsize=1)
 def gazetteer() -> dict[str, dict]:
     """The metro station gazetteer, keyed by every normalised name a station has.
+
+    Interchanges also get an entry under their bare name, at the centre of their
+    platforms — see `interchange_entries` and D-084. Those are added **last** and never
+    overwrite a key, so a station OSM really does hold under the bare name keeps its
+    own coordinate: `Botanical Garden` exists alongside `Botanical Garden (Blue Line)`
+    and `Botanical Garden (Magenta Line)`, and the real entry wins.
 
     Empty when `scripts/build_gazetteer.py` has not been run. That is a supported
     state, not an error: the gazetteer is an optimisation over Nominatim and the
@@ -221,13 +337,24 @@ def gazetteer() -> dict[str, dict]:
     except (json.JSONDecodeError, OSError):
         return {}
 
+    stations = [
+        station
+        for station in document.get("stations", [])
+        if station.get("lat") is not None and station.get("lon") is not None
+    ]
+
     found: dict[str, dict] = {}
-    for station in document.get("stations", []):
+    for station in stations:
         names = [station.get("name") or ""] + list(station.get("alt_names") or [])
         for name in names:
             key = normalise(name)
             if key and key not in found:
                 found[key] = station
+
+    for entry in interchange_entries(stations):
+        key = normalise(entry["name"])
+        if key and key not in found:
+            found[key] = entry
     return found
 
 
@@ -391,13 +518,18 @@ def _locate_uncached(cleaned: str, session=None) -> Place:
 
     station = gazetteer_match(normalised)
     if station is not None:
+        members = station.get("interchange_of") or []
         return Place(
             query=cleaned,
             found=True,
             lat=station["lat"],
             lon=station["lon"],
-            display_name=f"{station['name']} (Delhi Metro)",
-            path=PATH_GAZETTEER,
+            display_name=(
+                f"{station['name']} (Delhi Metro interchange, {len(members)} lines)"
+                if members
+                else f"{station['name']} (Delhi Metro)"
+            ),
+            path=PATH_GAZETTEER_INTERCHANGE if members else PATH_GAZETTEER,
         )
 
     attempts = [(cleaned + DELHI_SUFFIX, PATH_NOMINATIM_ORIGINAL)]

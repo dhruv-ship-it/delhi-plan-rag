@@ -716,6 +716,8 @@ Rejected: the default ruff rule set (`E` and `F`), because `E501` line-length wo
 
 ## D-081 · 2026-10-19 · The gazetteer is built, and interchange stations do not fuzzy-match their own bare name
 
+**Superseded in part by D-084**, which fixes the interchange half: the bare name now resolves to the centre of the platforms, grouped only within 300 m. Everything else in this entry stands.
+
 **D-074 is resolved.** The Overpass request that failed at the TCP level from two earlier sandboxes **succeeded from this one**, in 48 seconds: `291 OSM elements -> 278 distinct stations`, 20 of them carrying at least one alternate name, first `A.I.I.M.S.`, last `Yashobhoomi Dwarka Sector 25`. 278 is inside the 250-300 band `scripts/build_gazetteer.py` prints its counts for exactly so that a wrong query would be visible. `data/gazetteer/metro_stations.json` now exists on this machine. It stays gitignored (ODbL data, one request to rebuild), so **Dhruv still has to run the script once on his own machine** — but it is no longer a thing that has never been shown to work.
 
 **Verified with no network at all**, through the real loader rather than a stubbed dict:
@@ -826,3 +828,49 @@ The common failure is worth recording because it is what makes the scoped fix th
 **One measurement caveat, recorded so nobody re-derives it.** Chroma's HNSW index is approximate, so a *deep* dense rank wobbles between runs — this clause's no-point dense rank came back as 10 and as 11 on two consecutive runs of the same script. Nothing in the diagnosis turns on one place: the effect being measured is a move of about 160 ranks.
 
 **`scripts/diagnose_fuel_station.py` is new and changes nothing.** It runs the real `search()` through the real indexes and turns each location step off on its own by swapping the settings object `app/location.py` looks its knobs up under, so every number comes from the code that ships rather than from a re-implementation of it. The proposed configuration is measured the same way, by removing two keys from `EXPANSION_TERMS` inside a context manager. It writes `reports/diagnosis_fuel_station_tables.md`, makes no network call and is safe to re-run.
+
+---
+
+## D-084 · 2026-10-20 · Interchanges answer to their bare name, grouped at 300 m — D-081 resolved
+
+**D-081 is resolved.** `Hauz Khas` now resolves from the local gazetteer with no network call, to 28.543813, 77.205876 — the centre of its two platforms. OSM names an interchange **once per line**, so the downloaded list holds `Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain `Hauz Khas`, which is the name a person types; against the normalised query `hauz khas` those two score 0.5806 and 0.6000 on difflib's ratio, far below the 0.85 cutoff.
+
+**The rule, and both halves of it matter.** `gazetteer()` adds one entry per group under the bare name when, and only when:
+
+1. the names differ **only** by a parenthesised suffix — `PAREN_SUFFIX` is anchored to the end and does not nest, because the only thing it is meant to catch is OSM's line qualifier; and
+2. **every pair** of them is within **300 m** of every other.
+
+All-pairs rather than a chain, deliberately. With single linkage, A 250 m from B and B 250 m from C would merge two points 500 m apart, which is exactly what the radius exists to forbid. There is a test for the chain case.
+
+**A base name whose entries are not all that close gets no entry at all.** This is the conservative half and it is the same call D-073 already makes for an ambiguous fuzzy match: two stations that merely share a base name have not been identified *by* that bare name, and inventing a midpoint between them would be a **wrong** coordinate rather than a missing one. Falling through to Nominatim costs one donated request; a confident point 2 km from where the user meant costs them the answer. Tested with two stations 2.3 km apart sharing a base name: no bare-name key is created and the query reaches Nominatim.
+
+**300 m was checked against the data rather than guessed.** Of the 278 stations, **14** base names carry a parenthesised suffix, every one of them with exactly two platforms, and the spread is nowhere near the limit:
+
+| | | | |
+| --- | --- | --- | --- |
+| Anand Vihar 41 m | Botanical Garden 55 m | Welcome 105 m | Dwarka - Kakrola 111 m |
+| Karkarduma 126 m | Mayur Vihar - I 144 m | Inderlok 150 m | Kirti Nagar 150 m |
+| Dilli Haat - INA 177 m | **Hauz Khas 190 m** | Azadpur 208 m | Netaji Subhash Place 228 m |
+| Lajpat Nagar 235 m | Rajouri Garden 281 m | | |
+
+Widest real pair **281 m**, narrowest **41 m**, and the nearest thing to a false positive — two genuinely different stations sharing a base name — would be kilometres apart. So no real case sits close to the threshold in either direction, which is the property that makes a hard cutoff safe here rather than a tuning parameter waiting for evidence.
+
+**The three objections D-081 raised are each answered, which is why this is now a fix and not the same idea again.**
+
+- *"Lower the cutoff"* — not done. The cutoff is untouched at 0.85, and the fuzzy matcher is unchanged. The bare name is an **exact key**, so `Dwarka Sector 21` still cannot match `Dwarka Sector 12`.
+- *"Strip the suffix in `build_gazetteer.py`, and the loader keeps whichever it saw first"* — that was the real objection, and it is why the grouping lives in the **loader** rather than in the build script. A group entry carries the **centre** of its members, which needs all of them at once; `key not in found` can only keep one. It also means nobody has to re-download: the change applies to the file already on disk.
+- *"It needs a rule for what an interchange is, and a decision about which coordinate the shared name gets"* — those are precisely the two things above: the rule is "same base name and all pairs within 300 m", and the coordinate is the mean of the members. Both are stated, both are tested, and the second is reported through its own path so it can be told apart from an ordinary hit.
+
+**Three properties kept on purpose.**
+
+- **Each platform still answers under its own full name, to its own coordinate.** The group is an extra entry, not a replacement, and it reports `gazetteer` where a group reports `gazetteer_interchange`.
+- **A name OSM really holds is never overwritten.** Group entries are added **last** and only when the key is free. This is not hypothetical: OSM holds `Botanical Garden` *and* `Botanical Garden (Blue Line)` *and* `Botanical Garden (Magenta Line)`, so a computed centre would otherwise displace a coordinate the source actually carries. It does not.
+- **A new path, `gazetteer_interchange`.** D-073's reason for recording which step answered was that a surprise should be diagnosable from the cache alone. A computed centre is exactly the kind of answer someone will want to query later, so it says so, and each group entry keeps an `interchange_of` list naming the platforms it was built from.
+
+**One behaviour change worth stating plainly: the answer moved 692 m.** Night 3's Nominatim lookup for "Hauz Khas" returned 28.54981, 77.20776 — the Hauz Khas **locality**. The gazetteer now returns the metro **interchange**. Both are defensible readings of the two words; for ZoneWise the interchange is the one a question about building "near Hauz Khas metro" means, and the gazetteer is a metro-station list, so answering with the station is the honest behaviour of the thing being asked. **It changes no answer here** — the centre, both platforms and Nominatim's own point are all in planning zone F and all in a TOD zone — but 690 m can cross a zone boundary somewhere else, and in this project a zone boundary decides which clauses can apply. Hence the separate path.
+
+**A haversine, not a projection.** `metres_between` is ten lines of trigonometry. `app/spatial.py` buffers in EPSG:32643 because a buffer is a geometry and has to be right (D-032); this is a straight-line comparison between two points a few hundred metres apart, where a haversine is accurate to well under a metre and needs neither a projection nor a GeoPandas round trip for 278 stations at import time. Rejected: pyproj in `app/geocode.py`, which would make the geocoder depend on the geo stack for one distance; and comparing degrees directly, which is wrong by a factor of 0.88 in longitude at Delhi's latitude and would have made the threshold mean two different things in the two axes.
+
+**Tests: 13 new, 436 pass, and none of them touches the network.** The grouping happens at load time, so these go through the **real loader with a written file** rather than the monkeypatched dict the older gazetteer tests use — a dict skips the grouping entirely. Covered: `Hauz Khas` resolving with no request, and under "Hauz Khas metro station", "near Hauz Khas" and "hauz khas, new delhi"; each platform still answering under its own name and path; two stations 2.3 km apart **not** merged and falling through to Nominatim; the three-platform chain case refused; `Botanical Garden`'s real entry surviving; one suffixed entry on its own not grouped; an unsuffixed list gaining nothing; a record with no coordinates skipped rather than raising; `base_name` and `metres_between` on their own; and `all_within` on the empty and single cases. The suite was re-run with the gazetteer file hidden and with it present — **436 both times** — which keeps the property D-081 established.
+
+`scripts/build_gazetteer.py` now prints the groups it found in both its branches, so a re-run on a machine that already has the file still says what the loader will do with it.

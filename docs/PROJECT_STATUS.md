@@ -40,7 +40,7 @@ Everything in this table exists, is tested, and runs.
 | **Retrieval** | [app/retrieval.py](../app/retrieval.py) | Hybrid search, RRF at k=60, raw per-index scores carried on every result |
 | **Reranker** | [app/rerank.py](../app/rerank.py) | Cross-encoder, working and measured — **off by default** (2.4 s vs 0.031 s a query, D-070) |
 | **Location logic** | [app/location.py](../app/location.py), [app/spatial.py](../app/spatial.py) | exclude / expand / boost from the zones at a point; buffers in EPSG:32643, stored as EPSG:4326 |
-| **Geocoding** | [app/geocode.py](../app/geocode.py) | Four steps — normalise, gazetteer, Nominatim ×2, not-found — each recording which one answered (D-073) |
+| **Geocoding** | [app/geocode.py](../app/geocode.py) | Four steps — normalise, gazetteer, Nominatim ×2, not-found — each recording which one answered (D-073). Interchanges are grouped under their bare name within 300 m (D-084) |
 | **Answering** | [app/answer.py](../app/answer.py) | Five-step path with four abstention routes and a citation check with one retry |
 | **Agent** | [app/agent.py](../app/agent.py) | Tool loop with a round cap, for questions that arrive as text rather than a point |
 | **HTTP API** | [app/api.py](../app/api.py) | Seven public endpoints, five of which need no API key; rate limits, body-size check, four security headers, JSONL request log |
@@ -74,6 +74,11 @@ This is the section that decides what you are allowed to say about this project.
   with no network call at all, one of them to the identical coordinate Nominatim gave
   (D-081). Also: the suite passes with the file hidden *and* present, so the
   absent-gazetteer fallback is proved rather than asserted.
+- **Interchange stations resolve under their bare name** — 14 of the 278 are named per
+  line by OSM, and `Hauz Khas` now answers from the gazetteer with the centre of its two
+  platforms (190 m apart) and no network call. The 300 m rule was checked against the
+  real data: widest real pair 281 m, and the centre, both platforms and Nominatim's own
+  answer are all in planning zone F and all in a TOD zone (D-084).
 - **The `needs_data` set** was established by hiding the data directories and re-running,
   not by reading test names (D-078).
 - **The Dockerfile's `COPY` paths, `.dockerignore` and exact `CMD`** were each checked
@@ -114,10 +119,10 @@ n, and saying the questions were human-verified.
 | Map layers | **8**, from DDA's GIS portal |
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
-| Tests | **423 pass**; 392 run with no data at all, 31 marked `needs_data` |
-| Decisions recorded | **83** in `DECISIONS.md` |
+| Tests | **436 pass**; 405 run with no data at all, 31 marked `needs_data` |
+| Decisions recorded | **84** in `DECISIONS.md` |
 | API endpoints | **7** public + **4** dev-only behind `ZONEWISE_DEV=1` |
-| Metro gazetteer | **278** stations from OpenStreetMap (gitignored, so a clone rebuilds it in one request) |
+| Metro gazetteer | **278** stations from OpenStreetMap, **14** of them interchanges also keyed under their bare name (gitignored, so a clone rebuilds it in one request) |
 | Requests logged | 727 lines in `data/logs/requests.jsonl`, all local testing |
 
 ### Tags per topic
@@ -176,11 +181,11 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
 9. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
    gazetteer removes most of that dependency for metro-station queries, but it is
    gitignored, so each machine builds it once.
-10. **`Hauz Khas` does not resolve from the gazetteer.** OpenStreetMap names
-   interchange stations per line, so the list holds `Hauz Khas (Magenta Line)` and
-   `Hauz Khas (Yellow Line)` and neither is close enough to the bare name. It falls
-   through to Nominatim and still answers; recorded and deliberately not fixed (D-081).
-11. **Not legal advice**, and the README says so above the fold.
+10. **Not legal advice**, and the README says so above the fold.
+
+*(The former limitation 10 — `Hauz Khas` not resolving from the gazetteer — is fixed.
+Interchanges are now grouped under their bare name at the centre of their platforms,
+with a hard 300 m rule and no merging beyond it. D-081 is resolved by D-084.)*
 
 ---
 
@@ -236,7 +241,7 @@ dependency order:
 | How it works, with diagrams | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | The documents, chunks, tags, layers | [docs/DATA.md](DATA.md) |
 | Every AI-engineering concept used, explained | [docs/LEARNING_NOTES.md](LEARNING_NOTES.md) |
-| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 83 entries |
+| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 84 entries |
 | To demo it in 3 minutes | [docs/DEMO.md](DEMO.md) |
 | To deploy it | [docs/DEPLOY.md](DEPLOY.md) |
 | To verify evaluation questions | [eval/README.md](../eval/README.md) |

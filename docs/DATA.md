@@ -405,19 +405,63 @@ Measured on that file, with no network call made:
 | "near Rajiv Chowk" | gazetteer | 28.63271, 77.21931 |
 | "dwarka sec 21" | gazetteer | 28.55192, 77.05856 — the fuzzy cutoff earning its keep |
 | "Yashobhoomi Dwarka Sector 25" | gazetteer | 28.55083, 77.04531 |
-| "Hauz Khas" | *falls through* | see below |
+| "Hauz Khas" | **gazetteer_interchange** | 28.543813, 77.205876 — the centre of the two platforms |
 | "Mumbai Central" | *falls through* | correctly not a Delhi Metro station |
 
-**The known miss: interchange stations.** OSM names a station once per line it serves, so
-the gazetteer holds `Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain
-`Hauz Khas`. Against the normalised query `hauz khas` those score 0.5806 and 0.6000 on
-difflib's ratio — well below the 0.85 cutoff — so the query falls through to Nominatim,
-which answers it. The user gets the right point; what they lose is the free lookup.
-Deliberately not fixed: lowering the cutoff that far would also let "Dwarka Sector 21"
-match "Dwarka Sector 12", and collapsing the suffix would make the loader silently keep
-one of two platforms 150 m apart. See D-081.
+### Interchange stations, under their bare name
+
+OSM names a station **once per line it serves**, so the downloaded list holds
+`Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain `Hauz Khas` — which
+is the name a person types. Against the normalised query `hauz khas` the two suffixed
+names score 0.5806 and 0.6000 on difflib's ratio, well below the 0.85 cutoff, so the
+query used to fall through to Nominatim (D-081).
+
+`gazetteer()` now adds one entry per interchange under its bare name, at the centre of
+its platforms. The rule, and both halves matter:
+
+1. the names must differ **only** by a parenthesised suffix, and
+2. **every pair** of them must be within **300 m** of every other.
+
+All-pairs rather than a chain, because with single linkage A 250 m from B and B 250 m
+from C would merge two points 500 m apart. A base name whose entries are not all that
+close gets **no entry at all**: two stations sharing a base name have not been
+identified by the bare name, and a midpoint between them would be a wrong coordinate
+rather than a missing one — the same call D-073 makes for an ambiguous fuzzy match.
+
+**14 interchanges** in the 278, every one of them two platforms, and the spread is
+nowhere near the limit: widest Rajouri Garden at **281 m**, narrowest Anand Vihar at
+**41 m**. The nearest non-interchange pair sharing a base name is kilometres away, so no
+real case sits close to the threshold. `scripts/build_gazetteer.py` prints the list.
+
+| | |
+| --- | --- |
+| Anand Vihar | 41 m apart |
+| Welcome | 105 m |
+| Dwarka - Kakrola | 111 m |
+| Karkarduma | 126 m |
+| Mayur Vihar - I | 144 m |
+| Inderlok | 150 m |
+| Kirti Nagar | 150 m |
+| Dilli Haat - INA | 177 m |
+| **Hauz Khas** | **190 m** |
+| Azadpur | 208 m |
+| Netaji Subhash Place | 228 m |
+| Lajpat Nagar | 235 m |
+| Rajouri Garden | 281 m |
+| Botanical Garden | 55 m — but OSM **also** holds the bare `Botanical Garden`, and that real entry wins |
+
+Two things worth knowing about the answer it now gives. Each platform still resolves
+under its own full name, to its own coordinate, and reports `gazetteer` rather than
+`gazetteer_interchange` — the group is an extra entry, not a replacement. And the centre
+is **692 m from what Nominatim returns for "Hauz Khas"**, because Nominatim answers with
+the Hauz Khas *locality* and this answers with the metro interchange. Both are defensible
+readings of the words; for ZoneWise the interchange is the one a question about building
+"near Hauz Khas metro" means. It makes no difference to the answer here — the centre,
+both platforms and Nominatim's point are all in planning zone F and all in a TOD zone —
+but 690 m can cross a zone boundary elsewhere, which is why the path is reported
+separately. See D-084.
 
 **An absent file stays a supported state**, and that is now tested against a real missing
 file rather than a stubbed empty dict — including a corrupt half-written one. The suite
-was run with the file hidden and with it present, 383 tests passing both times. See
-D-073 and D-081.
+was run with the file hidden and with it present, 436 tests passing both times. See
+D-073, D-081 and D-084.

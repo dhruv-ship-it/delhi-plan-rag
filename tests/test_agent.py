@@ -303,7 +303,7 @@ def test_the_tool_results_are_sent_back_as_tool_result_blocks(stubs) -> None:
 
 def test_citing_an_id_that_never_came_from_search_retries_then_abstains(stubs) -> None:
     """Twice invented is an abstention, not an answer."""
-    invented = f"Ground coverage is 40% [MPD47_GAZETTE_EN:9.9.9@p999:0]."
+    invented = "Ground coverage is 40% [MPD47_GAZETTE_EN:9.9.9@p999:0]."
     llm = FakeLLM(
         responses=[
             tool_use_response("search_clauses", {"query": "ground coverage"}, "t1"),

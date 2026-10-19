@@ -102,10 +102,10 @@ def main(argv: list[str] | None = None) -> int:
         "",
         "Location-aware search does three things, with the settings in `app/config.py`:",
         "",
-        f"1. **Exclusion** — a chunk whose `zone_primary` is a policy the point is *not* in "
+        "1. **Exclusion** — a chunk whose `zone_primary` is a policy the point is *not* in "
         "is dropped. A chunk with no primary zone is never dropped, so the general norms in "
         "chapters 7 to 13 always stay in play.",
-        f"2. **Query expansion** — the point's zone names are appended to the query text for "
+        "2. **Query expansion** — the point's zone names are appended to the query text for "
         "both indexes, so a question with no zone words in it can still reach the right policy.",
         f"3. **Boost** — a chunk whose `zone_primary` *or* `zone_mentions` matches the point's "
         f"zones has its fused score multiplied by {settings.zone_boost}.",

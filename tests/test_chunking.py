@@ -7,9 +7,9 @@ a heading, a clause cut in half, a page range that drifts.
 
 from app.chunking import (
     HARD_MAX_WORDS,
-    _move_orphan_titles,
     MERGE_UNDER_WORDS,
     Section,
+    _move_orphan_titles,
     assign_chunk_ids,
     chunk_faq,
     chunk_paragraph_document,

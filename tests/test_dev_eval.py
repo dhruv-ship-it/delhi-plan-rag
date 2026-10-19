@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 import app.dev_eval as dev_eval
 from app.api import app, require_index
+from app.config import settings
 from app.dev_eval import (
     ACCEPTED,
     EDITED,
@@ -28,7 +29,6 @@ from app.dev_eval import (
     save_decision,
     words_of,
 )
-from app.config import settings
 from app.retrieval import Result
 
 CLAUSE = (

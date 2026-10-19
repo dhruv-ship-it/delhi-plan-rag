@@ -27,7 +27,6 @@ import re
 import time
 
 from app.answer import (
-    ABSTAIN_PREFIX,
     CITATION_CHECK_FAILED,
     MODEL_ABSTAINED,
     AnswerResult,

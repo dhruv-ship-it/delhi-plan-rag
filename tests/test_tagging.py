@@ -15,7 +15,6 @@ from app.tagging import (
     tag_chunk,
 )
 
-
 #: The committed mapping, loaded once; every test below uses it rather than a literal.
 SECTIONS = default_zone_sections()
 

@@ -7,8 +7,6 @@ is small enough to check on paper.
 import pytest
 
 from eval.metrics import (
-    safest_threshold,
-    sweep_thresholds,
     BOOTSTRAP_RESAMPLES,
     QuestionScore,
     ThresholdRow,
@@ -19,7 +17,9 @@ from eval.metrics import (
     paired_difference_interval,
     percentile,
     recall,
+    safest_threshold,
     suggest_threshold,
+    sweep_thresholds,
     threshold_sweep,
 )
 

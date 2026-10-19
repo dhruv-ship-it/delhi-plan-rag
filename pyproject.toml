@@ -22,6 +22,7 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "pytest",
+    "ruff>=0.17.1",
 ]
 
 [build-system]
@@ -35,3 +36,22 @@ packages = ["app"]
 markers = [
     "needs_data: needs the built indexes and downloaded map layers, which are not committed",
 ]
+
+# A deliberately small rule set. See D-080.
+#   F   pyflakes: unused imports, undefined names, shadowed definitions - real errors
+#   E9  syntax and indentation errors, which would stop the file importing
+#   I   import order, which is mechanical and worth having consistent
+# Everything else is off, including E501 line length: the long docstrings in this
+# project are wrapped for reading rather than to a column limit, and a lint you
+# routinely ignore is worse than no lint. `ruff format` is never run.
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F", "E9", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Every script in scripts/ puts the repo root on sys.path before importing app.*, so
+# those imports cannot sit at the top of the file. They already carry `# noqa: E402`;
+# E402 is not in the rule set above, but the explicit ignore records why.
+"scripts/*.py" = ["E402"]

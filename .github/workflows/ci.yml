@@ -1,7 +1,8 @@
 name: CI
 
-# Runs on every push and every pull request. It checks the two things a clone of this
-# repository can check: that the Python tests pass, and that the frontend builds.
+# Runs on every push and every pull request. It checks the three things a clone of this
+# repository can check: that the Python lints clean, that the tests pass, and that the
+# frontend builds. `scripts/check.ps1` runs the same three locally, in the same order.
 #
 # What it cannot check is anything that needs the data. `data/processed`, `data/index`
 # and `data/layers/dda` are gitignored (D-014) — the PDFs are 109 MB, the DDA layers
@@ -50,6 +51,13 @@ jobs:
         # drifted from pyproject.toml fails here rather than resolving something newer
         # and passing on a version nobody has run locally.
         run: uv sync --frozen
+
+      - name: Lint
+        # F (pyflakes), E9 (syntax errors) and I (import order) only, configured in
+        # pyproject.toml. Before the tests, because it is two seconds and an undefined
+        # name is better reported as a lint error than as a test failure. `ruff format`
+        # is deliberately not run, here or anywhere (D-080).
+        run: uv run ruff check .
 
       - name: Run the tests that need no data
         run: uv run pytest -m "not needs_data" -q

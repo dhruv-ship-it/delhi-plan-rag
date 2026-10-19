@@ -6,6 +6,7 @@ the suite passes on a clone where `scripts/build_gazetteer.py` has never run.
 """
 
 import json
+
 import pytest
 
 from app.geocode import (

@@ -20,7 +20,14 @@ from shapely.geometry import Point
 
 from app.config import settings
 from app.extract import markdown_table, use_utf8_output
-from app.spatial import ALL_LAYERS, CORE_LAYERS, LayersMissing, get_zones, in_water, load_layers
+from app.spatial import (
+    ALL_LAYERS,
+    CORE_LAYERS,
+    LayersMissing,
+    get_zones,
+    in_water,
+    load_layers,
+)
 
 #: Rajiv Chowk metro station: the first candidate for the TOD point.
 RAJIV_CHOWK = (28.6328, 77.2197)

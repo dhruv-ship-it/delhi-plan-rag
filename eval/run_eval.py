@@ -35,6 +35,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.config import ABSTAIN_SIGNALS, settings  # noqa: E402
+from app.extract import markdown_table, use_utf8_output  # noqa: E402
+from app.rerank import available as reranker_available  # noqa: E402
+from app.retrieval import get_index, rank, search  # noqa: E402
 from eval.metrics import (  # noqa: E402
     BOOTSTRAP_RESAMPLES,
     CONFIDENCE,
@@ -49,11 +53,6 @@ from eval.metrics import (  # noqa: E402
     suggest_threshold,
     threshold_sweep,
 )
-
-from app.config import ABSTAIN_SIGNALS, settings  # noqa: E402
-from app.extract import markdown_table, use_utf8_output  # noqa: E402
-from app.rerank import available as reranker_available  # noqa: E402
-from app.retrieval import get_index, rank, search  # noqa: E402
 
 #: The configurations always scored.
 BASE_CONFIGURATIONS = ("dense", "bm25", "hybrid", "hybrid+location")

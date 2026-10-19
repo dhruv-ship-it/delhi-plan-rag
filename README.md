@@ -21,6 +21,10 @@ says so instead of guessing.
 > **Not legal advice.** ZoneWise reports what the published documents say. Always check
 > the official DDA documents before acting.
 
+> **Picking this project up?** [**docs/PROJECT_STATUS.md**](docs/PROJECT_STATUS.md) is one
+> page covering what is built, what a human has actually checked and what is still open —
+> including why none of the retrieval numbers are quotable yet. Start there.
+
 ---
 
 ## What it does

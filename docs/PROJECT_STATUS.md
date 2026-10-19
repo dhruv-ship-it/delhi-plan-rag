@@ -149,23 +149,31 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
    MPD-2047, so for a point in the Ridge, search can boost Ridge clauses but cannot drop
    clauses belonging elsewhere. At P_RIDGE the plan simply does not contain a clause
    saying you may not build there.
-4. **The corpus is what it is.** 45 of the FAQ's 99 chunks are under 40 words (one Q+A is
+4. **One known retrieval miss, found on 19 October.** At P_ZONEO, "Can a fuel station be
+   built here?" does **not** return 11.1.1 — the clause that says fuel stations are
+   allowed "in all Use Zones except … Zone O" — under either that wording or the explicit
+   "in Zone O" one. The same question asked **without** a point has 11.1.1 at rank 1 in
+   hybrid mode (`reports/day2_queries_v3.md`), so the location path is costing it. Not
+   diagnosed; recorded in `docs/DEMO.md` and worth a look before anyone quotes a recall
+   figure.
+5. **The corpus is what it is.** 45 of the FAQ's 99 chunks are under 40 words (one Q+A is
    one chunk); 18 chunks are under 40% alphabetic because they are norms tables; the NGT
    report is a scan; nine drainage tables defeated table detection. Documented in
    `reports/chunk_audit_after.md`.
-5. **Rate limits are in-memory.** One process only — a second worker would have its own
+6. **Rate limits are in-memory.** One process only — a second worker would have its own
    counters and the daily cap protecting the API bill would silently double. The
    Dockerfile pins `--workers 1` for this reason.
-6. **The reranker costs 2.4 s a query** and is off, pending verified questions.
-7. **Six source documents are unreadable.** 2-page scanned pamphlets with no text layer;
+7. **The reranker costs 2.4 s a query** and is off, pending verified questions.
+8. **Six source documents are unreadable.** 2-page scanned pamphlets with no text layer;
    OCR was not attempted.
-8. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
-   gazetteer that would remove most of that dependency is not built.
-9. **`Hauz Khas` does not resolve from the gazetteer.** OpenStreetMap names
+9. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
+   gazetteer removes most of that dependency for metro-station queries, but it is
+   gitignored, so each machine builds it once.
+10. **`Hauz Khas` does not resolve from the gazetteer.** OpenStreetMap names
    interchange stations per line, so the list holds `Hauz Khas (Magenta Line)` and
    `Hauz Khas (Yellow Line)` and neither is close enough to the bare name. It falls
    through to Nominatim and still answers; recorded and deliberately not fixed (D-081).
-10. **Not legal advice**, and the README says so above the fold.
+11. **Not legal advice**, and the README says so above the fold.
 
 ---
 

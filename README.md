@@ -227,8 +227,8 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 **Tests:**
 
 ```powershell
-uv run pytest                      # 379
-uv run pytest -m "not needs_data"  # 348, the ones needing no built data
+uv run pytest                      # 383
+uv run pytest -m "not needs_data"  # 352, the ones needing no built data
 ```
 
 **Lint:**
@@ -455,7 +455,7 @@ reports/        run reports and generated reports; README.md says which are curr
 docs/           PROJECT_STATUS.md, ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md,
                 DEMO.md, DEPLOY.md
 web/            the React + Vite frontend
-tests/          379 pytest tests (348 of them need no data)
+tests/          383 pytest tests (352 of them need no data)
 Dockerfile      two stages: node builds the frontend, python serves everything
 DECISIONS.md    every design choice, numbered, with the alternatives rejected
 ```
@@ -475,7 +475,7 @@ DECISIONS.md    every design choice, numbered, with the alternatives rejected
 | API | FastAPI | typed request bodies and generated docs |
 | Frontend | React + Vite + react-leaflet | plain JavaScript, six dependencies, no UI framework |
 | Lint | ruff, with F, E9 and I only | catches real errors and import order; no reformatting |
-| Tests | pytest | 379, all with fixtures written in the test; no key, no network |
+| Tests | pytest | 383, all with fixtures written in the test; no key, no network |
 
 No RAG or agent framework is used. The chunking, the hybrid search, the fusion, the
 citation validation and the agent loop are all written here, so every step is visible

@@ -390,8 +390,34 @@ phrase the interface itself suggests typing.
 published under the [Open Database License](https://opendatacommons.org/licenses/odbl/).
 `data/gazetteer/` is gitignored: the data is OSM's, and one script call rebuilds it.
 
-**State in this repository.** The file is **not present**. The Overpass request could not
-be made on the machine this was built on, so `locate_place` falls through to Nominatim
-for every query, which is a supported state and not an error — the gazetteer is an
-optimisation, and its logic is covered by tests that write their own fixture. Running
-`uv run python scripts/build_gazetteer.py` fills it in. See D-073.
+**State in this repository.** The file is **gitignored, so a fresh clone does not have
+it** — but it has now been built and measured. One request on 19 October 2026 returned
+`291 OSM elements -> 278 distinct stations`, 20 of them with at least one alternate name,
+alphabetically `A.I.I.M.S.` to `Yashobhoomi Dwarka Sector 25`. Run
+`uv run python scripts/build_gazetteer.py` once; it refuses to run again unless `--force`
+is passed. Expect ~278.
+
+Measured on that file, with no network call made:
+
+| query | path | result |
+| --- | --- | --- |
+| "Dwarka Sector 21 metro station" | gazetteer | 28.55192, 77.05856 — the same coordinate Nominatim gives |
+| "near Rajiv Chowk" | gazetteer | 28.63271, 77.21931 |
+| "dwarka sec 21" | gazetteer | 28.55192, 77.05856 — the fuzzy cutoff earning its keep |
+| "Yashobhoomi Dwarka Sector 25" | gazetteer | 28.55083, 77.04531 |
+| "Hauz Khas" | *falls through* | see below |
+| "Mumbai Central" | *falls through* | correctly not a Delhi Metro station |
+
+**The known miss: interchange stations.** OSM names a station once per line it serves, so
+the gazetteer holds `Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain
+`Hauz Khas`. Against the normalised query `hauz khas` those score 0.5806 and 0.6000 on
+difflib's ratio — well below the 0.85 cutoff — so the query falls through to Nominatim,
+which answers it. The user gets the right point; what they lose is the free lookup.
+Deliberately not fixed: lowering the cutoff that far would also let "Dwarka Sector 21"
+match "Dwarka Sector 12", and collapsing the suffix would make the loader silently keep
+one of two platforms 150 m apart. See D-081.
+
+**An absent file stays a supported state**, and that is now tested against a real missing
+file rather than a stubbed empty dict — including a corrupt half-written one. The suite
+was run with the file hidden and with it present, 383 tests passing both times. See
+D-073 and D-081.

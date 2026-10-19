@@ -9,6 +9,7 @@ import json
 
 import pytest
 
+from app.config import settings
 from app.geocode import (
     PATH_GAZETTEER,
     PATH_NOMINATIM_NORMALISED,
@@ -399,3 +400,111 @@ def test_a_remembered_hit_is_always_trusted(monkeypatch, tmp_path) -> None:
     place = locate_place("Connaught Place", session=StubSession([]))
     assert place.found is True
     assert place.lat == pytest.approx(28.63)
+
+
+# --- the gazetteer file itself: absent, corrupt, or real ------------------------
+#
+# Everything above monkeypatches `gazetteer()` to a dict, which tests the matching but
+# never the loading. These four go through the real loader with a real path, because
+# "an absent gazetteer is a supported state" (D-074) is a claim about file handling and
+# `scripts/build_gazetteer.py` needs a network host that has not always been reachable.
+
+
+def _point_gazetteer_at(monkeypatch, path) -> None:
+    """Make `settings.gazetteer_path` resolve to `path`, and drop the cached load.
+
+    `gazetteer()` is `lru_cache`d and `settings` is a frozen dataclass whose
+    `gazetteer_path` is a property, so the property is replaced on the type.
+    """
+    monkeypatch.setattr(
+        type(settings), "gazetteer_path", property(lambda self: path), raising=True
+    )
+    gazetteer.cache_clear()
+
+
+def test_a_gazetteer_file_that_is_not_there_loads_as_empty(monkeypatch, tmp_path) -> None:
+    """The state of every clone that has never run the build script (D-074)."""
+    missing = tmp_path / "never_built" / "metro_stations.json"
+    _point_gazetteer_at(monkeypatch, missing)
+
+    assert not missing.exists()
+    assert gazetteer() == {}
+    assert gazetteer_match("rajiv chowk") is None
+
+
+def test_locate_place_falls_back_to_nominatim_with_no_gazetteer_file(
+    monkeypatch, tmp_path
+) -> None:
+    """The whole point of D-074: no file, and the four-step path still answers.
+
+    This is the end-to-end version. Nothing is stubbed except Nominatim itself, so the
+    real `gazetteer()` runs, finds no file, returns `{}`, and step 3 answers.
+    """
+    _point_gazetteer_at(monkeypatch, tmp_path / "metro_stations.json")
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    session = StubSession([[RAJIV_CHOWK]])
+    place = locate_place("Rajiv Chowk", use_cache=False, session=session)
+
+    assert place.found is True
+    assert place.path == PATH_NOMINATIM_ORIGINAL
+    assert place.lat == pytest.approx(28.63177)
+    assert session.queries == ["Rajiv Chowk, Delhi"]
+
+
+def test_a_corrupt_gazetteer_file_is_empty_rather_than_an_error(monkeypatch, tmp_path) -> None:
+    """A half-written file is the same supported state as no file.
+
+    `build_gazetteer.py` writes in one go, but a disk that filled mid-write is exactly
+    the kind of thing that happened on this project (night 3), and a geocoder that
+    raises on startup is worse than one that falls back.
+    """
+    broken = tmp_path / "metro_stations.json"
+    broken.write_text('{"stations": [{"name": "Rajiv Cho', encoding="utf-8")
+    _point_gazetteer_at(monkeypatch, broken)
+
+    assert gazetteer() == {}
+
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+    session = StubSession([[RAJIV_CHOWK]])
+    place = locate_place("Rajiv Chowk", use_cache=False, session=session)
+    assert place.found is True
+    assert place.path == PATH_NOMINATIM_ORIGINAL
+
+
+def test_a_real_gazetteer_file_is_loaded_and_answers_with_no_request(
+    monkeypatch, tmp_path
+) -> None:
+    """The other half: a file in the shape build_gazetteer.py writes is actually read.
+
+    Keyed by every normalised name a station has, so the alternate name answers too,
+    and neither needs the network.
+    """
+    path = tmp_path / "metro_stations.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stations": [
+                    {
+                        "name": "Dwarka Sector 21",
+                        "alt_names": ["Yashobhoomi Dwarka Sector 21"],
+                        "lat": 28.5519,
+                        "lon": 77.0586,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    _point_gazetteer_at(monkeypatch, path)
+    monkeypatch.setattr("app.geocode.load_cache", lambda: {})
+
+    assert set(gazetteer()) == {"dwarka sector 21", "yashobhoomi dwarka sector 21"}
+
+    session = StubSession([])  # any request would raise
+    for query in ("Dwarka Sector 21 metro station", "Yashobhoomi Dwarka Sector 21"):
+        place = locate_place(query, use_cache=False, session=session)
+        assert place.found is True, query
+        assert place.path == PATH_GAZETTEER
+        assert place.lat == pytest.approx(28.5519)
+    assert session.queries == []

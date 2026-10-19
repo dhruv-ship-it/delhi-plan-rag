@@ -711,3 +711,35 @@ Why: this repository's Python is written to be read by someone learning, and CLA
 Rejected: the default ruff rule set (`E` and `F`), because `E501` line-length would fire on dozens of docstring lines that are wrapped for reading rather than for a column limit, and a lint you routinely ignore is worse than no lint; `--fix --unsafe-fixes`, because an unsafe fix is by definition one that can change behaviour and the whole point of adding a linter on a night with no human watching is to catch mistakes, not make new ones; and adding `B`, `UP` or `ANN`, which are opinions about style this project has already answered in CLAUDE.md.
 
 **Also decided: four documentation surfaces, each for a different reader, and `docs/PROJECT_STATUS.md` is the new one.** D-062 set out four documents for four readers. A fifth reader has turned up repeatedly and been served badly: **whoever picks this project up next with no memory of it**, which in practice means a new AI session, and in a few weeks will mean Dhruv. That reader needs none of the architecture and all of the state — what is built, what a human has actually looked at, what the current numbers are, and what is still open. Spreading that across a 406-line README and a 500-line run report does not work, so it is one page, linked from the README, and its most important section is the one that says **what has been verified by a human and what has not**. Three things on it are currently "not yet": the chunk and tag samples have not been hand-reviewed, there has never been a live LLM answer, and the evaluation questions are unverified — which together mean there are **no resume-quotable numbers yet**, and that is stated on the page in those words so that nobody, including me, quietly starts quoting the draft figures.
+
+---
+
+## D-081 · 2026-10-19 · The gazetteer is built, and interchange stations do not fuzzy-match their own bare name
+
+**D-074 is resolved.** The Overpass request that failed at the TCP level from two earlier sandboxes **succeeded from this one**, in 48 seconds: `291 OSM elements -> 278 distinct stations`, 20 of them carrying at least one alternate name, first `A.I.I.M.S.`, last `Yashobhoomi Dwarka Sector 25`. 278 is inside the 250-300 band `scripts/build_gazetteer.py` prints its counts for exactly so that a wrong query would be visible. `data/gazetteer/metro_stations.json` now exists on this machine. It stays gitignored (ODbL data, one request to rebuild), so **Dhruv still has to run the script once on his own machine** — but it is no longer a thing that has never been shown to work.
+
+**Verified with no network at all**, through the real loader rather than a stubbed dict:
+
+| query | path | result |
+| --- | --- | --- |
+| "Dwarka Sector 21 metro station" | **gazetteer** | 28.55192, 77.05856 |
+| "near Rajiv Chowk" | **gazetteer** | 28.63271, 77.21931 |
+| "dwarka sec 21" | **gazetteer** | 28.55192, 77.05856 — the fuzzy match earning its keep |
+| "Yashobhoomi Dwarka Sector 25" | **gazetteer** | 28.55083, 77.04531 |
+| "Mumbai Central" | falls through | correctly not in the station list |
+
+Two things worth noting in that table. The Dwarka coordinate is **identical to the one night 3's live Nominatim lookup returned**, so the gazetteer agrees with the geocoder it replaces on the one query that started all of this (D-049). And `"dwarka sec 21"` — a contraction no geocoder indexed — resolves, which is the first evidence the 0.85 cutoff does the job it was chosen for rather than merely matching exact strings with extra steps.
+
+**The finding: `"Hauz Khas"` misses, and it is a real metro station.** OSM names interchange stations **per line**, so the gazetteer holds `Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain `Hauz Khas`. Against the normalised query `hauz khas` those score 0.5806 and 0.6000, far below the 0.85 cutoff, so `get_close_matches` returns nothing and the query falls through to Nominatim — which answers it, as night 3 recorded (`nominatim_original`, 28.54981, 77.20776). So the user gets a correct answer; what they do not get is the free one.
+
+**Decided: not fixed, recorded.** Three options were considered and all three are worse than leaving it:
+
+- **Lower the cutoff.** 0.58 would admit this and a great deal else. The cutoff exists to stop "Dwarka Sector 21" matching "Dwarka Sector 12", and that is a wrong coordinate rather than a missing one.
+- **Strip a parenthesised suffix in `build_gazetteer.py`.** Then both Hauz Khas platforms normalise to the same key, `gazetteer()` keeps whichever it saw first (`key not in found`), and the user silently gets one of two points ~150 m apart. Defensible, but it is a **new** silent-arbitrary-pick in the one component built to avoid exactly that.
+- **Add the bare name as an alternate name for interchanges.** The honest version of the option above: it needs a rule for what an interchange is, which means detecting that two stations share a stripped name, and then a decision about which coordinate the shared name gets. That is a design change, and this is not the night to make one unattended.
+
+So the conservative option stands, which is also what the architecture already promised: **the gazetteer is an optimisation, and a miss costs one Nominatim request rather than an answer.** For Dhruv to decide whether interchanges are worth the extra rule.
+
+**Four new tests, because the claim that an absent gazetteer is a supported state had never been tested against an absent file.** Every existing gazetteer test monkeypatches `gazetteer()` to a dict, which exercises the matching and never the loading — and now that the file exists on this machine, the untested path is the one a fresh clone runs. `tests/test_geocode.py` gains: a missing file loads as `{}`; `locate_place` end-to-end with no file falls through to `nominatim_original`; a **corrupt** half-written file is the same supported state rather than an exception, which matters because night 3 filled this laptop's C: drive mid-write; and the other half, a real file in the shape the build script writes, loaded through `gazetteer()` and answering both a station's name and its alternate name with no request.
+
+**Proved by hiding the file, not by reasoning**, the way D-078 established the `needs_data` set: the gazetteer was moved aside and the suite re-run — **383 pass** — then restored — **383 pass**. The suite is now indifferent to whether the file exists, which is the property that was being claimed all along.

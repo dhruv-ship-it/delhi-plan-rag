@@ -68,6 +68,17 @@ This is the section that decides what you are allowed to say about this project.
 - **The test points.** The 8 points in `data/test_points.json` were checked against the
   map, including that P_ZONEO is on land rather than in the river.
 
+### Verified by measurement, not by a person
+
+- **The gazetteer is built and works** — 278 stations, and four metro queries resolve
+  with no network call at all, one of them to the identical coordinate Nominatim gave
+  (D-081). Also: the suite passes with the file hidden *and* present, so the
+  absent-gazetteer fallback is proved rather than asserted.
+- **The `needs_data` set** was established by hiding the data directories and re-running,
+  not by reading test names (D-078).
+- **The Dockerfile's `COPY` paths, `.dockerignore` and exact `CMD`** were each checked
+  another way when the registry proved unreachable (D-079).
+
 ### Not checked by a human — be explicit about this
 
 | Not yet checked | What that blocks |
@@ -77,7 +88,7 @@ This is the section that decides what you are allowed to say about this project.
 | **There has never been a live LLM answer.** There is no Anthropic API key in this repo. Every test runs against `FakeLLM`. The answering path, the citation check, the retry and all four abstention routes are tested — against scripted responses. | Any claim about answer quality, citation accuracy on real output, or latency end to end |
 | **The evaluation questions are unverified.** All 60 in `eval/questions_draft.jsonl` are `drafted_by: claude_code` and `verified: false`. They were written by Claude *from the chunks*, which is the one setup that flatters retrieval metrics. | Every retrieval number. This is the single biggest blocker |
 | **The Docker image has never been built.** The registry was unreachable; the `COPY` paths, `.dockerignore`, lockfile and the exact `CMD` were each verified another way (D-079). | Any claim that it deploys |
-| **The gazetteer has never been built.** `overpass-api.de` is unreachable from every sandbox tried (D-074). The code degrades to Nominatim and there is a test for that. | Nothing critical — it is an optimisation |
+
 
 ### So: there are no resume-quotable numbers yet
 
@@ -103,9 +114,10 @@ n, and saying the questions were human-verified.
 | Map layers | **8**, from DDA's GIS portal |
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
-| Tests | **379 pass**; 348 run with no data at all, 31 marked `needs_data` |
-| Decisions recorded | **80** in `DECISIONS.md` |
+| Tests | **383 pass**; 352 run with no data at all, 31 marked `needs_data` |
+| Decisions recorded | **81** in `DECISIONS.md` |
 | API endpoints | **7** public + **4** dev-only behind `ZONEWISE_DEV=1` |
+| Metro gazetteer | **278** stations from OpenStreetMap (gitignored, so a clone rebuilds it in one request) |
 | Requests logged | 727 lines in `data/logs/requests.jsonl`, all local testing |
 
 ### Tags per topic
@@ -149,7 +161,11 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
    OCR was not attempted.
 8. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
    gazetteer that would remove most of that dependency is not built.
-9. **Not legal advice**, and the README says so above the fold.
+9. **`Hauz Khas` does not resolve from the gazetteer.** OpenStreetMap names
+   interchange stations per line, so the list holds `Hauz Khas (Magenta Line)` and
+   `Hauz Khas (Yellow Line)` and neither is close enough to the bare name. It falls
+   through to Nominatim and still answers; recorded and deliberately not fixed (D-081).
+10. **Not legal advice**, and the README says so above the fold.
 
 ---
 
@@ -175,8 +191,10 @@ forward and updated in [reports/night4_run.md](../reports/night4_run.md). Summar
 dependency order:
 
 1. **Free space on C:** — still tight at ~5 GB; Docker Desktop's VM disk holds 25 GB.
-2. **Build the gazetteer** — one Overpass request, from Dhruv's own terminal:
-   `uv run python scripts\build_gazetteer.py`. Expect ~250-300 stations.
+2. **Build the gazetteer** — one Overpass request, from Dhruv's own terminal, because
+   the data is gitignored and does not travel with the repo:
+   `uv run python scripts\build_gazetteer.py`. It worked on 19 October and produced
+   **278 stations**, so expect that; the script prints the count for exactly this reason.
 3. **Review the chunk audit and the tag samples** (~20 min) — the part only a human can
    judge, and item 1 of §3 above.
 4. **Look at the map** (~10 min) — toggle the Ridge and LDA overlays, click P_RIDGE and
@@ -203,7 +221,7 @@ dependency order:
 | How it works, with diagrams | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | The documents, chunks, tags, layers | [docs/DATA.md](DATA.md) |
 | Every AI-engineering concept used, explained | [docs/LEARNING_NOTES.md](LEARNING_NOTES.md) |
-| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 80 entries |
+| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 81 entries |
 | To demo it in 3 minutes | [docs/DEMO.md](DEMO.md) |
 | To deploy it | [docs/DEPLOY.md](DEPLOY.md) |
 | To verify evaluation questions | [eval/README.md](../eval/README.md) |

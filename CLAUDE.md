@@ -29,8 +29,9 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - Deployment: one Dockerfile, two stages (node builds web/, python serves). The image
   carries the built data rather than building at startup, so `docker build` needs a
   machine where the pipeline has run (D-079). docs/DEPLOY.md is the runbook.
-- CI: .github/workflows/ci.yml. Two jobs: `uv run pytest -m "not needs_data"` and the
-  web build. The 31 tests needing built data are marked `needs_data` (D-078).
+- CI: .github/workflows/ci.yml. Two jobs: ruff + `uv run pytest -m "not needs_data"`,
+  and the web build. The 31 tests needing built data are marked `needs_data` (D-078);
+  352 of the 383 run on a clean clone.
 - Lint: ruff, a dev dependency, configured in pyproject.toml with F, E9 and I only.
   `uv run ruff check .` must be clean. We do **not** run `ruff format` (D-080).
 - Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first.

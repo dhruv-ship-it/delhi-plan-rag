@@ -575,11 +575,28 @@ network call at all**: free, instant, and not rate-limited. The tie rule is the
 conservative half of the design — a unique-best requirement means an ambiguous query
 falls through to a real geocoder instead of guessing between two sector numbers.
 
-The honest state: **the gazetteer has never been built**, because `overpass-api.de` is
-unreachable from the sandboxes this project has run in. That is a *supported* state, not
-a failure (D-074): `gazetteer()` returns an empty dict, `gazetteer_match()` returns
-`None` immediately, and `locate_place()` falls through to Nominatim — which is what
-actually fixed the Dwarka miss, via `normalise()` rather than the station list.
+**It is built, and it works.** The Overpass request that failed at the TCP level from
+two earlier sandboxes succeeded on 19 October: **278 stations**. Verified with no network
+at all, `"Dwarka Sector 21 metro station"` resolves from the gazetteer to the identical
+coordinate Nominatim gave, and `"dwarka sec 21"` — a contraction no geocoder indexed —
+resolves too, which is the fuzzy cutoff doing the job it was chosen for (D-081).
+
+**An absent gazetteer stays a supported state, and that is now tested against a real
+absent file** rather than a stubbed empty dict: `gazetteer()` returns `{}`,
+`gazetteer_match()` returns `None` immediately, and `locate_place()` falls through to
+Nominatim. A corrupt half-written file behaves the same way. The suite was run with the
+file hidden and with it present — 383 both times — because the data is gitignored and a
+fresh clone has none of it.
+
+**The limitation found by building it** is worth more than the feature: `"Hauz Khas"`
+**misses**, because OSM names interchange stations per line, so the list holds
+`Hauz Khas (Magenta Line)` and `Hauz Khas (Yellow Line)` and no plain `Hauz Khas` — which
+score 0.58 and 0.60 against `hauz khas`, well under the cutoff. It falls through to
+Nominatim and the user still gets the right point. Lowering the cutoff to admit it would
+also admit "Dwarka Sector 21" matching "Dwarka Sector 12", and stripping the suffix would
+make the loader silently pick one of two platforms 150 m apart. So it is recorded and not
+fixed (D-081): **a fuzzy matcher's cutoff is a trade between a missed match and a wrong
+one, and those two failures are not equally bad.**
 
 **How to explain it in an interview.** "My geocoder missed the single most likely phrasing
 a user would type — a Delhi Metro station name — so I added a local gazetteer of the ~290
@@ -587,8 +604,12 @@ stations and fuzzy-match against it with difflib at a 0.85 cut-off, which costs 
 call. The part I'd point at is the tie rule: I only accept a fuzzy match when it is
 *uniquely* best, because 'Dwarka Sector 21' matching 'Dwarka Sector 12' is a confidently
 wrong coordinate, and a wrong answer is worse than falling through to the real geocoder.
-The whole thing is also optional — if the file isn't there the code degrades to
-Nominatim, and there's a test for exactly that."
+The whole thing is also optional — if the file
+isn't there the code degrades to Nominatim, and I proved that by hiding the file and
+re-running the suite rather than by reading the code. Building it also found the real
+limitation: OpenStreetMap names interchanges per line, so 'Hauz Khas' doesn't match
+'Hauz Khas (Yellow Line)' at any cutoff I'd be willing to use, and I left that as a
+miss rather than guessing a platform."
 
 ---
 

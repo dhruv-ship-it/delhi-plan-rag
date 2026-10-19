@@ -227,8 +227,71 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 **Tests:**
 
 ```powershell
-uv run pytest
+uv run pytest                      # 379
+uv run pytest -m "not needs_data"  # 348, the ones needing no built data
 ```
+
+**Lint:**
+
+```powershell
+uv run ruff check .
+uv run ruff check --fix .
+```
+
+Three rules only — `F` (pyflakes: unused imports, undefined names), `E9` (syntax errors)
+and `I` (import order) — configured in `pyproject.toml`. `ruff format` is deliberately
+never run: it would reflow the long explanatory docstrings that are most of this
+repository's teaching value. See D-080.
+
+### Windows helper scripts
+
+Three PowerShell scripts in `scripts/` wrap the commands above. Each one has
+`Get-Help`-style documentation at the top of the file.
+
+If PowerShell refuses to run them, it is the execution policy, not the script. Use this
+form, which applies the bypass to that one invocation and changes nothing on the machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1 -DryRun
+```
+
+| Script | What it does |
+| --- | --- |
+| `rebuild_all.ps1` | The whole pipeline in order: `01_check_sources`, `02_extract`, `build_chapter_map`, `03_chunk`, `04_tag_zones`, `05_build_index`. Stops at the first failure, because every step reads what the one before wrote. Prints the total time. |
+| `dev.ps1` | Opens two new PowerShell windows, one running the backend and one the Vite dev server, and tells you to open `http://localhost:5173`. |
+| `check.ps1` | Runs ruff, pytest and the frontend build, then prints one pass/fail summary. All three run even if an earlier one fails. Exit code 0 only if everything passed. |
+
+```powershell
+# rebuild everything from the PDFs (5-10 minutes; most of it is embedding 700 chunks)
+powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1
+
+# print the steps without running any of them
+powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1 -DryRun
+
+# re-download the DDA map layers as well
+powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1 -RefreshLayers
+
+# start both servers
+powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
+
+# start both servers with the Verify tab and /api/dev/eval/ enabled
+powershell -ExecutionPolicy Bypass -File scripts\dev.ps1 -Verify
+
+# lint + tests + web build, with one summary at the end
+powershell -ExecutionPolicy Bypass -File scripts\check.ps1
+
+# the same, but only the tests that need no built data, and no web build
+powershell -ExecutionPolicy Bypass -File scripts\check.ps1 -NoData -SkipWeb
+```
+
+Two steps in `rebuild_all.ps1` are conditional, because both hit the network and neither
+belongs in a routine rebuild. `06_fetch_layers` runs only when `data/layers/dda` has no
+GeoJSON in it, or when `-RefreshLayers` is passed. `build_gazetteer` runs only when
+`data/gazetteer/metro_stations.json` is missing, and **a failure there is a warning
+rather than an error** — an absent gazetteer is a supported state and `app/geocode.py`
+falls back to Nominatim (D-074). Any other failure stops the run.
+
+`check.ps1` runs the same three checks as CI, in the same order.
 
 ### Configuration
 

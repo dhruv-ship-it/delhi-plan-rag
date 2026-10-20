@@ -31,7 +31,7 @@ Everything in this table exists, is tested, and runs.
 | Component | Where | State |
 | --- | --- | --- |
 | **Config** | [app/config.py](../app/config.py) | One frozen `Settings`, every value readable from `.env`; a malformed value falls back rather than stopping the server (D-065) |
-| **LLM wrapper** | [app/llm.py](../app/llm.py) | The only module that imports `anthropic`. `get_llm()` picks the client; `FakeLLM` is the scripted stand-in every test uses |
+| **LLM wrapper** | [app/llm.py](../app/llm.py) | The only module that imports `anthropic` or `openai`. `LLM_PROVIDER` picks Anthropic or **Groq** (D-082); `GroqLLM` translates both ways so nothing else knows which; `FakeLLM` is the scripted stand-in every test uses |
 | **PDF extraction** | [app/extract.py](../app/extract.py), [app/cleaning.py](../app/cleaning.py) | 560 pages extracted from 4 indexed documents, 1-based page numbers throughout |
 | **Chunking** | [app/chunking.py](../app/chunking.py) | 700 chunks, cut on the documents' own headings. Five systematic defects found and fixed by audit (D-066) |
 | **Audit** | [app/audit.py](../app/audit.py), [scripts/audit_chunks.py](../scripts/audit_chunks.py) | Eight mechanical quality checks with examples; before/after reports in `reports/` |
@@ -83,6 +83,10 @@ This is the section that decides what you are allowed to say about this project.
   not by reading test names (D-078).
 - **The Dockerfile's `COPY` paths, `.dockerignore` and exact `CMD`** were each checked
   another way when the registry proved unreachable (D-079).
+- **The whole answering path runs against a real model.** 37 cases, 0 failures and 0
+  rate-limit errors through Groq, with every abstention route except `weak_retrieval`
+  taken at least once and the citation retry exercised 18 times (D-085). That the paths
+  *work* is now measured; whether the answers are *right* is not.
 
 ### Not checked by a human — be explicit about this
 
@@ -90,7 +94,7 @@ This is the section that decides what you are allowed to say about this project.
 | --- | --- |
 | **The chunk samples have not been hand-reviewed.** `reports/chunk_audit_after.md` and `data/processed/chunk_sample.md` exist and the mechanical checks pass, but no person has read a sample of chunks and said "yes, these are clauses". | Any claim that chunking is *good*, as opposed to passing its own checks |
 | **The tag samples have not been hand-reviewed.** `data/processed/tag_sample.md` exists; nobody has read the 37 `ridge` mentions to confirm they are about the Ridge, or the 15 `lda` primaries. | Confidence in the exclude/boost calls, particularly D-069 for `ridge` |
-| **There has never been a live LLM answer.** There is no Anthropic API key in this repo. Every test runs against `FakeLLM`. The answering path, the citation check, the retry and all four abstention routes are tested — against scripted responses. | Any claim about answer quality, citation accuracy on real output, or latency end to end |
+| **The 21 live answers have not been read by a person.** 37 real answers and abstentions now exist in `reports/live_answers_v1.md`, produced through Groq on 20 October (D-085). The file's "suspected problems" list is mechanical rules, not judgement, and nobody has read an answer and said whether it is right. | Any claim about answer quality or citation accuracy. The answers exist; their correctness is unassessed |
 | **The evaluation questions are unverified.** All 60 in `eval/questions_draft.jsonl` are `drafted_by: claude_code` and `verified: false`. They were written by Claude *from the chunks*, which is the one setup that flatters retrieval metrics. | Every retrieval number. This is the single biggest blocker |
 | **The Docker image has never been built.** The registry was unreachable; the `COPY` paths, `.dockerignore`, lockfile and the exact `CMD` were each verified another way (D-079). | Any claim that it deploys |
 
@@ -120,7 +124,9 @@ n, and saying the questions were human-verified.
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
 | Tests | **436 pass**; 405 run with no data at all, 31 marked `needs_data` |
-| Decisions recorded | **84** in `DECISIONS.md` |
+| Provider / model | **Groq**, `openai/gpt-oss-120b` (D-082). `LLM_PROVIDER=anthropic` still works unchanged |
+| Live answers recorded | **37** cases, 21 answered / 16 abstained, **not human-reviewed** (D-085) |
+| Decisions recorded | **85** in `DECISIONS.md` |
 | API endpoints | **7** public + **4** dev-only behind `ZONEWISE_DEV=1` |
 | Metro gazetteer | **278** stations from OpenStreetMap, **14** of them interchanges also keyed under their bare name (gitignored, so a clone rebuilds it in one request) |
 | Requests logged | 727 lines in `data/logs/requests.jsonl`, all local testing |
@@ -143,8 +149,19 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
 
 ## 5. Known limitations
 
-1. **No live LLM answer has ever been produced.** See above. This is the largest gap
-   between "built" and "working".
+1. **The live answers exist but nobody has read them.** 37 cases ran through Groq's
+   `openai/gpt-oss-120b` on 20 October: 21 answered, 16 abstained, 0 failures
+   (`reports/live_answers_v1.md`, D-085). Four things came out of it, none of them yet
+   human-judged. **The citation check is load-bearing**: 18 of the 25 map-mode cases
+   that reached the model needed the single retry, and most then passed — so two calls,
+   not one, is the normal path. **Agent mode cites much worse than map mode**: 5 of 11
+   failed the check twice against 5 of 26, because the agent must reproduce a full
+   chunk id rather than `[C3]`. **P_RIDGE answers when it should decline**: 134
+   confident words assembled from a Regional Park definition, a park built-up ceiling
+   and a drain-buffer rule, every sentence correctly cited — exactly what
+   `docs/DEMO.md` beat 5 predicted and called the first thing to check. And **the agent
+   builds compound place queries that miss**: it asked `locate_place("Chhatarpur
+   ridge")` and abstained, where `"Chhatarpur"` alone resolves instantly.
 2. **The abstention pre-check catches nothing.** `ABSTAIN_THRESHOLD=0.5804` on
    `dense_cosine` refuses none of the 50 answerable drafts and catches none of the 10
    should-abstain ones. That is deliberate and provisional: **no retrieval score
@@ -219,8 +236,13 @@ dependency order:
    judge, and item 1 of §3 above.
 4. **Look at the map** (~10 min) — toggle the Ridge and LDA overlays, click P_RIDGE and
    P_LDA, check the chips.
-5. **Set up the API key** — with a hard spend limit set in the Anthropic console *first*.
-6. **Live-test real answers** (~20 min) — including something unanswerable.
+5. ~~**Set up the API key**~~ — **done**, as a Groq key rather than an Anthropic one, so
+   there is no bill to limit (D-082). `uv run python -m app.llm` confirms it.
+6. ~~**Live-test real answers**~~ — **done**: 37 cases recorded in
+   `reports/live_answers_v1.md` (D-085). What is left is the part only a person can do:
+   **read the 21 answers** and say which are right. Start with `demo-07`, the P_RIDGE
+   answer that should have been a refusal. `uv run python scripts\live_run.py --resume`
+   finishes the remaining 14 draft cases if you want them.
 7. **Verify the questions** (~2 hours) — **the step that unblocks every number.** Keep
    ≥40: ~17 location, ~17 general, ~6 should-abstain.
 8. **Run the real evaluation** — the first quotable numbers.
@@ -241,7 +263,7 @@ dependency order:
 | How it works, with diagrams | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | The documents, chunks, tags, layers | [docs/DATA.md](DATA.md) |
 | Every AI-engineering concept used, explained | [docs/LEARNING_NOTES.md](LEARNING_NOTES.md) |
-| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 84 entries |
+| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 85 entries |
 | To demo it in 3 minutes | [docs/DEMO.md](DEMO.md) |
 | To deploy it | [docs/DEPLOY.md](DEPLOY.md) |
 | To verify evaluation questions | [eval/README.md](../eval/README.md) |

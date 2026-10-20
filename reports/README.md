@@ -23,6 +23,8 @@ Read these. They describe the system as it stands.
 
 | Report | What it is |
 | --- | --- |
+| [live_answers_v1.md](live_answers_v1.md) | **The first real-model answers this project has ever produced** (20 Oct 2026), through Groq's `openai/gpt-oss-120b`. Every case in full: question, point, zones, the answer, its citations, whether it abstained and why, tokens and latency. **Nobody has read these yet** — the "suspected problems" list in it is mechanical rules, not judgement. Written and updated case by case by `uv run python scripts\live_run.py`, resumable with `--resume`. |
+| [live_run_state.json](live_run_state.json) | The machine state behind the file above: one record per case, and the counters `--resume` reads. Not written for a human; it is committed because it is the raw data the report is derived from, and the report is rewritten from it with `--report-only`. |
 | [diagnosis_fuel_station.md](diagnosis_fuel_station.md) | **Why clause 11.1.1 does not come back at P_ZONEO** (20 Oct 2026). Names the step responsible — query expansion — explains the mechanism, and proposes a fix that is **not applied**. Regenerate the tables with `uv run python scripts\diagnose_fuel_station.py`. |
 | [diagnosis_fuel_station_tables.md](diagnosis_fuel_station_tables.md) | The generated measurements behind the file above: 2 wordings x 7 configurations, all five chunks of 11.1.1, and the five demo beats under the proposal. 700 chunks. |
 | [night4_run.md](night4_run.md) | **Latest run report** (19 Oct 2026): the documentation night 3 left over, PROJECT_STATUS, the Windows helper scripts, the demo script, ruff. Its last section is the ordered manual to-do list. |

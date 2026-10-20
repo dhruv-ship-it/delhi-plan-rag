@@ -498,8 +498,9 @@ app/            the Python package: config, llm, extract, cleaning, chunking, ta
                 api, audit, dev_eval
 scripts/        numbered pipeline scripts (00_ .. 09_), run in order, plus search.py,
                 show_chunk.py, serve.py, audit_chunks.py, tune_abstention.py,
-                build_gazetteer.py, check_geocoding.py, summarize_logs.py, and the
-                three Windows helpers rebuild_all.ps1 / dev.ps1 / check.ps1
+                build_gazetteer.py, check_geocoding.py, summarize_logs.py,
+                diagnose_fuel_station.py, live_run.py, and the three Windows
+                helpers rebuild_all.ps1 / dev.ps1 / check.ps1
 data/
   sources.csv       every document, with URL, date and authority rank
   raw/              source PDFs                                   (not committed)

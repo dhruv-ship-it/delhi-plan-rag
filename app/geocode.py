@@ -9,14 +9,27 @@ Night 2 found the obvious failure (D-049): Nominatim returns **nothing** for "Dw
 Sector 21 metro station" with `bounded=1` and `limit=1`, which is close to the phrase
 the agent's own example suggests typing. One geocoder's indexing of one naming
 convention should not be the only thing between a user and an answer, so `locate_place`
-now tries four things in order and reports which one worked:
+now tries five things in order and reports which one worked:
 
   1. **normalise**   lower case, strip "near", "metro station", "metro", "station",
                      punctuation -> "dwarka sector 21"
   2. **gazetteer**   fuzzy-match the normalised query against the local metro station
                      list with difflib, cutoff 0.85, and accept only a unique best match
   3. **Nominatim**   the original query + ", Delhi", then the normalised query + ", Delhi"
-  4. **not_found**   and say so, rather than returning a point somewhere else
+  4. **sub-phrases** every contiguous run of up to three words, longest first, against
+                     the gazetteer, then one Nominatim request for the longest (D-090)
+  5. **not_found**   and say so, rather than returning a point somewhere else
+
+**Step 4 exists because the agent asks compound questions.** `agent-05` was asked "Is
+construction allowed in the Ridge near Chhatarpur?" and called
+`locate_place("Chhatarpur ridge")` — the landmark plus the question's own subject. That
+misses: `chhatarpur ridge` scores 0.63 against `chhatarpur` on difflib's ratio, under the
+0.85 cutoff, and bounded Nominatim has nothing for the phrase either. `"Chhatarpur"`
+alone resolves from the gazetteer instantly (D-085). So a phrase that fails as a whole is
+broken into its contiguous parts and each is tried, and the result says **which part
+matched**, in `Place.matched`, so an answer about the wrong half of a question is
+visible rather than silent. The agent's own prompt was fixed too (D-089); the two are
+independent because either alone leaves the other case broken.
 
 The gazetteer in step 2 also holds **interchanges under their bare name**. OSM names an
 interchange once per line, so the downloaded list has `Hauz Khas (Magenta Line)` and
@@ -66,8 +79,17 @@ PATH_GAZETTEER = "gazetteer"
 PATH_GAZETTEER_INTERCHANGE = "gazetteer_interchange"
 PATH_NOMINATIM_ORIGINAL = "nominatim_original"
 PATH_NOMINATIM_NORMALISED = "nominatim_normalised"
+#: A contiguous part of the query matched, rather than the whole of it (D-090).
+PATH_SUBPHRASE_GAZETTEER = "subphrase_gazetteer"
+PATH_SUBPHRASE_GAZETTEER_INTERCHANGE = "subphrase_gazetteer_interchange"
+PATH_SUBPHRASE_NOMINATIM = "subphrase_nominatim"
 PATH_CACHE = "cache"
 PATH_NOT_FOUND = "not_found"
+
+#: The longest sub-phrase step 4 will try. Three words covers "dwarka sector 21" and
+#: "new friends colony" while keeping the number of candidates small: a six-word query
+#: yields 15 of them, and all but one are answered from the local list at no cost.
+SUBPHRASE_MAX_WORDS = 3
 
 #: Words that mean "somewhere near here" rather than naming a place. No Delhi place
 #: name contains one, so these are removed wherever they appear.
@@ -161,8 +183,11 @@ class Place:
     lon: float | None = None
     display_name: str | None = None
     reason: str | None = None
-    #: Which of the four steps produced this result. See the module docstring.
+    #: Which of the five steps produced this result. See the module docstring.
     path: str | None = None
+    #: The part of the query that matched, when step 4 answered. None otherwise, which
+    #: is the normal case and means the whole query matched (D-090).
+    matched: str | None = None
 
     def to_dict(self) -> dict:
         """The result as plain JSON, which is what the agent's tool returns."""
@@ -173,7 +198,7 @@ class Place:
                 "reason": self.reason or "not_found",
                 "path": self.path or PATH_NOT_FOUND,
             }
-        return {
+        found = {
             "query": self.query,
             "found": True,
             "lat": self.lat,
@@ -181,6 +206,9 @@ class Place:
             "display_name": self.display_name,
             "path": self.path,
         }
+        if self.matched:
+            found["matched"] = self.matched
+        return found
 
 
 class RateLimiter:
@@ -358,6 +386,23 @@ def gazetteer() -> dict[str, dict]:
     return found
 
 
+def subphrases(text: str, max_words: int = SUBPHRASE_MAX_WORDS) -> list[str]:
+    """Every contiguous run of up to `max_words` words in `text`, longest first.
+
+    Longest first because the longest run is the most specific candidate: "dwarka sector
+    21" should be tried before "dwarka". Contiguous only — a place name is a phrase, and
+    recombining words out of order would invent candidates the user never wrote.
+    """
+    words = text.split()
+    found: list[str] = []
+    for size in range(min(max_words, len(words)), 0, -1):
+        for start in range(len(words) - size + 1):
+            phrase = " ".join(words[start : start + size])
+            if phrase not in found:
+                found.append(phrase)
+    return found
+
+
 def gazetteer_match(normalised: str, names: dict[str, dict] | None = None) -> dict | None:
     """The one gazetteer station a normalised query names, or None.
 
@@ -479,10 +524,15 @@ def locate_place(query: str, use_cache: bool = True, session=None) -> Place:
 
     The gazetteer is tried before Nominatim because it is free, instant, and not
     subject to how one geocoder happens to index one naming convention. Nominatim is
-    then asked twice at most: once with the user's own words plus ", Delhi", and once
-    with the normalised form plus ", Delhi". Two requests, not five, because each one
-    costs a second of someone else's donated capacity and the second phrasing is the
-    one most likely to differ in result (D-073).
+    then asked twice at most for the whole query: once with the user's own words plus
+    ", Delhi", and once with the normalised form plus ", Delhi". Two requests, not five,
+    because each one costs a second of someone else's donated capacity and the second
+    phrasing is the one most likely to differ in result (D-073).
+
+    Only then are the sub-phrases tried (D-090), all of them against the local
+    gazetteer and the longest of them against Nominatim — so the worst case for one
+    unknown query is **three** requests, and a query the gazetteer can answer at any
+    stage costs none.
     """
     cleaned = " ".join(query.split())
     if not cleaned:
@@ -500,6 +550,7 @@ def locate_place(query: str, use_cache: bool = True, session=None) -> Place:
             display_name=stored.get("display_name"),
             reason=stored.get("reason"),
             path=stored.get("path") or PATH_CACHE,
+            matched=stored.get("matched"),
         )
 
     place = _locate_uncached(cleaned, session=session)
@@ -512,24 +563,74 @@ def locate_place(query: str, use_cache: bool = True, session=None) -> Place:
     return place
 
 
+def _station_place(
+    cleaned: str, station: dict, interchange_path: str, plain_path: str, matched=None
+) -> Place:
+    """One gazetteer hit as a `Place`, named for whether it is an interchange."""
+    members = station.get("interchange_of") or []
+    return Place(
+        query=cleaned,
+        found=True,
+        lat=station["lat"],
+        lon=station["lon"],
+        display_name=(
+            f"{station['name']} (Delhi Metro interchange, {len(members)} lines)"
+            if members
+            else f"{station['name']} (Delhi Metro)"
+        ),
+        path=interchange_path if members else plain_path,
+        matched=matched,
+    )
+
+
+def _locate_by_subphrase(cleaned: str, normalised: str, session=None) -> Place | None:
+    """Step 4: the query may be a place name plus the subject of the question.
+
+    The gazetteer is asked about **every** candidate, because it is local and instant.
+    Nominatim is asked about **one** — the longest sub-phrase — because every request is
+    a second of someone else's donated capacity, and the longest run is the most
+    specific thing the user actually wrote. That is a real limit and not a hidden one:
+    for "yamuna floodplain near ito" with no gazetteer present, the one request goes to
+    "yamuna floodplain" rather than to "ito", and `Place.matched` says so.
+    """
+    candidates = [phrase for phrase in subphrases(normalised) if phrase != normalised]
+    if not candidates:
+        return None
+
+    for phrase in candidates:
+        station = gazetteer_match(phrase)
+        if station is not None:
+            return _station_place(
+                cleaned,
+                station,
+                PATH_SUBPHRASE_GAZETTEER_INTERCHANGE,
+                PATH_SUBPHRASE_GAZETTEER,
+                matched=phrase,
+            )
+
+    phrase = candidates[0]
+    best, _reason = ask_nominatim(phrase + DELHI_SUFFIX, session=session)
+    if best is None:
+        return None
+    return Place(
+        query=cleaned,
+        found=True,
+        lat=float(best["lat"]),
+        lon=float(best["lon"]),
+        display_name=best.get("display_name"),
+        path=PATH_SUBPHRASE_NOMINATIM,
+        matched=phrase,
+    )
+
+
 def _locate_uncached(cleaned: str, session=None) -> Place:
-    """Steps 1 to 4 for a query the cache does not know."""
+    """Steps 1 to 5 for a query the cache does not know."""
     normalised = normalise(cleaned)
 
     station = gazetteer_match(normalised)
     if station is not None:
-        members = station.get("interchange_of") or []
-        return Place(
-            query=cleaned,
-            found=True,
-            lat=station["lat"],
-            lon=station["lon"],
-            display_name=(
-                f"{station['name']} (Delhi Metro interchange, {len(members)} lines)"
-                if members
-                else f"{station['name']} (Delhi Metro)"
-            ),
-            path=PATH_GAZETTEER_INTERCHANGE if members else PATH_GAZETTEER,
+        return _station_place(
+            cleaned, station, PATH_GAZETTEER_INTERCHANGE, PATH_GAZETTEER
         )
 
     attempts = [(cleaned + DELHI_SUFFIX, PATH_NOMINATIM_ORIGINAL)]
@@ -551,7 +652,13 @@ def _locate_uncached(cleaned: str, session=None) -> Place:
         last_reason = reason or last_reason
         if not reason or not reason.startswith("not_found"):
             # a timeout or a 500 says nothing about the name, so stop rather than
-            # spend another request on a service that is currently unhappy
+            # spend another request on a service that is currently unhappy. The
+            # sub-phrase fallback is skipped for the same reason: it would spend one
+            # more request on a service that has just failed.
             return Place(query=cleaned, found=False, reason=last_reason, path=path)
+
+    fallback = _locate_by_subphrase(cleaned, normalised, session=session)
+    if fallback is not None:
+        return fallback
 
     return Place(query=cleaned, found=False, reason=last_reason, path=PATH_NOT_FOUND)

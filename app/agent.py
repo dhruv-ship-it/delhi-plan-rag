@@ -271,10 +271,14 @@ def run_locate_place(run: AgentRun, tool_input: dict) -> dict:
     output = place.to_dict()
     if place.found:
         run.lat, run.lon = place.lat, place.lon
+        # `matched` is set only when a contiguous part of the query answered rather than
+        # the whole of it (D-090), which is worth seeing in the trace: an answer about
+        # the wrong half of a compound question should be visible, not silent.
+        part = f' (matched "{place.matched}")' if place.matched else ""
         run.note(
             "locate_place",
             tool_input,
-            f"found {place.display_name} at {place.lat:.5f}, {place.lon:.5f}",
+            f"found {place.display_name} at {place.lat:.5f}, {place.lon:.5f}{part}",
         )
     else:
         run.note("locate_place", tool_input, f"not found ({place.reason})")

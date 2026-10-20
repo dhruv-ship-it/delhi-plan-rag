@@ -16,6 +16,8 @@ from app.geocode import (
     PATH_NOMINATIM_NORMALISED,
     PATH_NOMINATIM_ORIGINAL,
     PATH_NOT_FOUND,
+    PATH_SUBPHRASE_GAZETTEER,
+    PATH_SUBPHRASE_NOMINATIM,
     all_within,
     base_name,
     gazetteer,
@@ -24,6 +26,7 @@ from app.geocode import (
     locate_place,
     metres_between,
     normalise,
+    subphrases,
 )
 
 #: What Nominatim returns for a hit, trimmed to the fields we read.
@@ -241,14 +244,20 @@ def test_at_most_two_nominatim_requests_are_made(monkeypatch) -> None:
     assert len(session.queries) == 2
 
 
-def test_only_one_request_when_normalising_changes_nothing(monkeypatch) -> None:
-    """"Hauz Khas" normalises to itself, so asking twice would ask the same thing."""
+def test_the_whole_query_is_only_asked_once_when_normalising_changes_nothing(
+    monkeypatch,
+) -> None:
+    """"Hauz Khas" normalises to itself, so asking twice would ask the same thing.
+
+    The second request is the sub-phrase fallback (D-090), not the same query again:
+    once the whole phrase has failed, the longest sub-phrase gets one try.
+    """
     monkeypatch.setattr("app.geocode.gazetteer", lambda: {})
-    session = StubSession([[]])
+    session = StubSession([[], []])
     place = locate_place("hauz khas", use_cache=False, session=session)
 
     assert place.found is False
-    assert session.queries == ["hauz khas, Delhi"]
+    assert session.queries == ["hauz khas, Delhi", "hauz, Delhi"]
 
 
 def test_a_place_outside_the_box_is_not_found(monkeypatch) -> None:
@@ -716,3 +725,138 @@ def test_all_within_is_true_for_one_station_and_for_none() -> None:
     """There is no pair to be too far apart, which is vacuously fine."""
     assert all_within([], 300.0) is True
     assert all_within([_station("Only", 28.6, 77.2)], 300.0) is True
+
+
+# --- the sub-phrase fallback (D-090) --------------------------------------------
+
+#: Two real stations, enough to answer both compound queries from the local list.
+COMPOUND_GAZETTEER = {
+    "chhatarpur": {"name": "Chhatarpur", "lat": 28.5068, "lon": 77.1752},
+    "ito": {"name": "ITO", "lat": 28.6285, "lon": 77.2410},
+}
+
+
+def test_subphrases_are_contiguous_and_longest_first() -> None:
+    """A place name is a phrase, so the parts tried are runs and not combinations."""
+    assert subphrases("chhatarpur ridge") == [
+        "chhatarpur ridge",
+        "chhatarpur",
+        "ridge",
+    ]
+    assert subphrases("yamuna floodplain ito") == [
+        "yamuna floodplain ito",
+        "yamuna floodplain",
+        "floodplain ito",
+        "yamuna",
+        "floodplain",
+        "ito",
+    ]
+    # never more than three words, however long the query
+    assert all(len(phrase.split()) <= 3 for phrase in subphrases("a b c d e f"))
+    assert subphrases("") == []
+    assert subphrases("chhatarpur") == ["chhatarpur"]
+
+
+def test_a_place_plus_a_subject_falls_back_to_the_place(monkeypatch) -> None:
+    """The live failure this exists for: locate_place("Chhatarpur ridge") (D-085).
+
+    `chhatarpur ridge` scores 0.63 against `chhatarpur`, under the 0.85 cutoff, and
+    bounded Nominatim has nothing for the phrase. The sub-phrase step finds it in the
+    local list, so it costs no extra request at all.
+    """
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+    session = StubSession([[], []])
+    place = locate_place("Chhatarpur ridge", use_cache=False, session=session)
+
+    assert place.found is True
+    assert place.display_name == "Chhatarpur (Delhi Metro)"
+    assert place.lat == pytest.approx(28.5068)
+    assert place.path == PATH_SUBPHRASE_GAZETTEER
+    assert place.matched == "chhatarpur"
+    # "Chhatarpur ridge" normalises to itself, so one whole-query request was spent;
+    # the sub-phrase step spent none, because the local list answered it
+    assert session.queries == ["Chhatarpur ridge, Delhi"]
+
+
+def test_a_feature_plus_a_landmark_falls_back_to_the_landmark(monkeypatch) -> None:
+    """`agent-02`'s shape: the question names a feature and a place (D-085)."""
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+    session = StubSession([[], []])
+    place = locate_place("yamuna floodplain near ito", use_cache=False, session=session)
+
+    assert place.found is True
+    assert place.display_name == "ITO (Delhi Metro)"
+    assert place.lon == pytest.approx(77.2410)
+    assert place.path == PATH_SUBPHRASE_GAZETTEER
+    assert place.matched == "ito"
+
+
+def test_a_phrase_with_no_real_place_in_it_is_still_not_found(monkeypatch) -> None:
+    """The fallback must not turn "no" into a point somewhere. Three requests, then no."""
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+    session = StubSession([[], [], []])
+    place = locate_place("the big purple nowhere", use_cache=False, session=session)
+
+    assert place.found is False
+    assert place.reason == "not_found_in_delhi"
+    assert place.path == PATH_NOT_FOUND
+    assert place.matched is None
+    # two for the whole query ("the" is stripped by normalising), then exactly one for
+    # the longest sub-phrase, which is two words because the three-word phrase was the
+    # whole normalised query and has already been tried
+    assert session.queries == [
+        "the big purple nowhere, Delhi",
+        "big purple nowhere, Delhi",
+        "big purple, Delhi",
+    ]
+
+
+def test_the_longest_subphrase_is_the_one_nominatim_is_asked_about(monkeypatch) -> None:
+    """With no gazetteer, one request goes to the most specific thing the user wrote."""
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: {})
+    session = StubSession([[], [], [RAJIV_CHOWK]])
+    place = locate_place("yamuna floodplain near ito", use_cache=False, session=session)
+
+    assert place.found is True
+    assert place.path == PATH_SUBPHRASE_NOMINATIM
+    assert place.matched == "yamuna floodplain"
+    assert session.queries[-1] == "yamuna floodplain, Delhi"
+
+
+def test_a_timeout_skips_the_fallback_rather_than_spending_another_request(
+    monkeypatch,
+) -> None:
+    """A service that has just failed says nothing about the name (D-073)."""
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+    session = StubSession([RuntimeError("timed out")])
+    place = locate_place("Chhatarpur ridge", use_cache=False, session=session)
+
+    assert place.found is False
+    assert place.reason.startswith("lookup_failed")
+    assert len(session.queries) == 1
+
+
+def test_the_matched_subphrase_survives_the_cache(monkeypatch, tmp_path) -> None:
+    """A miss is diagnosable from the cache alone, including which part matched."""
+    cache_file = tmp_path / "geocode_cache.json"
+    monkeypatch.setattr("app.geocode.load_cache", lambda: _read(cache_file))
+    monkeypatch.setattr("app.geocode.save_cache", lambda cache: _write(cache_file, cache))
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+
+    first = locate_place("Chhatarpur ridge", session=StubSession([[]]))
+    assert first.matched == "chhatarpur"
+
+    # no session at all: a second call that reached the network would raise
+    second = locate_place("Chhatarpur ridge")
+    assert second.found is True
+    assert second.matched == "chhatarpur"
+    assert second.path == PATH_SUBPHRASE_GAZETTEER
+
+
+def test_the_whole_query_still_wins_when_it_matches(monkeypatch) -> None:
+    """The fallback is step 4, so it never pre-empts a clean match (D-090)."""
+    monkeypatch.setattr("app.geocode.gazetteer", lambda: dict(COMPOUND_GAZETTEER))
+    place = locate_place("Chhatarpur", use_cache=False, session=StubSession([]))
+
+    assert place.path == PATH_GAZETTEER
+    assert place.matched is None

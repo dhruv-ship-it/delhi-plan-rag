@@ -519,6 +519,19 @@ def rejects_response_format(error: Exception) -> bool:
     return "response_format" in text or "json_object" in text
 
 
+def needs_the_word_json(error: Exception) -> bool:
+    """True for Groq's "say json somewhere" refusal, which is about **this request**.
+
+    Measured on 20 October: Groq rejects `response_format` with *"'messages' must
+    contain the word 'json' in some form"* when no message mentions it. That is a fault
+    in the request, not a model that cannot do JSON mode — `openai/gpt-oss-120b` does,
+    and ZoneWise's own prompts say "one JSON object", which satisfies it. So this one is
+    retried without the parameter for the call that caused it and **not** remembered,
+    or one odd request would turn JSON mode off for the rest of a run (D-088).
+    """
+    return rejects_response_format(error) and "must contain the word" in str(error).lower()
+
+
 def retry_after_of(headers: dict[str, str]) -> float | None:
     """The `retry-after` header in seconds, when there is a usable one."""
     raw = headers.get("retry-after")
@@ -662,11 +675,17 @@ class GroqLLM:
                 payload.pop("reasoning_effort")
                 return self._send(payload)
             if "response_format" in payload and rejects_response_format(exc):
-                log.warning(
-                    "%s does not accept response_format; sending without JSON mode",
-                    self.model,
-                )
-                self.json_mode_supported = False
+                if needs_the_word_json(exc):
+                    log.warning(
+                        "this request did not mention json, so Groq refused "
+                        "response_format; sending it without JSON mode"
+                    )
+                else:
+                    log.warning(
+                        "%s does not accept response_format; sending without JSON mode",
+                        self.model,
+                    )
+                    self.json_mode_supported = False
                 payload.pop("response_format")
                 return self._send(payload)
             raise

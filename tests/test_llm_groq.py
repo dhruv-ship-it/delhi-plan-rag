@@ -27,6 +27,7 @@ from app.llm import (
     from_openai_response,
     get_llm,
     is_rate_limited,
+    needs_the_word_json,
     rate_limit_of,
     rejects_reasoning_effort,
     rejects_response_format,
@@ -372,6 +373,42 @@ def test_a_refused_json_mode_is_not_asked_for_again() -> None:
     client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
     assert len(client.client.chat.completions.payloads) == 3
     assert "response_format" not in client.client.chat.completions.payloads[2]
+
+
+def test_groqs_say_json_refusal_does_not_disable_json_mode_for_the_run() -> None:
+    """Measured on 20 October: the refusal is about the request, not the model (D-088).
+
+    `openai/gpt-oss-120b` does support JSON mode. Groq rejects it when no message
+    mentions json, and ZoneWise's prompts do, so one odd request must not turn the
+    feature off for everything after it.
+    """
+    refusal = FakeAPIError(
+        "400 'messages' must contain the word 'json' in some form, to use "
+        "'response_format' of type 'json_object'.",
+        400,
+    )
+    client = groq([refusal, said("{}"), said("{}")])
+    client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+    assert client.json_mode_supported is True
+
+    # so the next question asks for JSON mode again
+    client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+    assert "response_format" in client.client.chat.completions.payloads[2]
+
+
+def test_the_two_response_format_refusals_are_told_apart() -> None:
+    # Groq's refusal names the parameter as well as the requirement, which is what
+    # tells it apart from any other 400 that happens to mention json.
+    assert needs_the_word_json(
+        FakeAPIError(
+            "400 'messages' must contain the word 'json' in some form, to use "
+            "'response_format' of type 'json_object'.",
+            400,
+        )
+    )
+    assert needs_the_word_json(FakeAPIError("must contain the word 'json'", 400)) is False
+    assert needs_the_word_json(FakeAPIError("response_format is unsupported", 400)) is False
+    assert needs_the_word_json(RuntimeError("something else")) is False
 
 
 def test_rejects_response_format_reads_both_wordings() -> None:

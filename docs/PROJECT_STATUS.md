@@ -10,6 +10,37 @@ If you read one section, read [What a human has checked](#3-what-a-human-has-che
 
 ---
 
+## Frozen for evaluation (v1.0-rc1)
+
+**The repository is tagged `v1.0-rc1`.** From this point, no change to retrieval,
+chunking, prompts, the model or any threshold until the evaluation on
+`eval/questions_verified.jsonl` has run — a score against a target that keeps moving
+proves nothing about the target. Three settings are deliberately left open, each decided
+*by* that evaluation rather than before it:
+
+| Setting | Current state | Decided by |
+| --- | --- | --- |
+| `SUPPORT_CHECK` | `shadow` (D-096) | a human reading Phase C's verdicts |
+| `ABSTAIN_THRESHOLD` | provisional (D-071) | `scripts\tune_abstention.py` on verified questions only |
+| `USE_RERANKER` | off (D-070) | comparing `hybrid+location` against `hybrid+location+rerank` in the verified report |
+
+A fix is allowed only for a defect a human check actually finds, must be minimal and done
+in one round, and is followed by its own tag, `v1.0-rc2` — not folded into further feature
+work. Documentation, `DECISIONS.md` and reports are not frozen; this entry and the parts
+of this page below it are an example of the kind of change that still happens.
+
+**The v3 live run is partial: 16 of 23 cases.** It stopped on Groq's free-tier token
+limit, not by hand and not on an error (`reports/live_run_state_v3.json`,
+`reports/live_answers_v3.md`). Resume it with:
+
+```powershell
+uv run python scripts\live_run.py --resume
+```
+
+**Current test count: 527 pass** (D-096; confirmed again when `v1.0-rc1` was tagged).
+
+---
+
 ## 1. What ZoneWise is
 
 A location-aware RAG assistant for Delhi planning law. You click a point on a map of

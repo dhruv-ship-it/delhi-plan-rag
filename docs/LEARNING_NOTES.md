@@ -836,9 +836,150 @@ just stopped asking the model to do something it is bad at for no benefit."
 
 ---
 
+## 23. Claim verification and shadow mode
+
+**What it is.** A second, narrower check that runs *after* an answer already passes
+every structural rule. The first check (§8) proves an answer's shape is trustworthy —
+every sentence names a source that was really retrieved. It cannot prove the source
+*says* the sentence: a model can combine three true clauses into a false conclusion,
+cite all three correctly, and sail through. A claim check asks a model a much smaller
+question — "does this one clause state this one sentence?" — with nothing else in view,
+and **shadow mode** means its verdict is recorded but never acts: nothing about the
+answer changes because of what it says, yet.
+
+**Where it lives here.** `run_support_check()` and `enforce_support()` in
+`app/answer.py`, shared by the agent. `SUPPORT_CHECK` in `.env` is `off`, `shadow`
+(the default) or `enforce`. The result rides on `AnswerResult.support_check`.
+
+**Why we chose it this way.** `demo-07` is the case: at P_RIDGE the model answered that
+construction is prohibited, built out of a Regional Park definition, a park built-up
+ceiling and a drain-buffer rule — every sentence correctly cited, no clause saying what
+the answer said (D-085, D-091). Structural validation passed it twice, in two separate
+real-model runs, because "cited" and "supported" are different properties and only one
+of them had a check. The reason it ships in shadow and not enforced is the same reason
+the reranker and the abstention threshold are still provisional: nobody has read a
+single verdict from this checker yet, and a judge nobody has read must not be allowed to
+delete an answer that passed every other test. Shadow mode produces the evidence
+(`reports/live_answers_v3.md` records every verdict and whether `enforce` would have
+changed the answer) that the decision to turn it on will be based on.
+
+**The part worth noticing.** It is still a model checking a model — evidence, not proof.
+What makes it a different, useful question rather than the same question twice is that
+it is asked **narrowly**: the checking call sees one sentence and the clause text it
+cites, and nothing about the original question, the zones or the other five sources. A
+test asserts that narrowness directly, by checking the zone description is absent from
+the checker's prompt.
+
+**How to explain it in an interview.** "My citation check proved a sentence named a real
+source; it couldn't prove the source actually said that sentence, and I had a live
+example of a model combining three true clauses into a conclusion none of them states. So
+I added a second call that's asked a much narrower question — just this sentence against
+just its own clause — and shipped it in shadow mode: it records a verdict on every
+answer and changes nothing, because I hadn't read a single verdict yet and a judge you
+haven't checked shouldn't get to delete answers that already passed."
+
+---
+
+## 24. Multi-query fusion: voting instead of replacing
+
+**What it is.** Running **two differently-worded versions of the same search** and
+fusing all of their ranked lists together with reciprocal rank fusion, instead of picking
+one wording and committing to it. A chunk only needs to be found by *one* of the
+wordings to earn fusion points, and a chunk both wordings agree on outranks one only a
+single list likes — which is exactly the property RRF was chosen for in the first place
+(§4, D-028).
+
+**Where it lives here.** `place_query()` and `FUSES_FOUR_LISTS` in `app/location.py`,
+scoped to exactly two topics, `zone_o` and `ridge`. For a point in either, retrieval
+fuses four ranked lists — `dense(plain)`, `bm25(plain)`, `dense(expanded)`,
+`bm25(expanded)` — instead of the usual two.
+
+**Why those two topics, and why four lists instead of one query.** MPD-2047 has no
+policy chapter for Zone O or the Ridge (D-023), so there is no chapter heading vocabulary
+to append to the query the way the other four zone topics do. Appending the place's own
+words instead — "Zone O", "Yamuna floodplain" — does not *qualify* the query the way a
+chapter name would; it **replaces the subject** for a dense embedding, because a dense
+query is one point in space and appending words moves that point. The measured case: at
+P_ZONEO, appending "Zone O Yamuna floodplain" to "Can a fuel station be built here?"
+raised the target clause's own cosine similarity (0.61 → 0.65) while its dense rank
+*collapsed* from 11 to 173 of 700, because about 160 other floodplain-adjacent chunks
+rose further still. Query expansion alone made the match worse by making it a better
+match for the wrong question. Turning expansion off for these two topics fixed that case
+but broke the opposite one — a question whose subject genuinely *is* the floodplain lost
+its answer, because now nothing told the search that the place's vocabulary was relevant
+at all. Fusing four lists is what resolves the standoff: the plain wording keeps serving
+subject-first questions ("Can I build a house here?"), the place-appended wording keeps
+serving place-first questions, and the two **vote** rather than one overwriting the
+other. **It is scoped to exactly these two topics for a structural reason, not a
+performance one**: fusing a third unscoped list at *every* point was measured and
+rejected, because plain dense search on this corpus prefers the FAQ's short
+conversational chunks over the gazette's dense clauses, and an unscoped third list put
+an authority-rank-3 FAQ chunk above an authority-rank-1 gazette clause at points that had
+nothing to do with Zone O or the Ridge (D-086, D-093).
+
+**How to explain it in an interview.** "Two of my six zone categories have no policy
+chapter of their own, so there was nothing to meaningfully expand the query *towards* —
+appending the zone's name just moved the embedding onto a different subject and cost me
+the fuel-station clause I needed. Dropping the expansion for those two fixed that case
+and broke the opposite one. The fix wasn't to pick a side, it was to run both wordings
+and fuse four ranked lists with RRF instead of two, so a clause only needs one wording to
+vote for it. I scoped it to exactly the two zones with the problem, because fusing a
+third list everywhere measurably let the FAQ outrank the gazette on questions that had
+nothing to do with this at all."
+
+---
+
+## 25. Deterministic system notes vs model text
+
+**What it is.** Some things an answer needs to say are facts the **code** can state with
+certainty, never the model: a legal disclaimer, or how far a point is from a zone the
+question named. Both now travel as their own fields on the result — `disclaimer` and
+`location_note` — built outside the model's output and never exposed to the citation
+checks that validate the model's sentences.
+
+**Where it lives here.** `AnswerResult.disclaimer` is one fixed string, set by code on
+every answer and every refusal (D-092). `AnswerResult.location_note` is built by
+`named_zone_topics()` and `app/spatial.py`'s `distance_to_topic()`, comparing the zones
+the question's own words name against the zones the point is actually in (D-094). Both
+sit outside the `sentences` list `structural_problems()` validates, and tests assert
+neither string ever reaches `answer_markdown`.
+
+**Why we chose it this way.** The disclaimer used to be a prompted sentence, and that
+collided head-on with the citation rule: the model was told to say "check the official
+documents" *and* told every sentence needs a citation, so it bolted a citation marker
+onto a sentence no clause actually supports — 7 of 17 shown v1 answers did exactly that.
+A model cannot cite a fact about the product it's part of, because no clause in a
+planning document says anything about ZoneWise's own reliability. The location note has
+a parallel logic for a different reason: `agent-02` asked about the Yamuna floodplain
+near a point that is 620 m from it, got a correct, correctly cited floodplain answer, and
+the mismatch between the question's zone and the point's zone was invisible to every
+check in the system, because nothing checks geography against the question's *words*.
+Both fixes move a fact from "ask the model to say this" to "code computes this and
+attaches it," and the same principle applies either time: **if nothing in the corpus can
+support a sentence, it does not belong in the list of sentences the corpus is asked to
+support.**
+
+**The part worth noticing.** Moving a fact into code doesn't make it less visible to the
+user — both fields are still shown, just never run through the machinery built to check
+the model's own claims against retrieved text, because that machinery would be checking
+the wrong thing. A disclaimer isn't about the Master Plan. A distance from a polygon
+boundary isn't a model's claim at all; it's arithmetic over DDA's own GIS layers.
+
+**How to explain it in an interview.** "I had two cases where the model was effectively
+being asked to state a fact that had nothing to do with the documents it was retrieving
+from — a legal disclaimer, and whether the clicked point was actually inside the zone the
+question named. Both times, keeping that fact as model-generated text forced it through
+citation machinery that was built to validate a different kind of claim, and in the
+disclaimer's case that actively produced a defect — an uncited sentence got a citation
+bolted onto it just to satisfy the rule. The fix in both cases was the same: compute the
+fact in code, attach it to the response as its own field, and keep it completely outside
+the validation that checks the model's sentences against the retrieved clauses."
+
+---
+
 ## Where to read more
 
-- `DECISIONS.md` — all 79 decisions with the alternatives rejected. The "why" for
+- `DECISIONS.md` — 99 decisions with the alternatives rejected. The "why" for
   everything above.
 - `docs/ARCHITECTURE.md` — the same pipeline with diagrams and function names.
 - `docs/DATA.md` — the documents, the cleaning rules, the chunk statistics, the layers.

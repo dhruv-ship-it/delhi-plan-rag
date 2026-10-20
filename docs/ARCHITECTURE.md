@@ -166,12 +166,24 @@ fell from rank 1 to rank 14 while its **own cosine rose** — about 160 floodpla
 rose further. One cause, no policy section in MPD-2047, now disables two of the three
 steps for the same two topics.
 
-That trade has a cost and it is recorded rather than buried: a question whose subject
-*is* the place was being helped by the expansion, and now does worse. "Can I construct a
-building here?" at P_ZONEO loses the no-construction clause from rank 1 to outside a
-200-deep list. `reports/diagnosis_fuel_station.md` § 5 has the table, and a measured
-four-list alternative that keeps both sides is waiting on the verified questions with
-everything else.
+That trade had a cost: a question whose subject *is* the place was being helped by the
+expansion, and did worse with it scoped away — "Can I construct a building here?" at
+P_ZONEO lost the no-construction clause from rank 1 to outside a 200-deep list.
+`reports/diagnosis_fuel_station.md` § 5 has the table.
+
+**For exactly those two topics, `zone_o` and `ridge`, the search now sends a second query
+and fuses four lists instead of two** (`FUSES_FOUR_LISTS` in `app/location.py`, D-093):
+the user's words (plus any policy-zone expansion, which is none for these two) and the
+same words with the place terms appended, each run through both indexes —
+`dense(plain)`, `bm25(plain)`, `dense(expanded)`, `bm25(expanded)` — fused into one RRF.
+A clause only needs **one** of the two wordings to find it, so the fuel-station clause
+stays at rank 1 and "Can I construct a building here?" gets its no-construction clause
+back at rank 2. The other four topics never build a second query, so they still fuse two
+lists exactly as before — `reports/location_compare_v5.md` shows 7 of 9 test points
+byte-identical to the two-list behaviour, the other 2 being P_ZONEO and P_RIDGE. This is
+a module constant, not a setting, for the same reason `EXPANDS_QUERY` is: it states a
+fact about the corpus (MPD-2047 has no Zone O or Ridge chapter), not a tuning knob. The
+pre-D-093 two-list behaviour stays scoreable as `hybrid+location_v2` in `eval/run_eval.py`.
 
 Three things about the order are deliberate:
 
@@ -314,6 +326,18 @@ so `/api/ask`, the frontend, the clause drawer and the citations table are untou
 client cannot tell the difference, and a test asserts that by checking the rendered
 output against the prose the old path produced.
 
+**The "check the official documents" caveat is not a sentence any more, it is a field**
+(`AnswerResult.disclaimer`, D-092). Rule 6 used to tell the model to write that caveat,
+and rule 2 demanded a citation on every sentence — so the model bolted a marker onto a
+sentence no clause supports, and 7 of v1's 17 shown answers did exactly that
+(`reports/citation_failures_v1.md`). The caveat is a statement about the product, not
+about the Master Plan, so no clause can ever support it and no citation for it could be
+honest. Code now sets one fixed string — *"Not legal advice. Check the official
+MPD-2047 text and DDA before acting."* — on every answer **and** every refusal, outside
+`sentences`, so `structural_problems()` never sees it and `render_markdown()` never
+writes it into the cited text. The prompt instead tells the model not to write a caveat
+at all.
+
 **What forced it.** Against a real model, **18 of the 22 map-mode answers that reached
 the citation check failed on the first attempt** — a first-attempt pass rate of 18%
 (D-087). The check was reading prose: it split the answer into sentences with a regular
@@ -338,18 +362,63 @@ the object is recovered from the first `{` to the last `}` — and strict about 
 contents. A model that ignores the contract and replies `ABSTAIN: ...` is still honoured:
 it has answered the only question that matters.
 
-**What none of this fixes.** Nothing structural can tell whether a cited clause
-*supports* its sentence. Prompt rule 8 — *"Each sentence must be stated by its cited
-clause. Do not combine clauses to reach a conclusion that none of them states"* — asks
-for it in words, and `demo-07` is what it is for: 134 confident words concluding that
-construction on the Ridge is prohibited, assembled from a Regional Park definition, a
-park built-up ceiling and a drain-buffer rule, every sentence correctly cited and no
-clause saying what the answer said. The sharpest version of the same gap is that **prompt
-rules 2 and 6 contradict each other**: rule 6 asks the model to say official DDA
-documents should be checked, which no clause states, while rule 2 demands a citation on
-every sentence, and 7 of v1's 17 answers carry that sentence with a marker bolted on
-(`reports/citation_failures_v1.md`). Both rules are still there. That is recorded, not
-fixed, and it is the first prompt change to make once a human has read answers.
+**What structural validation alone cannot fix.** Nothing in `structural_problems()` can
+tell whether a cited clause *supports* its sentence. Prompt rule 8 — *"Each sentence must
+be stated by its cited clause. Do not combine clauses to reach a conclusion that none of
+them states"* — asks for it in words, and `demo-07` is what it is for: confident words
+concluding that construction on the Ridge is prohibited, assembled from a Regional Park
+definition, a park built-up ceiling and a drain-buffer rule, every sentence correctly
+cited and no clause saying what the answer said (D-085, D-091). The rule 2 / rule 6
+contradiction that produced the sharpest version of this gap in v1 — the model asked to
+cite every sentence *and* asked to write an uncited caveat — is fixed, not merely
+recorded: see the disclaimer field above (D-092). What is left is `demo-07`'s kind of
+problem, a synthesis that is structurally valid and still unsupported, and that is what
+the claim check below exists to measure.
+
+### A deterministic note when the question names a zone the point is not in
+
+`location_note` (D-094) is built in code, never by the model, and is almost always
+empty. `named_zone_topics()` reads the zone words the **question itself** uses, through
+`app/tagging.py`'s own mention regexes; drops any the point is actually in (from
+`get_zones`); and for each one left, `app/spatial.py` measures the distance from the
+point to the nearest polygon of that zone in EPSG:32643 and writes one sentence, e.g.
+*"This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest Zone O
+boundary is about 600 m away."* The API returns it, the interface shows it above the
+answer, and the model is given it as context with the instruction to answer for the
+located point or abstain — not for the zone the question named.
+
+**Why it exists.** v2's `agent-02` asked "Can I build a house on the Yamuna floodplain
+near ITO?" and came back with the correct, correctly cited floodplain clause — at a point
+`get_zones` says is a TOD zone, 620 m from the nearest Zone O polygon. Retrieval worked
+*because* the question said "floodplain"; the citation check passed because the clause
+really does say what the sentence says; nothing was broken except the match between the
+question and the place, and no structural check could have seen it. The note does not
+block the answer — a user near ITO asking about the floodplain may want either reading —
+it names the gap for both the reader and the model. It is a statement about distance from
+DDA's own layers, not about the Master Plan, so like the disclaimer it lives outside
+`sentences` and is never seen by `structural_problems()`.
+
+### The claim check: a second call, in shadow mode only
+
+After an answer passes structural validation, one more call (D-096) is shown each
+sentence, numbered, beside **only the full text of the clauses that sentence cites** —
+not the question, not the other sources, not the zones — and asked whether the clause
+states the sentence. `SUPPORT_CHECK` decides what happens to the JSON verdicts
+(`supported` / `partly` / `unsupported`) it returns:
+
+| mode | effect |
+| --- | --- |
+| `off` | no second call |
+| **`shadow` (the default)** | verdicts recorded on the response and in the request log; the answer is untouched regardless of what they say |
+| `enforce` | a sentence judged `unsupported` is dropped; the whole answer is discarded with `abstain_reason=unsupported_claims` if the first sentence goes or nothing survives — implemented and tested, **not enabled** |
+
+Its call and tokens are counted separately from the answering call's, and it never
+raises: a check that fails to run — a network error, an unparsable reply — leaves the
+answer exactly as it was, because silence must not be read as a verdict. This is the same
+measure-before-behaviour discipline as the reranker (D-070) and the abstention threshold
+(D-071): the check is live in every answered case in `reports/live_answers_v3.md`,
+including whether `enforce` **would** have changed it, and the decision to turn it on
+is one of the three left open by the freeze.
 
 ### What the abstention pre-check reads, and why it changed
 
@@ -611,6 +680,11 @@ ones worth reading first:
 | **D-075, D-076** | the dev flag, and the verification screen |
 | **D-077, D-078, D-079** | hardening; the `needs_data` marker; the image and the deploy kit |
 | **D-082** | two providers behind one door, and what the Groq adapter has to translate |
+| **D-086, D-093** | query expansion scoped to the four policy topics; the scoped four-list fusion for Zone O and the Ridge |
+| **D-088, D-089** | structured JSON answers and why the prose citation check went away; the agent's short labels |
+| **D-092** | the disclaimer moved from a prompted sentence to a field |
+| **D-094** | the deterministic location note for a question that names a zone the point is not in |
+| **D-096** | the semantic claim check, shipped in shadow mode |
 
 D-042 is superseded by D-071: the abstention threshold was a placeholder on a signal that
 could not work, and both the signal and the threshold changed.

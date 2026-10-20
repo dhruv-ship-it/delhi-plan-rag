@@ -134,7 +134,7 @@ flowchart TB
     Q(["question + lat,lon"]) --> ZONES["spatial.get_zones()"]
     ZONES --> TOPICS["spatial.topics_for()<br/>e.g. ['tod']"]
 
-    TOPICS --> EXPAND["location.expand_query()<br/>+ 'transit oriented development TOD zone'"]
+    TOPICS --> EXPAND["location.expand_query()<br/>+ 'transit oriented development TOD zone'<br/>only for tod, hdc, land_pooling, lda"]
     EXPAND --> POOLS
 
     subgraph POOLS["retrieval, pools fetched 60 deep"]
@@ -152,6 +152,26 @@ flowchart TB
     RR -->|yes| CROSS["retrieval.apply_reranker()<br/>cross-encoder reads query + chunk<br/>top 20 rescored"]
     CROSS --> TOPK
 ```
+
+**Only four of the six topics expand the query** (`EXPANDS_QUERY` in
+`app/location.py`): the four that have a policy section of their own, which is the same
+four `should_exclude` acts on. The reason is a measured one (D-086). A BM25 query is a
+bag of tokens and appending a topic **adds** to it; a dense query is one point in
+embedding space and appending a topic **moves** it. For `tod`, `hdc`, `land_pooling` and
+`lda` that move is towards a real chapter, which is what the demo's first beats exist to
+show. For `zone_o` and `ridge` there is no chapter to move towards, so the appended words
+name a *place*, and half of a seven-word question plus a four-word place name is a
+question about the place. At P_ZONEO the clause that says fuel stations are banned there
+fell from rank 1 to rank 14 while its **own cosine rose** — about 160 floodplain chunks
+rose further. One cause, no policy section in MPD-2047, now disables two of the three
+steps for the same two topics.
+
+That trade has a cost and it is recorded rather than buried: a question whose subject
+*is* the place was being helped by the expansion, and now does worse. "Can I construct a
+building here?" at P_ZONEO loses the no-construction clause from rank 1 to outside a
+200-deep list. `reports/diagnosis_fuel_station.md` § 5 has the table, and a measured
+four-list alternative that keeps both sides is waiting on the verified questions with
+everything else.
 
 Three things about the order are deliberate:
 
@@ -268,16 +288,68 @@ flowchart TB
     SEARCH --> WEAK{"answer.is_weak()<br/>top-1 raw signal >=<br/>abstain_threshold?"}
     WEAK -->|no| A2(["abstain: weak_retrieval<br/>no LLM call"])
     WEAK -->|yes| PROMPT["build_user_message()<br/>sources as C1..Ck with<br/>doc, clause, pages, authority"]
-    PROMPT --> CALL["llm.chat()<br/>SYSTEM_PROMPT, temperature 0"]
-    CALL --> SAID{"replied<br/>ABSTAIN: ... ?"}
+    PROMPT --> CALL["llm.chat(json_object=True)<br/>SYSTEM_PROMPT, temperature 0"]
+    CALL --> PARSE["parse_answer_object()<br/>strip fences, recover the braces"]
+    PARSE --> SAID{"abstain field set?<br/>(or a bare ABSTAIN: line)"}
     SAID -->|yes| A3(["abstain: model_abstained<br/>+ its reason"])
-    SAID -->|no| CHECK["citation_problems()"]
-    CHECK --> OK{"every marker real?<br/>every sentence cited?"}
-    OK -->|yes| GOOD(["AnswerResult with citations"])
-    OK -->|"no, first time"| RETRY["RETRY_TEMPLATE<br/>its own answer + the problems"]
+    SAID -->|no| CHECK["structural_problems()"]
+    CHECK --> OK{"valid object?<br/>every sentence cited?<br/>every label issued?"}
+    OK -->|yes| RENDER["render_markdown()<br/>text + [C#] markers"]
+    RENDER --> GOOD(["AnswerResult with citations"])
+    OK -->|"no, first time"| RETRY["RETRY_TEMPLATE<br/>its own reply + the problems"]
     RETRY --> CALL
     OK -->|"no, second time"| A4(["abstain: citation_check_failed<br/>clauses still returned"])
 ```
+
+### Structured answers, and why the prose check went away
+
+The model does not write prose with markers in it. It returns one JSON object (D-088):
+
+```json
+{"abstain": null, "sentences": [{"text": "...", "citations": ["C1", "C3"]}]}
+```
+
+and `answer_markdown` is **rendered** from those sentences, markers in the same places,
+so `/api/ask`, the frontend, the clause drawer and the citations table are untouched. A
+client cannot tell the difference, and a test asserts that by checking the rendered
+output against the prose the old path produced.
+
+**What forced it.** Against a real model, **18 of the 22 map-mode answers that reached
+the citation check failed on the first attempt** — a first-attempt pass rate of 18%
+(D-087). The check was reading prose: it split the answer into sentences with a regular
+expression and demanded a marker in each. That put a convention about where to put
+square brackets between the model and a shown answer, and the convention loses to
+ordinary writing — a thought spanning two sentences, a bullet, a parenthetical. In a JSON
+array a sentence and its sources are **one record**, so there is no splitter to disagree
+with and no way to write a sentence without a citation field.
+
+Validation is now three structural checks — the reply parses as an object, every
+sentence has at least one citation, every citation names a source that was supplied — and
+each problem quotes the sentence it is about, because a retry is only as good as what it
+is told. Every abstention reason and route is unchanged.
+
+**JSON mode is a request, not a contract.** `chat()` takes `json_object`, which `GroqLLM`
+sends as `response_format={"type": "json_object"}`. It is not sent alongside tools (a
+tool call is itself a structured reply, and the agent's final answer comes from a
+conversation that still carries tool definitions), `AnthropicLLM` ignores it because the
+Messages API has no such parameter, and a model that refuses it is retried without it. So
+parsing is forgiving about the wrapper — a ```json fence is stripped, and failing that
+the object is recovered from the first `{` to the last `}` — and strict about the
+contents. A model that ignores the contract and replies `ABSTAIN: ...` is still honoured:
+it has answered the only question that matters.
+
+**What none of this fixes.** Nothing structural can tell whether a cited clause
+*supports* its sentence. Prompt rule 8 — *"Each sentence must be stated by its cited
+clause. Do not combine clauses to reach a conclusion that none of them states"* — asks
+for it in words, and `demo-07` is what it is for: 134 confident words concluding that
+construction on the Ridge is prohibited, assembled from a Regional Park definition, a
+park built-up ceiling and a drain-buffer rule, every sentence correctly cited and no
+clause saying what the answer said. The sharpest version of the same gap is that **prompt
+rules 2 and 6 contradict each other**: rule 6 asks the model to say official DDA
+documents should be checked, which no clause states, while rule 2 demands a citation on
+every sentence, and 7 of v1's 17 answers carry that sentence with a marker bolted on
+(`reports/citation_failures_v1.md`). Both rules are still there. That is recorded, not
+fixed, and it is the first prompt change to make once a human has read answers.
 
 ### What the abstention pre-check reads, and why it changed
 
@@ -350,10 +422,10 @@ sequenceDiagram
     A->>M: tool_result
     M-->>A: tool_use search_clauses(lat, lon)
     A->>T: location-aware search
-    T-->>A: 6 clauses, ids recorded in AgentRun
+    T-->>A: 6 clauses, labelled S1..S6 in AgentRun
     A->>M: tool_result
-    M-->>A: answer citing [MPD47_GAZETTE_EN:4.2.3@p753:0]
-    A->>A: agent_citation_problems()<br/>is every id one we retrieved?
+    M-->>A: JSON answer citing ["S1"]
+    A->>A: agent_problems()<br/>was every label issued in this run?
     A-->>U: AnswerResult + tool_trace
 ```
 
@@ -362,21 +434,36 @@ the questions are not all the same shape: some arrive with coordinates, some nam
 place at all, and a fixed pipeline would waste a geocoding call or fail on the cases it
 was not written for.
 
-**The rule that makes agent citations trustworthy** (`agent_citation_problems()`): a
-cited chunk id must have come back from a `search_clauses` call *in this run*. The model
-can see what a chunk id looks like and could produce a plausible one pointing at
-nothing, so `AgentRun.retrieved` records every id any search returned and anything
-outside that set is rejected. Citing with no search at all is its own named problem.
+**The rule that makes agent citations trustworthy** (`agent_problems()`): a citation
+must name a source a `search_clauses` call produced *in this run*. The model can see what
+a ZoneWise identifier looks like and could produce a plausible one pointing at nothing,
+so anything outside what the run issued is rejected, and citing with no search at all is
+its own named problem.
+
+**What it cites is a short label.** `search_clauses` gives each result a label — `S1`,
+`S2`, … — numbered across the whole run, and a clause the model has already seen keeps
+the label it was first given, so asking twice does not create a second name for one
+clause. The label-to-clause map is kept in `AgentRun`, server-side, and the citations
+table is built from it. The chunk id is **not shown to the model at all**: offering two
+identifiers for one clause invites citing the wrong one.
+
+That replaces asking the model to reproduce `MPD47_GAZETTE_EN:4.2.3@p753:0` character by
+character, which it was measurably bad at: **5 of 11 agent cases failed the citation
+check twice against 5 of 26 in map mode**, and `agent-03` failed twice on the question
+`demo-01` answered after one retry — the same question, at the same place, where the
+marker is `[C3]` (D-085, D-089). Nothing was relaxed to make the model's job easier; the
+same fact is checked through a shorter name. The final answer uses map mode's JSON
+contract, with the no-synthesis rule as rule 9.
 
 `max_rounds` is 4 — enough for locate, zones, search, answer, with one spare. Running
 out is an abstention with reason `max_rounds_reached`, and whatever the tools found is
 still returned.
 
-### Geocoding: four steps, and which one answered
+### Geocoding: five steps, and which one answered
 
 `locate_place` was one bounded Nominatim request, and night 2 found it returns nothing
 for "Dwarka Sector 21 metro station" — close to the phrase the interface itself suggests
-typing (D-049). It now tries four things and records which one worked:
+typing (D-049). It now tries five things and records which one worked:
 
 1. **normalise** — proximity words ("near", "nearest") come out wherever they appear,
    because no Delhi place name contains one; station words ("metro station", "metro",
@@ -389,7 +476,26 @@ typing (D-049). It now tries four things and records which one worked:
 3. **Nominatim, twice at most** — the user's words plus ", Delhi", then the normalised
    form plus ", Delhi". A timeout stops the sequence rather than spending the second
    request, because a service that is currently unhappy says nothing about the name.
-4. **not_found**, with the reason, rather than a point somewhere else.
+4. **the contiguous sub-phrases** — every run of up to three words, longest first,
+   against the gazetteer, then **one** Nominatim request for the longest (D-090).
+   `Place.matched` names the part that answered.
+5. **not_found**, with the reason, rather than a point somewhere else.
+
+**Step 4 is there because the agent asks compound questions.** `agent-05` was asked "Is
+construction allowed in the Ridge near Chhatarpur?" and called
+`locate_place("Chhatarpur ridge")` — the landmark plus the question's own subject. That
+misses twice over: `chhatarpur ridge` scores 0.63 against `chhatarpur`, under the 0.85
+cutoff, and bounded Nominatim has nothing for the phrase. `"Chhatarpur"` alone resolves
+from the gazetteer instantly, so the agent abstained one tool call into a question the
+data could answer (D-085). The gazetteer is asked about every candidate because it is
+local and instant; Nominatim is asked about one, so the worst case for an unknown query
+is three requests and a query the gazetteer can answer costs none. The honest limit:
+with no gazetteer present, "yamuna floodplain near ito" sends its one request to "yamuna
+floodplain" rather than to "ito" — which is why `matched` is reported, into the agent's
+tool trace included, so an answer about the wrong half of a question is visible rather
+than silent. The agent's own prompt was fixed too (D-089), and the two are independent:
+a better prompt does not help a user who types the compound phrase themselves, and a
+better geocoder does not stop the agent wasting a round.
 
 The Dwarka query now resolves to 28.55192, 77.05856, inside Delhi, and the fix came from
 the normalisation rather than the gazetteer. Results are cached — but a **remembered miss

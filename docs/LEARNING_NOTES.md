@@ -211,12 +211,15 @@ model to follow the gazette when they differ and to say that they do."
 
 ## 8. Citation validation
 
-**What it is.** Not trusting the instruction. The model is told to end every sentence
-with a marker like `[C1]`; **code then checks that it did.** Every marker must name a
-source that was actually supplied, and every sentence must carry at least one.
+**What it is.** Not trusting the instruction. The model is told where its sentences
+came from; **code then checks that it said so.** Every citation must name a source that
+was actually supplied, and every sentence must carry at least one.
 
-**Where it lives here.** `citation_problems()` and `sentences_of()` in `app/answer.py`;
-`agent_citation_problems()` in `app/agent.py` for the agent's version.
+**Where it lives here.** `structural_problems()` in `app/answer.py` and
+`agent_problems()` in `app/agent.py`. The prose versions — `citation_problems()` and
+`sentences_of()` — are still there and now check the *rendered* markdown rather than the
+model, which is a story of its own: see **note 21**, where the check stopped reading
+prose because against a real model it was rejecting 18 first attempts in 22.
 
 **Why we chose it this way.** Both checks are deliberately crude and syntactic, because
 crude checks need no judgement and never disagree with themselves. They cannot tell
@@ -225,10 +228,12 @@ set. They do catch the two failures that matter: a fabricated source number (a r
 seeing a bracketed number assumes someone checked it) and a confident sentence with
 nothing behind it.
 
-The agent's version adds the rule that matters most there: **a cited chunk id must have
-come back from a search in this run.** The model knows what a chunk id looks like and
-could invent a plausible one, so `AgentRun` records every id any search returned and
-anything else is rejected.
+The agent's version adds the rule that matters most there: **a cited source must have
+come back from a search in this run.** The model knows what a ZoneWise identifier looks
+like and could invent a plausible one, so `AgentRun` records what every search returned
+and anything else is rejected. What the agent cites is now a short label rather than a
+whole chunk id, for reasons in **note 22** — the rule is identical, the string is
+shorter.
 
 **How to explain it in an interview.** "I validate the citations in code rather than
 trusting the prompt. Every marker has to resolve to a source that was actually supplied
@@ -717,6 +722,116 @@ I found the membership of that set by actually hiding the data directories and r
 which caught a test whose name gave no hint it depended on the index; and CI asserts the
 deselected set is non-empty, so if someone deletes the marker it fails loudly instead of
 quietly trying to read data that isn't there."
+
+---
+
+## 21. Structured output, and why free-text citation markers lose
+
+**What it is.** Two ways of getting a model to say which source each sentence came from.
+
+The **free-text** way is a convention: "end every sentence with a marker like `[C1]`".
+Code then splits the answer into sentences and checks each one has a marker. The
+**structured** way is a data shape: the model returns
+
+```json
+{"abstain": null, "sentences": [{"text": "...", "citations": ["C1", "C3"]}]}
+```
+
+so a sentence and its sources are **one record**. Validation stops being "did the model
+follow the convention" and becomes "is this object the right shape".
+
+**Where it lives here.** `app/answer.py`: `JSON_CONTRACT` in the prompt,
+`parse_answer_object()`, `structural_problems()` and `render_markdown()`. The published
+output is unchanged — `answer_markdown` is rendered from the sentences with the same
+`[C#]` markers — so the API, the frontend and the citations table never knew.
+
+**Why we chose it this way, and this is the interesting part: because the free-text
+version was measured and it was losing.** Against a real model, **18 of the 22 map-mode
+answers that reached the citation check failed on the first attempt** — a first-attempt
+pass rate of 18% (D-087). Almost all were rescued by the single retry, so the user saw
+good answers; the cost was that **two calls, not one, was the normal path**.
+
+The reason is worth internalising, because it generalises past citations. **A convention
+about formatting competes with the model's writing.** A marker belongs at the end of a
+sentence, but what counts as a sentence is a judgement: a thought spanning two
+sentences, a bullet list, a parenthetical "(e.g. a 4,000 sqm plot)", a heading. Our
+splitter had a hand-tuned regular expression, a list-prefix stripper and a
+minimum-letters rule to stop punctuation debris reading as an uncited sentence — three
+patches, all of them guessing at where a sentence ends. A JSON array has no splitter to
+disagree with, because the author decided the boundaries.
+
+The trade-offs are real and worth naming. Structured output costs tokens (field names
+are tokens), it needs defensive parsing anyway — JSON mode is **a request, not a
+contract**: Anthropic's Messages API has no `response_format` at all, Groq's is
+per-model, and a model that ignores it wraps its object in a code fence — and it moves
+the formatting decision from the model to your renderer, which is more code you own.
+What it buys is that the thing you check is the thing the model produced, rather than a
+reconstruction of it.
+
+**What it does not buy, which is the honest half.** Structure proves a citation is
+*present* and *real*. It cannot prove the clause *says* the sentence. The clearest
+evidence here is that our own prompt was asking for the defect: **rule 6 tells the model
+to say official DDA documents should be checked — a sentence no clause supports — while
+rule 2 demands a citation on every sentence**, so 7 of 17 real answers carry that line
+with a marker bolted onto it. No schema catches that. Only reading the answers does.
+
+**How to explain it in an interview.** "I had the model end every sentence with `[C1]`
+and validated it in code, and against a real model 18 of 22 first attempts failed — not
+because the citations were wrong, but because my sentence splitter and the model's
+writing disagreed about where sentences end. So I moved to a JSON contract where each
+sentence carries its own citations array, and validation became structural. I still
+render the same markdown, so nothing downstream changed. The thing I'd flag is what it
+didn't fix: structure proves a citation exists, not that the clause supports the
+sentence — and I found my own prompt asking for a sentence that no clause could
+support, which no schema would ever catch."
+
+---
+
+## 22. Why short labels help a model cite
+
+**What it is.** Giving the model a short name for each retrieved source instead of the
+real identifier. Map mode numbers its sources `C1` to `C6`. The agent chooses what to
+retrieve, so it gets labels `S1`, `S2`, … issued as searches return clauses, numbered
+across the whole run, and a clause it has seen before keeps the label it was first
+given. The label-to-clause map lives on the server.
+
+**Where it lives here.** `AgentRun.label_for()` and `run_search_clauses()` in
+`app/agent.py`; `citations_from()` in `app/answer.py` resolves a label back to a chunk.
+
+**Why we chose it this way.** The agent used to cite the whole chunk id —
+`MPD47_GAZETTE_EN:4.2.3@p753:0` — because that is the only globally unique name a clause
+has (clause numbers repeat across this corpus, so `4.2.3` is ambiguous). Measured
+against a real model, that was the single biggest difference between the two answering
+paths: **5 of 11 agent cases failed the citation check twice against 5 of 26 in map
+mode**. The cleanest comparison is one question asked both ways — "How much of my plot
+can I build on near Rajiv Chowk metro station?" failed twice as an agent run, while the
+same question at the same point in map mode, where the marker is `[C3]`, answered after
+one retry (D-085).
+
+**Why it is harder, mechanically.** A model does not copy a string, it generates it
+token by token, and a thirty-character identifier made of a document prefix, a dotted
+clause number, a page anchor and an ordinal is a long way to go without a slip — in a
+format where one wrong character makes the citation resolve to nothing. `S1` is one
+token. Shorter names are also easier to *choose* between while writing, which is why the
+retry prompt lists each label with its clause number and document.
+
+**The part that matters more than the win.** Nothing was relaxed to make this easier.
+The guarantee is still that a cited source must have come back from a search *in this
+run*, and `S9` after one search of six clauses is rejected exactly as an invented chunk
+id was. The same fact is checked through a shorter name. Two supporting choices follow
+from that: labels are numbered **across the run** and not per call, because `S1` meaning
+a different clause after the second search would be worse than a long identifier; and
+the chunk id is **not shown to the model at all**, because offering two names for one
+thing invites using the wrong one.
+
+**How to explain it in an interview.** "My agent had to cite a thirty-character chunk id
+exactly as retrieved, and it failed the citation check twice on 5 of 11 cases against 5
+of 26 in map mode, where the marker is `[C3]`. Same validation rule, same model — the
+difference was the length of the string. So search results now get short labels, `S1`,
+`S2`, numbered across the run, and the server keeps the map back to the real ids. The
+part I'd want to be asked about is that I didn't weaken the check to get that: a label
+the run never issued is still rejected, so an invented citation still can't resolve. I
+just stopped asking the model to do something it is bad at for no benefit."
 
 ---
 

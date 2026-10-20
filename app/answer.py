@@ -38,6 +38,13 @@ An answer that fails twice is thrown away rather than shown, because a confident
 sentence with no source behind it is the one thing a planning-law assistant must never
 produce.
 
+**Length is a prompt rule, not a check.** Rule 9 asks for one cited sentence per
+relevant rule, up to six, with the clause's own figures in it (D-095). v2's answers came
+back at a median of 42 words and one citation against v1's 116 and two, and nothing in
+the code knows which of those is right — only a reader does. The rule asks for the
+fuller shape **without** relaxing rule 8: each sentence still has to be stated by the
+clause it cites, so "more sentences" means more clauses quoted, never more inference.
+
 **The caveat is not one of those sentences.** `DISCLAIMER` is a fixed string this module
 puts on every result, answered or refused, and the prompt now forbids the model from
 writing one. Until D-092 rule 6 asked for a caveat that no clause states while rule 2
@@ -146,6 +153,10 @@ answer under 200 words.
 8. Each sentence must be stated by its cited clause. Do not combine clauses to reach a \
 conclusion that none of them states. If no clause answers the question directly, \
 abstain.
+9. When several of the sources are relevant, give each relevant rule as its own cited \
+sentence, up to six sentences. Include the specific figures the clause gives: FAR, \
+ground coverage, height, setbacks, minimum plot size. A figure must come from the \
+clause you cite for that sentence.
 """
 )
 

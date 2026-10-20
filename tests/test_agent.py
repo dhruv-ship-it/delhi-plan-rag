@@ -664,3 +664,19 @@ def test_a_matching_zone_adds_nothing_to_the_tool_result(stubs) -> None:
     sent = json.dumps(llm.calls[-1]["messages"], ensure_ascii=False)
     assert "location_note" not in sent
     assert "answer_for" not in sent
+
+
+def test_the_agent_prompt_asks_for_the_same_fuller_answer(stubs) -> None:
+    """Rule 10 in agent mode is rule 9 in map mode: the two prompts stay in step (D-095)."""
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "ground coverage TOD"}, "t1"),
+            said("Ground coverage on a TOD plot is 40%.", "S1"),
+        ]
+    )
+    run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "give each relevant rule as its own cited sentence" in system
+    assert "up to six sentences" in system
+    assert "Do not combine clauses to reach a conclusion that none of them states" in system

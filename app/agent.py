@@ -125,6 +125,10 @@ a location.
 9. Each sentence must be stated by its cited clause. Do not combine clauses to reach a \
 conclusion that none of them states. If no clause answers the question directly, \
 abstain.
+10. When several retrieved clauses are relevant, give each relevant rule as its own \
+cited sentence, up to six sentences. Include the specific figures the clause gives: \
+FAR, ground coverage, height, setbacks, minimum plot size. A figure must come from the \
+clause you cite for that sentence.
 """
 )
 

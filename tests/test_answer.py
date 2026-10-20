@@ -720,3 +720,29 @@ def test_no_note_means_no_extra_block_in_the_prompt(patched) -> None:
 
     assert result.location_note == ""
     assert "Note about where this question was asked" not in llm.last_prompt()
+
+
+# --- rule 9: fuller answers, without relaxing rule 8 (D-095) --------------------
+
+
+def test_the_prompt_asks_for_one_cited_sentence_per_rule_with_its_figures(patched) -> None:
+    """Rule 9 (D-095), and rule 8 beside it unchanged.
+
+    Both assertions are in one test on purpose: the rule only means what it is supposed
+    to mean while the no-synthesis rule is still there. "Give each relevant rule its own
+    sentence" without "each sentence must be stated by its cited clause" would be an
+    invitation to pad.
+    """
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "give each relevant rule as its own cited sentence" in system
+    assert "up to six sentences" in system
+    for figure in ("FAR", "ground coverage", "height", "setbacks", "minimum plot size"):
+        assert figure in system
+    assert "A figure must come from the clause you cite for that sentence" in system
+    # rule 8, unchanged
+    assert "Do not combine clauses to reach a conclusion that none of them states" in system
+    # and the word limit is still the outer bound
+    assert "under 200 words" in system

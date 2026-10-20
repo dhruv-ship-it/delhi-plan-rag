@@ -9,6 +9,11 @@
         --out reports/live_answers_v2.md --label "Second real-model run (v2)" \
         --groups ab --compare reports/live_run_state.json
 
+    # the v3 run: the same 21 cases plus 2 probes, after D-092 to D-096
+    uv run python scripts/live_run.py --state reports/live_run_state_v3.json \
+        --out reports/live_answers_v3.md --label "Third real-model run (v3)" \
+        --groups abd --compare reports/live_run_state.json,reports/live_run_state_v2.json
+
 Until now every answer this project has produced came from `FakeLLM` and a scripted
 reply (D-040). This script produces the first real ones, and its only job is to
 **record** them: it changes no prompt, no threshold and no retrieval setting, and
@@ -79,11 +84,23 @@ from app.retrieval import get_index  # noqa: E402
 STATE_PATH = Path("reports/live_run_state.json")
 REPORT_PATH = Path("reports/live_answers_v1.md")
 REPORT_LABEL = "First real-model run (v1)"
-#: An earlier state file to compare against, or None.
-COMPARE_PATH: Path | None = None
+#: Earlier state files to compare against, oldest first. Empty for a standalone run.
+COMPARE_PATHS: list[Path] = []
+#: One phrase naming what changed since the previous run, for the comparison's opening
+#: paragraph. Set from `--changes`, because the script cannot know and must not guess.
+CHANGES = ""
 
-#: Which case groups to run. "a" is the DEMO questions, "b" agent mode, "c" the drafts.
-GROUP_LETTERS = {"a": "a. docs/DEMO.md, map mode", "b": "b. agent mode, a place named in words"}
+#: Which case groups to run. "a" is the DEMO questions, "b" agent mode, "c" the drafts,
+#: "d" the two location-note probes (D-094).
+GROUP_LETTERS = {
+    "a": "a. docs/DEMO.md, map mode",
+    "b": "b. agent mode, a place named in words",
+    "d": "d. probes for the location note",
+}
+
+#: The group label the probes are filed under. Its first letter is what `--groups d`
+#: matches, the same way the other groups work.
+PROBE_GROUP = "d. probes for the location note"
 
 #: The most LLM calls one run may make, whatever the token budget says.
 CALL_CAP = 120
@@ -166,6 +183,33 @@ AGENT_CASES = (
 )
 
 
+# --- group d: two probes for the named-zone mismatch note -----------------------
+#
+# Both name a zone and are asked where that zone is **not**, which is what D-094's note
+# exists for. `expect` is "either" for both, and deliberately: the right answer is one
+# about the located point, or an abstention, and no mechanical rule can tell those from
+# an answer about the named zone. These two cases are here to be read.
+
+PROBE_MAP_CASES = (
+    (
+        "P_TOD",
+        "Can I build on the Yamuna floodplain here?",
+        "either",
+        "probe: names Zone O at a point get_zones puts in a TOD zone, 2.7 km away (D-094)",
+    ),
+)
+
+PROBE_AGENT_CASES = (
+    (
+        "Is construction allowed in the Ridge near Chhatarpur?",
+        28.5067,
+        77.1750,
+        4000,
+        "probe: the same question as agent-05, re-asked with the note in place (D-094)",
+    ),
+)
+
+
 def now() -> str:
     """The time, to the second, in UTC."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -230,6 +274,41 @@ def build_cases() -> list[dict]:
                 "near": [lat, lon],
                 "radius_m": radius,
                 "expect": "answer",
+                "note": note,
+            }
+        )
+
+    number = 0
+    for point_name, question, expect, note in PROBE_MAP_CASES:
+        number += 1
+        point = named[point_name]
+        cases.append(
+            {
+                "id": f"probe-{number:02d}",
+                "group": PROBE_GROUP,
+                "mode": "map",
+                "question": question,
+                "point_name": point_name,
+                "lat": point["lat"],
+                "lon": point["lon"],
+                "expect": expect,
+                "note": note,
+            }
+        )
+    for question, lat, lon, radius, note in PROBE_AGENT_CASES:
+        number += 1
+        cases.append(
+            {
+                "id": f"probe-{number:02d}",
+                "group": PROBE_GROUP,
+                "mode": "agent",
+                "question": question,
+                "point_name": None,
+                "lat": None,
+                "lon": None,
+                "near": [lat, lon],
+                "radius_m": radius,
+                "expect": "either",
                 "note": note,
             }
         )
@@ -364,6 +443,10 @@ def run_case(case: dict, client: GroqLLM, index) -> dict:
             # One problems list per rejected attempt (D-087). v1 recorded only a count,
             # so `reports/citation_failures_v1.md` could not say which rule fired.
             "validation_failures": [list(attempt) for attempt in result.validation_failures],
+            # The deterministic note, when the question named a zone the point is not
+            # in (D-094), and what the claim check said about the answer (D-096).
+            "location_note": result.location_note,
+            "support_check": dict(result.support_check or {}),
             "llm_calls": result.llm_calls,
             "latency_ms": result.latency_ms,
             "tool_trace": list(result.tool_trace),
@@ -378,6 +461,18 @@ def run_case(case: dict, client: GroqLLM, index) -> dict:
     # call count. Before D-087 this was `llm_calls - 1`, which only worked in map mode:
     # an agent run's calls include its tool rounds, so the field had to be left unset.
     record["citation_retry"] = len(result.validation_failures)
+
+    # The claim check goes through the same client, so its tokens are inside the deltas
+    # above. Split them out, because "what did the answer cost" and "what did checking
+    # it cost" are two different questions and v3 reports both (D-096).
+    support = record["support_check"]
+    record["support_calls"] = int(support.get("calls") or 0)
+    record["support_tokens"] = int(support.get("input_tokens") or 0) + int(
+        support.get("output_tokens") or 0
+    )
+    record["answer_tokens"] = (
+        record["input_tokens"] + record["output_tokens"] - record["support_tokens"]
+    )
 
     expected = list(case.get("expected_chunk_ids") or [])
     if expected:
@@ -431,6 +526,17 @@ def problems_of(record: dict) -> list[str]:
         found.append(f"the agent placed the location {off} m from where it should be")
     if record["mode"] == "agent" and not abstained and record.get("located_lat") is None:
         found.append("the agent answered without ever establishing a point")
+
+    support = record.get("support_check") or {}
+    counts = support.get("counts") or {}
+    if counts.get("unsupported"):
+        found.append(
+            f"the claim check called {counts['unsupported']} sentence(s) unsupported"
+        )
+    if support.get("would_change") and not support.get("enforced"):
+        found.append("enforce mode would have changed this answer")
+    if support.get("mode") not in (None, "off") and support.get("error"):
+        found.append("the claim check could not run")
 
     if record.get("expected_hit") is False:
         if record.get("expected_retrieved"):
@@ -687,15 +793,25 @@ def outcome_of(record: dict) -> str:
     return f"abstained `{reason}`"
 
 
+def median_of(values: list[float]) -> float | None:
+    """The median, or None for an empty list. `statistics.median` raises on empty."""
+    return statistics.median(values) if values else None
+
+
 def totals_of(records: list[dict], mode: str | None = None) -> dict:
     """The run-level numbers the brief asks for, over one list of records.
 
     `mode` restricts the **pass-rate** numbers to one mode, which is what keeps them
     comparable across runs: v1 could not count an agent retry at all, so an agent case
     is absent from its denominator and present in v2's. The rate is therefore reported
-    for map mode in both columns, and for agent mode in v2's alone.
+    for map mode in every column, and for agent mode from v2 onwards.
+
+    Three groups of fields arrived with v3 and are absent from older state files:
+    `has_notes` and `has_support` say so, so the report can print an honest dash rather
+    than a zero that reads like a measurement (D-094, D-096).
     """
     ok = [item for item in records if not item.get("error")]
+    answered = [item for item in ok if not item.get("abstained")]
     checked = [
         item
         for item in ok
@@ -712,9 +828,31 @@ def totals_of(records: list[dict], mode: str | None = None) -> dict:
     tokens = [
         (item.get("input_tokens") or 0) + (item.get("output_tokens") or 0) for item in ok
     ]
+
+    # the claim check, summed across the cases that ran one
+    support_counts: dict[str, int] = {"supported": 0, "partly": 0, "unsupported": 0}
+    would_change: list[str] = []
+    would_abstain: list[str] = []
+    support_ran = 0
+    support_tokens: list[int] = []
+    answer_tokens: list[int] = []
+    for item in ok:
+        support = item.get("support_check") or {}
+        if support.get("ran"):
+            support_ran += 1
+            for name, count in (support.get("counts") or {}).items():
+                support_counts[name] = support_counts.get(name, 0) + int(count)
+        if support.get("would_change"):
+            would_change.append(item["id"])
+        if support.get("would_abstain"):
+            would_abstain.append(item["id"])
+        if "support_tokens" in item:
+            support_tokens.append(int(item.get("support_tokens") or 0))
+            answer_tokens.append(int(item.get("answer_tokens") or 0))
+
     return {
         "cases": len(records),
-        "answered": sum(1 for item in ok if not item.get("abstained")),
+        "answered": len(answered),
         "abstained": sum(1 for item in ok if item.get("abstained")),
         "reached_check": len(checked),
         "first_attempt_pass": len(passed),
@@ -731,6 +869,23 @@ def totals_of(records: list[dict], mode: str | None = None) -> dict:
         "located_close": len(close),
         "tokens_mean": (sum(tokens) / len(tokens)) if tokens else 0.0,
         "tokens_total": sum(tokens),
+        "words_median": median_of([item.get("answer_words") or 0 for item in answered]),
+        "citations_median": median_of(
+            [len(item.get("citations") or []) for item in answered]
+        ),
+        "has_notes": any("location_note" in item for item in ok),
+        "location_notes": sum(1 for item in ok if item.get("location_note")),
+        "has_support": any("support_check" in item for item in ok),
+        "support_ran": support_ran,
+        "support_counts": support_counts,
+        "enforce_would_change": would_change,
+        "enforce_would_abstain": would_abstain,
+        "tokens_answer_mean": (
+            (sum(answer_tokens) / len(answer_tokens)) if answer_tokens else None
+        ),
+        "tokens_support_mean": (
+            (sum(support_tokens) / len(support_tokens)) if support_tokens else None
+        ),
     }
 
 
@@ -744,94 +899,246 @@ def _rate(totals: dict) -> str:
     )
 
 
-def comparison_lines(state: dict, previous: dict) -> list[str]:
-    """The case-by-case table and the totals, v1 against v2."""
-    before = {record["id"]: record for record in previous.get("records") or []}
-    now = {record["id"]: record for record in state.get("records") or []}
-    shared = [case_id for case_id in now if case_id in before]
+def _cell(value) -> str:
+    """One table cell: a dash for a run that had no such field."""
+    if value is None:
+        return "—"
+    if isinstance(value, float):
+        return f"{value:,.0f}" if value >= 10 else f"{value:.1f}"
+    return str(value)
+
+
+def _maybe(totals: dict, flag: str, value) -> str:
+    """`value` when the run recorded that family of fields, a dash when it did not."""
+    return _cell(value) if totals.get(flag) else "—"
+
+
+def _ids(case_ids: list[str], flag: bool) -> str:
+    """A list of case ids as links, "none" when empty, a dash for an older run."""
+    if not flag:
+        return "—"
+    if not case_ids:
+        return "none"
+    return ", ".join(f"[{case_id}](#{case_id})" for case_id in case_ids)
+
+
+def comparison_lines(runs: list[tuple[str, dict]]) -> list[str]:
+    """The case-by-case table and the totals, one column per run.
+
+    `runs` is (label, state) oldest first, with this run last. Everything here is read
+    off the state files: no case is re-run and nothing is recomputed from an answer, so
+    the comparison says what the runs recorded and not what this script thinks of it.
+    """
+    if len(runs) < 2:
+        return []
+    labels = [label for label, _ in runs]
+    by_run = [
+        {record["id"]: record for record in (state.get("records") or [])}
+        for _, state in runs
+    ]
+    current = by_run[-1]
+    shared = [case_id for case_id in current if all(case_id in found for found in by_run)]
     if not shared:
         return []
 
+    heading = " against ".join(labels)
     out = [
-        "## v1 against v2",
+        f"## {heading}",
         "",
-        f"The {len(shared)} case(s) both runs recorded, read off the two state files. "
-        "Both ran the same questions at the same points with the same budget; what "
-        "changed between them is D-086 to D-090 — scoped query expansion, structured "
-        "answers, agent labels and the geocoding fallback. **Still nobody has read "
-        "these answers.**",
+        f"The {len(shared)} case(s) every run recorded, read off the state files. The "
+        "same questions at the same points with the same budget each time; what changed "
+        f"between {labels[-2]} and {labels[-1]} is "
+        + (CHANGES or "recorded in `DECISIONS.md`")
+        + ". **Still nobody has read these answers.**",
         "",
-        "| case | question | v1 | v2 | retries v1 → v2 | citations v1 → v2 |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| case | question | " + " | ".join(labels) + " | retries | citations | note? |",
+        "| --- | --- | " + " | ".join("---" for _ in labels) + " | --- | --- | --- |",
     ]
     for case_id in shared:
-        first, second = before[case_id], now[case_id]
-        question = first.get("question", "")
+        rows = [found[case_id] for found in by_run]
+        question = rows[0].get("question", "")
+        retries = " → ".join(
+            str(row.get("citation_retry")) if row.get("citation_retry") is not None else "—"
+            for row in rows
+        )
+        citations = " → ".join(str(len(row.get("citations") or [])) for row in rows)
+        latest = rows[-1]
+        note = "yes" if latest.get("location_note") else ("no" if "location_note" in latest else "—")
         out.append(
-            f"| [{case_id}](#{case_id}) | {question[:46]}"
-            f"{'…' if len(question) > 46 else ''} "
-            f"| {outcome_of(first)} | {outcome_of(second)} "
-            f"| {first.get('citation_retry') if first.get('citation_retry') is not None else '—'}"
-            f" → {second.get('citation_retry') if second.get('citation_retry') is not None else '—'} "
-            f"| {len(first.get('citations') or [])} → {len(second.get('citations') or [])} |"
+            f"| [{case_id}](#{case_id}) | {question[:42]}"
+            f"{'…' if len(question) > 42 else ''} | "
+            + " | ".join(outcome_of(row) for row in rows)
+            + f" | {retries} | {citations} | {note} |"
         )
 
-    old_records = [before[case_id] for case_id in shared]
-    new_records = [now[case_id] for case_id in shared]
-    old_totals = totals_of(old_records, mode="map")
-    new_totals = totals_of(new_records, mode="map")
-    old_agent = totals_of(old_records, mode="agent")
-    new_agent = totals_of(new_records, mode="agent")
+    # the cases only this run has, which is where the probes show up
+    extra = [case_id for case_id in current if case_id not in shared]
+    if extra:
+        out += [
+            "",
+            f"{len(extra)} case(s) are new in {labels[-1]} and have no earlier column: "
+            + ", ".join(f"[{case_id}](#{case_id})" for case_id in extra)
+            + ".",
+        ]
+
+    per_run = [[found[case_id] for case_id in shared] for found in by_run]
+    totals = [totals_of(records, mode="map") for records in per_run]
+    agents = [totals_of(records, mode="agent") for records in per_run]
+    whole = [totals_of(records) for records in per_run]
+
     out += [
         "",
-        "### Totals, over those cases only",
+        f"### Totals, over those {len(shared)} cases only",
         "",
         "The pass rate counts only the cases whose answer actually reached the citation "
         "check: a point outside Delhi never calls the model, and a case the model "
         "declined under rule 3 has nothing to check. It is split by mode because v1 "
         "could not count an agent retry, so an agent case is missing from its "
-        "denominator and present in v2's. And it is over these cases only — "
-        "`reports/citation_failures_v1.md` quotes 18% for v1 because it counts the 30 "
-        "draft cases too.",
+        "denominator and present in later ones. A **dash** means the run predates the "
+        "field, not that the number is zero.",
         "",
-        "| | v1 | v2 |",
-        "| --- | --- | --- |",
-        f"| first-attempt pass rate, map mode | {_rate(old_totals)} | {_rate(new_totals)} |",
-        f"| first-attempt pass rate, agent mode | {_rate(old_agent)} | {_rate(new_agent)} |",
-        f"| citation retries | {old_totals['retries']} | {new_totals['retries']} |",
-        f"| `citation_check_failed` | {old_totals['citation_check_failed']} "
-        f"| {new_totals['citation_check_failed']} |",
-        f"| should-abstain handled right | {old_totals['should_abstain_right']} of "
-        f"{old_totals['should_abstain']} | {new_totals['should_abstain_right']} of "
-        f"{new_totals['should_abstain']} |",
-        f"| agent location within tolerance | {old_totals['located_close']} of "
-        f"{old_totals['located']} | {new_totals['located_close']} of "
-        f"{new_totals['located']} |",
-        f"| tokens per case (mean) | {old_totals['tokens_mean']:,.0f} "
-        f"| {new_totals['tokens_mean']:,.0f} |",
-        f"| answered / abstained | {old_totals['answered']} / {old_totals['abstained']} "
-        f"| {new_totals['answered']} / {new_totals['abstained']} |",
+        "| | " + " | ".join(labels) + " |",
+        "| --- | " + " | ".join("---" for _ in labels) + " |",
+        "| answered / abstained | "
+        + " | ".join(f"{one['answered']} / {one['abstained']}" for one in whole)
+        + " |",
+        "| first-attempt pass rate, map mode | "
+        + " | ".join(_rate(one) for one in totals)
+        + " |",
+        "| first-attempt pass rate, agent mode | "
+        + " | ".join(_rate(one) for one in agents)
+        + " |",
+        "| citation retries | " + " | ".join(str(one["retries"]) for one in totals) + " |",
+        "| `citation_check_failed` | "
+        + " | ".join(str(one["citation_check_failed"]) for one in whole)
+        + " |",
+        "| should-abstain handled right | "
+        + " | ".join(
+            f"{one['should_abstain_right']} of {one['should_abstain']}" for one in whole
+        )
+        + " |",
+        "| agent location within tolerance | "
+        + " | ".join(f"{one['located_close']} of {one['located']}" for one in whole)
+        + " |",
+        "| median words, answered cases | "
+        + " | ".join(_cell(one["words_median"]) for one in whole)
+        + " |",
+        "| median citations, answered cases | "
+        + " | ".join(_cell(one["citations_median"]) for one in whole)
+        + " |",
+        "| location notes shown | "
+        + " | ".join(_maybe(one, "has_notes", one["location_notes"]) for one in whole)
+        + " |",
+        "| claim check ran on | "
+        + " | ".join(_maybe(one, "has_support", one["support_ran"]) for one in whole)
+        + " |",
+        "| sentences `supported` | "
+        + " | ".join(
+            _maybe(one, "has_support", one["support_counts"].get("supported", 0))
+            for one in whole
+        )
+        + " |",
+        "| sentences `partly` | "
+        + " | ".join(
+            _maybe(one, "has_support", one["support_counts"].get("partly", 0))
+            for one in whole
+        )
+        + " |",
+        "| sentences `unsupported` | "
+        + " | ".join(
+            _maybe(one, "has_support", one["support_counts"].get("unsupported", 0))
+            for one in whole
+        )
+        + " |",
+        "| cases `enforce` would change | "
+        + " | ".join(
+            _ids(one["enforce_would_change"], one["has_support"]) for one in whole
+        )
+        + " |",
+        "| … of those, would abstain | "
+        + " | ".join(
+            _ids(one["enforce_would_abstain"], one["has_support"]) for one in whole
+        )
+        + " |",
+        "| tokens per case (mean) | "
+        + " | ".join(f"{one['tokens_mean']:,.0f}" for one in whole)
+        + " |",
+        "| … of which, the answer | "
+        + " | ".join(_cell(one["tokens_answer_mean"]) for one in whole)
+        + " |",
+        "| … of which, the claim check | "
+        + " | ".join(_cell(one["tokens_support_mean"]) for one in whole)
+        + " |",
         "",
         "**How to read the retry column.** In v1 the agent's retries could not be "
-        "counted at all — the field was `llm_calls - 1`, which only works when a case "
-        "makes one call, and an agent run's calls include its tool rounds. v2 records "
-        "one problems list per rejected attempt (D-087), so the number is read rather "
-        "than inferred and the agent rows carry one for the first time. A v1 agent "
-        "row therefore shows `—` and not `0`.",
+        "counted at all — the field was `llm_calls - 1`, which only works when a "
+        "case makes one call, and an agent run's calls include its tool rounds. From v2 "
+        "one problems list is recorded per rejected attempt (D-087), so the number is "
+        "read rather than inferred. A v1 agent row therefore shows a dash and not `0`.",
+        "",
+        "**What the claim-check rows are and are not.** `SUPPORT_CHECK=shadow`, so every "
+        "verdict in this run was recorded and **none of them changed an answer** "
+        "(D-096). The `enforce` rows say what the other mode would have done to these "
+        "same answers, which is the question a reader has to settle before that mode is "
+        "turned on. They are a model's judgement of a model, so they are evidence and "
+        "not a verdict.",
         "",
     ]
+
+    latest = whole[-1]
+    if latest["has_support"]:
+        changed = latest["enforce_would_change"]
+        out += [
+            "**`demo-07`, explicitly.** It is the should-abstain beat at P_RIDGE that "
+            "answered in v1 (134 words) and again in v2 (60 words), citing clauses "
+            "that do not say it, and it is the case the claim check exists for. In this "
+            "run "
+            + (
+                "`enforce` **would** have changed it."
+                if "demo-07" in changed
+                else "`enforce` would **not** have changed it, which is the more "
+                "interesting outcome of the two: the structural check passed it, the "
+                "semantic check passed it, and a reader still has to decide whether "
+                "the answer is right."
+            )
+            + (
+                f" The cases `enforce` would have changed are {_ids(changed, True)}."
+                if changed
+                else " It would have changed no case in this run at all."
+            ),
+            "",
+        ]
     return out
+
+
+def run_labels(count: int) -> list[str]:
+    """Column labels for `count` runs, oldest first: v1, v2, ... and this run last."""
+    return [f"v{number}" for number in range(1, count + 1)]
+
+
+def compared_runs(state: dict) -> list[tuple[str, dict]]:
+    """(label, state) for every earlier run that can be read, plus this one, in order.
+
+    An earlier state file that is missing or unreadable is dropped rather than raised
+    on: a comparison is a courtesy to the reader and must not stop the run that is
+    producing the report.
+    """
+    earlier: list[dict] = []
+    for path in COMPARE_PATHS:
+        if not path.exists():
+            continue
+        try:
+            earlier.append(json.loads(path.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
+    runs = earlier + [state]
+    return list(zip(run_labels(len(runs)), runs))
 
 
 def write_report(state: dict, total: int) -> None:
     """Rewrite the whole report from the state file. Called after every case."""
     lines = summary_lines(state, total)
-    if COMPARE_PATH is not None and COMPARE_PATH.exists():
-        try:
-            previous = json.loads(COMPARE_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            previous = {}
-        lines += comparison_lines(state, previous)
+    lines += comparison_lines(compared_runs(state))
     lines += problem_lines(state)
 
     groups: dict[str, list[dict]] = {}
@@ -851,9 +1158,91 @@ def write_report(state: dict, total: int) -> None:
 # --- the run --------------------------------------------------------------------
 
 
+def print_comparison(state: dict) -> None:
+    """The same totals the report carries, on stdout, one column per run.
+
+    Printed rather than only written, because this is the figure the run is for and a
+    reader should not have to open a 2,000-line markdown file to see it.
+    """
+    runs = compared_runs(state)
+    if len(runs) < 2:
+        return
+    labels = [label for label, _ in runs]
+    by_run = [
+        {record["id"]: record for record in (one.get("records") or [])} for _, one in runs
+    ]
+    current = by_run[-1]
+    shared = [case_id for case_id in current if all(case_id in found for found in by_run)]
+    if not shared:
+        return
+    per_run = [[found[case_id] for case_id in shared] for found in by_run]
+    maps = [totals_of(records, mode="map") for records in per_run]
+    agents = [totals_of(records, mode="agent") for records in per_run]
+    whole = [totals_of(records) for records in per_run]
+
+    width = 22
+    print()
+    print(f"{' against '.join(labels)} over {len(shared)} shared case(s):")
+    print("  " + " " * 34 + "".join(f"{label:>{width}}" for label in labels))
+
+    def row(name: str, values: list[str]) -> None:
+        print(f"  {name:<34}" + "".join(f"{value:>{width}}" for value in values))
+
+    row("first-attempt pass, map", [_rate(one) for one in maps])
+    row("first-attempt pass, agent", [_rate(one) for one in agents])
+    row("citation retries", [str(one["retries"]) for one in maps])
+    row("citation_check_failed", [str(one["citation_check_failed"]) for one in whole])
+    row(
+        "answered / abstained",
+        [f"{one['answered']} / {one['abstained']}" for one in whole],
+    )
+    row(
+        "should-abstain right",
+        [f"{one['should_abstain_right']} of {one['should_abstain']}" for one in whole],
+    )
+    row(
+        "agent location in range",
+        [f"{one['located_close']} of {one['located']}" for one in whole],
+    )
+    row("median words", [_cell(one["words_median"]) for one in whole])
+    row("median citations", [_cell(one["citations_median"]) for one in whole])
+    row(
+        "location notes shown",
+        [_maybe(one, "has_notes", one["location_notes"]) for one in whole],
+    )
+    for verdict in ("supported", "partly", "unsupported"):
+        row(
+            f"sentences {verdict}",
+            [
+                _maybe(one, "has_support", one["support_counts"].get(verdict, 0))
+                for one in whole
+            ],
+        )
+    row(
+        "cases enforce would change",
+        [
+            _maybe(one, "has_support", len(one["enforce_would_change"]))
+            for one in whole
+        ],
+    )
+    row("tokens per case", [f"{one['tokens_mean']:,.0f}" for one in whole])
+    row("  of which, the answer", [_cell(one["tokens_answer_mean"]) for one in whole])
+    row("  of which, the claim check", [_cell(one["tokens_support_mean"]) for one in whole])
+
+    latest = whole[-1]
+    if latest["has_support"]:
+        changed = latest["enforce_would_change"]
+        print()
+        print(
+            "  enforce would have changed: "
+            + (", ".join(changed) if changed else "no case")
+        )
+        print(f"  demo-07: enforce would {'' if 'demo-07' in changed else 'NOT '}change it")
+
+
 def main() -> int:
     """Run the cases that are not done yet, within the caps, then stop and report."""
-    global STATE_PATH, REPORT_PATH, REPORT_LABEL, COMPARE_PATH
+    global STATE_PATH, REPORT_PATH, REPORT_LABEL, COMPARE_PATHS, CHANGES
     use_utf8_output()
     parser = argparse.ArgumentParser(description="The first real-model run.")
     parser.add_argument("--resume", action="store_true", help="continue a run that stopped")
@@ -881,12 +1270,24 @@ def main() -> int:
     parser.add_argument(
         "--groups",
         default="abc",
-        help="which case groups to run: a=DEMO, b=agent, c=drafts (default abc)",
+        help=(
+            "which case groups to run: a=DEMO, b=agent, c=drafts, d=the location-note "
+            "probes (default abc, which is what v1 ran)"
+        ),
     )
     parser.add_argument(
         "--compare",
         default="",
-        help="an earlier state file to put a case-by-case comparison against at the top",
+        help=(
+            "earlier state file(s), comma separated and oldest first, to put a "
+            "case-by-case comparison against at the top. The columns are labelled v1, "
+            "v2, ... in that order, with this run last"
+        ),
+    )
+    parser.add_argument(
+        "--changes",
+        default="",
+        help="one phrase naming what changed since the previous run, for the comparison",
     )
     parser.add_argument(
         "--report-only",
@@ -898,7 +1299,10 @@ def main() -> int:
     STATE_PATH = Path(args.state)
     REPORT_PATH = Path(args.out)
     REPORT_LABEL = args.label
-    COMPARE_PATH = Path(args.compare) if args.compare else None
+    COMPARE_PATHS = [
+        Path(part.strip()) for part in args.compare.split(",") if part.strip()
+    ]
+    CHANGES = args.changes.strip()
 
     if settings.llm_provider != PROVIDER_GROQ:
         print(f"LLM_PROVIDER is {settings.llm_provider!r}, not 'groq'.")
@@ -910,7 +1314,7 @@ def main() -> int:
         return 1
 
     cases = build_cases()
-    if args.groups != "abc":
+    if args.groups != "abcd":
         wanted = {letter for letter in args.groups.lower()}
         cases = [case for case in cases if case["group"][0] in wanted]
     if args.only:
@@ -1026,42 +1430,7 @@ def main() -> int:
             f"p95 {percentile(latencies, 0.95) / 1000:.1f}s, "
             f"mean {statistics.mean(latencies) / 1000:.1f}s"
         )
-    if COMPARE_PATH is not None and COMPARE_PATH.exists():
-        previous = json.loads(COMPARE_PATH.read_text(encoding="utf-8"))
-        shared = {item["id"] for item in records} & {
-            item["id"] for item in previous.get("records") or []
-        }
-        old_records = [item for item in previous["records"] if item["id"] in shared]
-        new_records = [item for item in records if item["id"] in shared]
-        old_totals = totals_of(old_records, mode="map")
-        new_totals = totals_of(new_records, mode="map")
-        print()
-        print(f"v1 against v2 over {len(shared)} shared case(s):")
-        print(f"  first-attempt pass, map   {_rate(old_totals):>18}  ->  {_rate(new_totals)}")
-        print(
-            f"  first-attempt pass, agent "
-            f"{_rate(totals_of(old_records, mode='agent')):>18}  ->  "
-            f"{_rate(totals_of(new_records, mode='agent'))}"
-        )
-        print(f"  citation retries          {old_totals['retries']:>18}  ->  {new_totals['retries']}")
-        print(
-            f"  citation_check_failed     {old_totals['citation_check_failed']:>18}  ->  "
-            f"{new_totals['citation_check_failed']}"
-        )
-        print(
-            f"  should-abstain right      "
-            f"{str(old_totals['should_abstain_right']) + ' of ' + str(old_totals['should_abstain']):>18}"
-            f"  ->  {new_totals['should_abstain_right']} of {new_totals['should_abstain']}"
-        )
-        print(
-            f"  agent location in range   "
-            f"{str(old_totals['located_close']) + ' of ' + str(old_totals['located']):>18}"
-            f"  ->  {new_totals['located_close']} of {new_totals['located']}"
-        )
-        print(
-            f"  tokens per case           {old_totals['tokens_mean']:>18,.0f}  ->  "
-            f"{new_totals['tokens_mean']:,.0f}"
-        )
+    print_comparison(state)
     print(f"wrote {REPORT_PATH.as_posix()} and {STATE_PATH.as_posix()}")
     if state["stopped_because"] in ("token_budget", "call_cap"):
         print("Continue with: uv run python scripts\\live_run.py --resume")

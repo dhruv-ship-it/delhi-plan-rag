@@ -45,7 +45,8 @@ plot in none of the six policy zones.
 
 ## Search-only mode (works today)
 
-Six beats, about 25 seconds each. The spine of the demo is **one question asked at three
+Six beats, about 25 seconds each, plus an optional beat 3b if you are asked how you
+debug retrieval. The spine of the demo is **one question asked at three
 different points**, because that is the thing no plain RAG demo can show.
 
 ### Beat 1 — Rajiv Chowk, and what the system knows before it searches (0:00–0:30)

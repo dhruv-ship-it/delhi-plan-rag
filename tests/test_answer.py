@@ -22,7 +22,7 @@ from app.answer import (
     WEAK_RETRIEVAL,
     answer_point,
     citation_problems,
-    citations_for,
+    citations_from,
     clean_label,
     markers_in,
     model_abstained,
@@ -223,9 +223,12 @@ def test_an_empty_answer_is_a_problem() -> None:
 
 
 def test_citations_are_resolved_in_order_and_deduplicated() -> None:
-    """[C1] used twice yields one citation, carrying the chunk's own metadata."""
-    results = [fake_result("MPD47_GAZETTE_EN:4.2.3:0"), fake_result("MPD47_FAQ:Q13@p13:0")]
-    found = citations_for(GOOD_ANSWER, results, CHUNKS)
+    """"C1" used twice yields one citation, carrying the chunk's own metadata."""
+    sources = {
+        "C1": fake_result("MPD47_GAZETTE_EN:4.2.3:0"),
+        "C2": fake_result("MPD47_FAQ:Q13@p13:0"),
+    }
+    found = citations_from(GOOD_SENTENCES, sources, CHUNKS)
     assert [citation.marker for citation in found] == ["C1", "C2"]
     assert found[0].chunk_id == "MPD47_GAZETTE_EN:4.2.3:0"
     assert found[0].source_url == "https://dda.gov.in/gazette.pdf"

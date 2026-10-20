@@ -435,10 +435,13 @@ def citations_from(
 
 # --- checking rendered prose ----------------------------------------------------
 #
-# These were the whole of validation before D-088 and are now the check on the
-# *rendered* markdown rather than on the model: `citation_problems(render_markdown(...))`
-# has to come back empty, which is the property that keeps the published output format
-# honest. `app/dev_eval.py` and the tests read them directly.
+# These were the whole of validation before D-088. Nothing in the answering path calls
+# them any more; what they are for now is the check on the **rendered** markdown rather
+# than on the model. `citation_problems(render_markdown(...))` has to come back empty,
+# and `tests/test_answer.py` asserts exactly that — which is what keeps the published
+# output format a format the old checker would have accepted, so no client had to
+# change. `scripts/classify_citation_failures.py` reads the splitter directly, to
+# measure the shape of the answers v1 produced.
 
 
 def markers_in(text: str) -> list[int]:
@@ -487,30 +490,6 @@ def citation_problems(answer: str, source_count: int) -> list[str]:
     if not sentences_of(answer):
         problems.append("The answer is empty.")
     return problems
-
-
-def citations_for(answer: str, results: list[Result], chunks: dict) -> list[Citation]:
-    """The citations an answer actually used, in the order they first appear."""
-    found: list[Citation] = []
-    seen: set[int] = set()
-    for number in markers_in(answer):
-        if number in seen or not 1 <= number <= len(results):
-            continue
-        seen.add(number)
-        result = results[number - 1]
-        chunk = chunks.get(result.chunk_id, {})
-        found.append(
-            Citation(
-                marker=f"C{number}",
-                chunk_id=result.chunk_id,
-                doc_title=chunk.get("doc_title", result.doc_id),
-                clause_id=result.clause_id,
-                page_start=result.page_start,
-                page_end=result.page_end,
-                source_url=chunk.get("source_url", ""),
-            )
-        )
-    return found
 
 
 def model_abstained(answer: str) -> str | None:

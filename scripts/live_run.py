@@ -1,8 +1,13 @@
-"""The first real-model run: ask ZoneWise real questions through a real LLM, and record it.
+"""Ask ZoneWise real questions through a real LLM, and record what came back.
 
     uv run python scripts/live_run.py              # start a run
     uv run python scripts/live_run.py --resume     # continue one that stopped
     uv run python scripts/live_run.py --restart    # throw away a partial run and start again
+
+    # the v2 run: the same 21 DEMO and agent cases, after D-086 to D-090
+    uv run python scripts/live_run.py --state reports/live_run_state_v2.json \
+        --out reports/live_answers_v2.md --label "Second real-model run (v2)" \
+        --groups ab --compare reports/live_run_state.json
 
 Until now every answer this project has produced came from `FakeLLM` and a scripted
 reply (D-040). This script produces the first real ones, and its only job is to
@@ -21,6 +26,12 @@ is checked before each case, and no more than `CALL_CAP` LLM calls are made. Bot
 point of being resumable — the lifetime totals are reported separately. Neither is a
 cost control — Groq's free tier is the cost control — they are there so an unattended
 run cannot spend a day's quota on a bug.
+
+**The state file, the report and the case set are all arguments**, so the same script
+produces v1 and v2 without a copy of itself. `--groups ab` runs the DEMO and agent cases
+only, which is the comparable set; `--compare` points at an earlier state file and adds a
+case-by-case v1-against-v2 table and the totals to the top of the report. Nothing about
+the questions, the prompts or the retrieval settings is changed by either flag.
 
 **Three groups of cases, in this order:**
 
@@ -63,8 +74,16 @@ from app.llm import GroqLLM  # noqa: E402
 from app.location import describe_zones  # noqa: E402
 from app.retrieval import get_index  # noqa: E402
 
+#: Set from the command line in `main`. The defaults are v1's, so a bare invocation
+#: still means what it meant on 20 October.
 STATE_PATH = Path("reports/live_run_state.json")
 REPORT_PATH = Path("reports/live_answers_v1.md")
+REPORT_LABEL = "First real-model run (v1)"
+#: An earlier state file to compare against, or None.
+COMPARE_PATH: Path | None = None
+
+#: Which case groups to run. "a" is the DEMO questions, "b" agent mode, "c" the drafts.
+GROUP_LETTERS = {"a": "a. docs/DEMO.md, map mode", "b": "b. agent mode, a place named in words"}
 
 #: The most LLM calls one run may make, whatever the token budget says.
 CALL_CAP = 120
@@ -94,9 +113,13 @@ DEMO_CASES = (
     ("P_RIDGE", "Is construction allowed here?", "abstain", "beat 5, the should-abstain beat"),
     ("P_OUT", "Is construction allowed here?", "abstain", "beat 6, outside Delhi"),
     ("P_TOD", "What is my property tax?", "abstain", "the added beat: unanswerable"),
-    ("P_ZONEO", "Can a fuel station be built here?", "either", "cut from the demo; D-083"),
-    ("P_ZONEO", "Can a fuel station be built in Zone O?", "either", "cut; the explicit wording"),
-    ("P_RIDGE", "Can I build a house here?", "abstain", "cut; works but a weaker beat 5"),
+    # These two were "either" in v1, because docs/DEMO.md recorded the retrieval as
+    # wrong and both outcomes were therefore defensible. D-086 fixed it: 11.1.1@p854 is
+    # rank 1 under both wordings and the question is beat 3b of the demo, so the
+    # expectation is now "answer" — and the answer should be a **no**.
+    ("P_ZONEO", "Can a fuel station be built here?", "answer", "beat 3b; was cut, fixed by D-086"),
+    ("P_ZONEO", "Can a fuel station be built in Zone O?", "answer", "beat 3b, explicit wording"),
+    ("P_RIDGE", "Can I build a house here?", "abstain", "cut; D-086 left it weaker still"),
     ("P_PLAIN", "How much of my plot can I build on?", "either", "cut; wanders at ranks 2-3"),
     ("P_PLAIN", "What is the permissible FAR for plotted housing?", "answer", "the demo's replacement"),
     ("P_TOD", "What is clause 4.2.1?", "answer", "in your pocket: BM25 earning its place"),
@@ -448,7 +471,7 @@ def summary_lines(state: dict, total: int) -> list[str]:
     stopped = state.get("stopped_because") or "running"
 
     out = [
-        "# First real-model run (v1)",
+        f"# {REPORT_LABEL}",
         "",
         "> **Nobody has read these answers yet.** This file is a recording, not a review.",
         "> It was written by `scripts/live_run.py`, which changes no prompt, no threshold",
@@ -628,9 +651,187 @@ def case_lines(record: dict) -> list[str]:
     return out
 
 
+# --- the v1-against-v2 comparison -----------------------------------------------
+#
+# Everything here is read off two state files. No case is re-run and nothing is
+# recomputed from the answers, so the comparison says what the two runs recorded and
+# not what this script thinks of it.
+
+
+def reached_the_check(record: dict) -> bool:
+    """True when the model wrote an answer that the citation check then read.
+
+    A case that never reached the model (`outside_delhi`) and one the model declined
+    under rule 3 both skip the check entirely, so neither belongs in a pass rate.
+    """
+    if record.get("error"):
+        return False
+    reason = record.get("abstain_reason") or ""
+    if reason.startswith("outside_delhi") or reason.startswith("model_abstained"):
+        return False
+    return record.get("citation_retry") is not None
+
+
+def first_attempt_passed(record: dict) -> bool:
+    """True when the first answer this case produced survived the check."""
+    return reached_the_check(record) and not record.get("citation_retry")
+
+
+def outcome_of(record: dict) -> str:
+    """One short phrase for what a case did, for the comparison table."""
+    if record.get("error"):
+        return "failed"
+    if not record.get("abstained"):
+        return f"answered, {record.get('answer_words', 0)} words"
+    reason = (record.get("abstain_reason") or "unknown").split(":")[0]
+    return f"abstained `{reason}`"
+
+
+def totals_of(records: list[dict], mode: str | None = None) -> dict:
+    """The run-level numbers the brief asks for, over one list of records.
+
+    `mode` restricts the **pass-rate** numbers to one mode, which is what keeps them
+    comparable across runs: v1 could not count an agent retry at all, so an agent case
+    is absent from its denominator and present in v2's. The rate is therefore reported
+    for map mode in both columns, and for agent mode in v2's alone.
+    """
+    ok = [item for item in records if not item.get("error")]
+    checked = [
+        item
+        for item in ok
+        if reached_the_check(item) and (mode is None or item.get("mode") == mode)
+    ]
+    passed = [item for item in checked if first_attempt_passed(item)]
+    should_abstain = [item for item in ok if item.get("expect") == "abstain"]
+    located = [item for item in ok if item.get("located_metres_off") is not None]
+    close = [
+        item
+        for item in located
+        if item["located_metres_off"] <= (item.get("radius_m") or 0)
+    ]
+    tokens = [
+        (item.get("input_tokens") or 0) + (item.get("output_tokens") or 0) for item in ok
+    ]
+    return {
+        "cases": len(records),
+        "answered": sum(1 for item in ok if not item.get("abstained")),
+        "abstained": sum(1 for item in ok if item.get("abstained")),
+        "reached_check": len(checked),
+        "first_attempt_pass": len(passed),
+        "first_attempt_rate": (len(passed) / len(checked)) if checked else None,
+        "retries": sum(item.get("citation_retry") or 0 for item in records),
+        "citation_check_failed": sum(
+            1
+            for item in ok
+            if (item.get("abstain_reason") or "").startswith("citation_check_failed")
+        ),
+        "should_abstain": len(should_abstain),
+        "should_abstain_right": sum(1 for item in should_abstain if item.get("abstained")),
+        "located": len(located),
+        "located_close": len(close),
+        "tokens_mean": (sum(tokens) / len(tokens)) if tokens else 0.0,
+        "tokens_total": sum(tokens),
+    }
+
+
+def _rate(totals: dict) -> str:
+    """The first-attempt pass rate as a readable cell."""
+    if totals["first_attempt_rate"] is None:
+        return "—"
+    return (
+        f"{totals['first_attempt_rate']:.0%} "
+        f"({totals['first_attempt_pass']} of {totals['reached_check']})"
+    )
+
+
+def comparison_lines(state: dict, previous: dict) -> list[str]:
+    """The case-by-case table and the totals, v1 against v2."""
+    before = {record["id"]: record for record in previous.get("records") or []}
+    now = {record["id"]: record for record in state.get("records") or []}
+    shared = [case_id for case_id in now if case_id in before]
+    if not shared:
+        return []
+
+    out = [
+        "## v1 against v2",
+        "",
+        f"The {len(shared)} case(s) both runs recorded, read off the two state files. "
+        "Both ran the same questions at the same points with the same budget; what "
+        "changed between them is D-086 to D-090 — scoped query expansion, structured "
+        "answers, agent labels and the geocoding fallback. **Still nobody has read "
+        "these answers.**",
+        "",
+        "| case | question | v1 | v2 | retries v1 → v2 | citations v1 → v2 |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for case_id in shared:
+        first, second = before[case_id], now[case_id]
+        question = first.get("question", "")
+        out.append(
+            f"| [{case_id}](#{case_id}) | {question[:46]}"
+            f"{'…' if len(question) > 46 else ''} "
+            f"| {outcome_of(first)} | {outcome_of(second)} "
+            f"| {first.get('citation_retry') if first.get('citation_retry') is not None else '—'}"
+            f" → {second.get('citation_retry') if second.get('citation_retry') is not None else '—'} "
+            f"| {len(first.get('citations') or [])} → {len(second.get('citations') or [])} |"
+        )
+
+    old_records = [before[case_id] for case_id in shared]
+    new_records = [now[case_id] for case_id in shared]
+    old_totals = totals_of(old_records, mode="map")
+    new_totals = totals_of(new_records, mode="map")
+    old_agent = totals_of(old_records, mode="agent")
+    new_agent = totals_of(new_records, mode="agent")
+    out += [
+        "",
+        "### Totals, over those cases only",
+        "",
+        "The pass rate counts only the cases whose answer actually reached the citation "
+        "check: a point outside Delhi never calls the model, and a case the model "
+        "declined under rule 3 has nothing to check. It is split by mode because v1 "
+        "could not count an agent retry, so an agent case is missing from its "
+        "denominator and present in v2's. And it is over these cases only — "
+        "`reports/citation_failures_v1.md` quotes 18% for v1 because it counts the 30 "
+        "draft cases too.",
+        "",
+        "| | v1 | v2 |",
+        "| --- | --- | --- |",
+        f"| first-attempt pass rate, map mode | {_rate(old_totals)} | {_rate(new_totals)} |",
+        f"| first-attempt pass rate, agent mode | {_rate(old_agent)} | {_rate(new_agent)} |",
+        f"| citation retries | {old_totals['retries']} | {new_totals['retries']} |",
+        f"| `citation_check_failed` | {old_totals['citation_check_failed']} "
+        f"| {new_totals['citation_check_failed']} |",
+        f"| should-abstain handled right | {old_totals['should_abstain_right']} of "
+        f"{old_totals['should_abstain']} | {new_totals['should_abstain_right']} of "
+        f"{new_totals['should_abstain']} |",
+        f"| agent location within tolerance | {old_totals['located_close']} of "
+        f"{old_totals['located']} | {new_totals['located_close']} of "
+        f"{new_totals['located']} |",
+        f"| tokens per case (mean) | {old_totals['tokens_mean']:,.0f} "
+        f"| {new_totals['tokens_mean']:,.0f} |",
+        f"| answered / abstained | {old_totals['answered']} / {old_totals['abstained']} "
+        f"| {new_totals['answered']} / {new_totals['abstained']} |",
+        "",
+        "**How to read the retry column.** In v1 the agent's retries could not be "
+        "counted at all — the field was `llm_calls - 1`, which only works when a case "
+        "makes one call, and an agent run's calls include its tool rounds. v2 records "
+        "one problems list per rejected attempt (D-087), so the number is read rather "
+        "than inferred and the agent rows carry one for the first time. A v1 agent "
+        "row therefore shows `—` and not `0`.",
+        "",
+    ]
+    return out
+
+
 def write_report(state: dict, total: int) -> None:
     """Rewrite the whole report from the state file. Called after every case."""
     lines = summary_lines(state, total)
+    if COMPARE_PATH is not None and COMPARE_PATH.exists():
+        try:
+            previous = json.loads(COMPARE_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            previous = {}
+        lines += comparison_lines(state, previous)
     lines += problem_lines(state)
 
     groups: dict[str, list[dict]] = {}
@@ -652,6 +853,7 @@ def write_report(state: dict, total: int) -> None:
 
 def main() -> int:
     """Run the cases that are not done yet, within the caps, then stop and report."""
+    global STATE_PATH, REPORT_PATH, REPORT_LABEL, COMPARE_PATH
     use_utf8_output()
     parser = argparse.ArgumentParser(description="The first real-model run.")
     parser.add_argument("--resume", action="store_true", help="continue a run that stopped")
@@ -670,11 +872,33 @@ def main() -> int:
     )
     parser.add_argument("--only", default="", help="run only cases whose id contains this")
     parser.add_argument(
+        "--state", default=str(STATE_PATH), help=f"state file (default {STATE_PATH.as_posix()})"
+    )
+    parser.add_argument(
+        "--out", default=str(REPORT_PATH), help=f"report file (default {REPORT_PATH.as_posix()})"
+    )
+    parser.add_argument("--label", default=REPORT_LABEL, help="the report's title")
+    parser.add_argument(
+        "--groups",
+        default="abc",
+        help="which case groups to run: a=DEMO, b=agent, c=drafts (default abc)",
+    )
+    parser.add_argument(
+        "--compare",
+        default="",
+        help="an earlier state file to put a case-by-case comparison against at the top",
+    )
+    parser.add_argument(
         "--report-only",
         action="store_true",
         help="rewrite the report from the state file and make no calls at all",
     )
     args = parser.parse_args()
+
+    STATE_PATH = Path(args.state)
+    REPORT_PATH = Path(args.out)
+    REPORT_LABEL = args.label
+    COMPARE_PATH = Path(args.compare) if args.compare else None
 
     if settings.llm_provider != PROVIDER_GROQ:
         print(f"LLM_PROVIDER is {settings.llm_provider!r}, not 'groq'.")
@@ -686,6 +910,9 @@ def main() -> int:
         return 1
 
     cases = build_cases()
+    if args.groups != "abc":
+        wanted = {letter for letter in args.groups.lower()}
+        cases = [case for case in cases if case["group"][0] in wanted]
     if args.only:
         cases = [case for case in cases if args.only in case["id"]]
     total = len(cases)
@@ -798,6 +1025,42 @@ def main() -> int:
             f"latency p50 {percentile(latencies, 0.5) / 1000:.1f}s, "
             f"p95 {percentile(latencies, 0.95) / 1000:.1f}s, "
             f"mean {statistics.mean(latencies) / 1000:.1f}s"
+        )
+    if COMPARE_PATH is not None and COMPARE_PATH.exists():
+        previous = json.loads(COMPARE_PATH.read_text(encoding="utf-8"))
+        shared = {item["id"] for item in records} & {
+            item["id"] for item in previous.get("records") or []
+        }
+        old_records = [item for item in previous["records"] if item["id"] in shared]
+        new_records = [item for item in records if item["id"] in shared]
+        old_totals = totals_of(old_records, mode="map")
+        new_totals = totals_of(new_records, mode="map")
+        print()
+        print(f"v1 against v2 over {len(shared)} shared case(s):")
+        print(f"  first-attempt pass, map   {_rate(old_totals):>18}  ->  {_rate(new_totals)}")
+        print(
+            f"  first-attempt pass, agent "
+            f"{_rate(totals_of(old_records, mode='agent')):>18}  ->  "
+            f"{_rate(totals_of(new_records, mode='agent'))}"
+        )
+        print(f"  citation retries          {old_totals['retries']:>18}  ->  {new_totals['retries']}")
+        print(
+            f"  citation_check_failed     {old_totals['citation_check_failed']:>18}  ->  "
+            f"{new_totals['citation_check_failed']}"
+        )
+        print(
+            f"  should-abstain right      "
+            f"{str(old_totals['should_abstain_right']) + ' of ' + str(old_totals['should_abstain']):>18}"
+            f"  ->  {new_totals['should_abstain_right']} of {new_totals['should_abstain']}"
+        )
+        print(
+            f"  agent location in range   "
+            f"{str(old_totals['located_close']) + ' of ' + str(old_totals['located']):>18}"
+            f"  ->  {new_totals['located_close']} of {new_totals['located']}"
+        )
+        print(
+            f"  tokens per case           {old_totals['tokens_mean']:>18,.0f}  ->  "
+            f"{new_totals['tokens_mean']:,.0f}"
         )
     print(f"wrote {REPORT_PATH.as_posix()} and {STATE_PATH.as_posix()}")
     if state["stopped_because"] in ("token_budget", "call_cap"):

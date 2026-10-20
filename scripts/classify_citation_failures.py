@@ -141,7 +141,11 @@ def lines_for(state: dict, path: Path) -> list[str]:
     failed = [r for r in checked if first_attempt_outcome(r) == "failed the check"]
     twice = [r for r in failed if (r.get("abstain_reason") or "").startswith("citation_check_failed")]
 
-    # v2 and later record the problems of every rejected attempt.
+    # v2 and later record the problems of every rejected attempt. The test is whether
+    # the **field is there**, not whether it holds anything: a run in which nothing was
+    # rejected has an empty list on every case, and reading that as "this is a v1 file"
+    # would turn the best possible result into a missing-data message.
+    per_attempt = any("validation_failures" in record for record in cases)
     recorded: Counter = Counter()
     examples: dict[str, list[tuple[str, str]]] = {}
     for record in cases:
@@ -160,7 +164,17 @@ def lines_for(state: dict, path: Path) -> list[str]:
         "",
     ]
 
-    if not recorded:
+    if per_attempt and not recorded:
+        out += [
+            "## No answer was rejected in this run",
+            "",
+            f"Every one of the **{len(cases)}** map-mode cases recorded a "
+            "`validation_failures` field and every one of them is empty, so there is "
+            "nothing to classify: no first attempt was rejected. That is a result, not "
+            "a gap — see the comparison at the top of the run's own report.",
+            "",
+        ]
+    elif not recorded:
         out += [
             "## The question this file was asked, and why it cannot be answered exactly",
             "",
@@ -340,6 +354,8 @@ def main() -> int:
     )
     if recorded:
         print(f"{recorded} recorded problem(s) classified by rule")
+    elif any("validation_failures" in record for record in cases):
+        print("every attempt was accepted: nothing to classify, which is the result")
     else:
         print("no per-attempt problems recorded in this state file (v1); see the report")
     print(f"wrote {out_path.as_posix()}")

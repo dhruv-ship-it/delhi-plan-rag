@@ -8,21 +8,21 @@
 | | |
 | --- | --- |
 | Provider / model | `groq` / `openai/gpt-oss-120b` |
-| Started / last updated | 2026-10-20T05:15:56+00:00 / 2026-10-20T05:18:59+00:00 |
-| Cases done | **13 of 21** |
-| Answered | **10** |
+| Started / last updated | 2026-10-20T05:15:56+00:00 / 2026-10-20T05:23:38+00:00 |
+| Cases done | **21 of 21** |
+| Answered | **18** |
 | Abstained | **3** |
 | Failed outright | 0 |
 | Citation retries | 0 |
-| Latency p50 / p95 | 17.0 s / 24.9 s — **wall clock, not model speed**; see below |
-| Tokens used, all runs | 33,179 |
-| Tokens used, last run | 33,179 of a 150,000 per-run budget |
-| LLM calls, all runs | 12 |
-| LLM calls, last run | 12 of a 120 per-run cap |
+| Latency p50 / p95 | 21.9 s / 52.2 s — **wall clock, not model speed**; see below |
+| Tokens used, all runs | 75,808 |
+| Tokens used, last run | 75,808 of a 150,000 per-run budget |
+| LLM calls, all runs | 35 |
+| LLM calls, last run | 35 of a 120 per-run cap |
 | Runs so far | 1 |
 | 429s / rate-limit waits | 0 / 0 |
 | Gap between calls | 2.5 s |
-| State | **running** |
+| State | **finished** |
 
 Abstentions by reason:
 
@@ -31,13 +31,13 @@ Abstentions by reason:
 | `model_abstained` | 2 |
 | `outside_delhi` | 1 |
 
-Last rate-limit headers seen: `{'x-ratelimit-limit-requests': '1000', 'x-ratelimit-remaining-requests': '984', 'x-ratelimit-reset-requests': '23m2.4s', 'x-ratelimit-limit-tokens': '8000', 'x-ratelimit-remaining-tokens': '98', 'x-ratelimit-reset-tokens': '59.265s'}`
+Last rate-limit headers seen: `{'x-ratelimit-limit-requests': '1000', 'x-ratelimit-remaining-requests': '961', 'x-ratelimit-reset-requests': '56m9.6s', 'x-ratelimit-limit-tokens': '8000', 'x-ratelimit-remaining-tokens': '49', 'x-ratelimit-reset-tokens': '59.632s'}`
 
 **What the latency figure is and is not.** It is wall clock around the whole case, measured by `app/answer.py` itself, so it includes the enforced 2.5 s gap between calls, any wait for a 429, and the time Groq's free tier spends holding a request back when the 8,000-tokens-a-minute bucket is low. A map-mode case costs about 5-6k tokens, so from the second case onwards that bucket — not the model — sets the pace. The one figure here that is close to model latency is the **first** case of a run, against a full bucket. Nothing in this file should be quoted as a latency for ZoneWise.
 
 ## v1 against v2
 
-The 13 case(s) both runs recorded, read off the two state files. Both ran the same questions at the same points with the same budget; what changed between them is D-086 to D-090 — scoped query expansion, structured answers, agent labels and the geocoding fallback. **Still nobody has read these answers.**
+The 21 case(s) both runs recorded, read off the two state files. Both ran the same questions at the same points with the same budget; what changed between them is D-086 to D-090 — scoped query expansion, structured answers, agent labels and the geocoding fallback. **Still nobody has read these answers.**
 
 | case | question | v1 | v2 | retries v1 → v2 | citations v1 → v2 |
 | --- | --- | --- | --- | --- | --- |
@@ -54,6 +54,14 @@ The 13 case(s) both runs recorded, read off the two state files. Both ran the sa
 | [demo-11](#demo-11) | Can a fuel station be built in Zone O? | answered, 106 words | answered, 24 words | 1 → 0 | 2 → 1 |
 | [demo-12](#demo-12) | Can I build a house here? | abstained `citation_check_failed` | abstained `model_abstained` | 1 → 0 | 0 → 0 |
 | [demo-13](#demo-13) | How much of my plot can I build on? | answered, 215 words | answered, 50 words | 1 → 0 | 4 → 2 |
+| [demo-14](#demo-14) | What is the permissible FAR for plotted housin… | answered, 182 words | answered, 45 words | 1 → 0 | 2 → 1 |
+| [demo-15](#demo-15) | What is clause 4.2.1? | answered, 86 words | answered, 34 words | 0 → 0 | 1 → 1 |
+| [demo-16](#demo-16) | How do I get my land included in a scheme? | abstained `citation_check_failed` | answered, 64 words | 1 → 0 | 0 → 2 |
+| [agent-01](#agent-01) | What can be built near Hauz Khas metro? | answered, 188 words | answered, 97 words | — → 0 | 3 → 2 |
+| [agent-02](#agent-02) | Can I build a house on the Yamuna floodplain n… | abstained `model_abstained` | answered, 31 words | — → 0 | 0 → 1 |
+| [agent-03](#agent-03) | How much of my plot can I build on near Rajiv … | abstained `citation_check_failed` | answered, 24 words | — → 0 | 0 → 1 |
+| [agent-04](#agent-04) | What are the ground coverage rules for a plot … | answered, 12 words | answered, 36 words | — → 0 | 1 → 1 |
+| [agent-05](#agent-05) | Is construction allowed in the Ridge near Chha… | abstained `model_abstained` | answered, 39 words | — → 0 | 0 → 2 |
 
 ### Totals, over those cases only
 
@@ -61,14 +69,14 @@ The pass rate counts only the cases whose answer actually reached the citation c
 
 | | v1 | v2 |
 | --- | --- | --- |
-| first-attempt pass rate, map mode | 9% (1 of 11) | 100% (10 of 10) |
-| first-attempt pass rate, agent mode | — | — |
-| citation retries | 10 | 0 |
-| `citation_check_failed` | 1 | 0 |
+| first-attempt pass rate, map mode | 14% (2 of 14) | 100% (13 of 13) |
+| first-attempt pass rate, agent mode | — | 100% (5 of 5) |
+| citation retries | 12 | 0 |
+| `citation_check_failed` | 3 | 0 |
 | should-abstain handled right | 3 of 4 | 3 of 4 |
-| agent location within tolerance | 0 of 0 | 0 of 0 |
-| tokens per case (mean) | 5,150 | 2,552 |
-| answered / abstained | 10 / 3 | 10 / 3 |
+| agent location within tolerance | 4 of 4 | 5 of 5 |
+| tokens per case (mean) | 5,354 | 3,610 |
+| answered / abstained | 14 / 7 | 18 / 3 |
 
 **How to read the retry column.** In v1 the agent's retries could not be counted at all — the field was `llm_calls - 1`, which only works when a case makes one call, and an agent run's calls include its tool rounds. v2 records one problems list per rejected attempt (D-087), so the number is read rather than inferred and the agent rows carry one for the first time. A v1 agent row therefore shows `—` and not `0`.
 
@@ -310,4 +318,192 @@ below, which is where the judgement has to happen.
 | `MPD47_GAZETTE_EN:7.2.1@p813:0` | 7.2.1 | Master Plan for Delhi 2047 gazette notification (English) | 813-814 |
 
 <sub>Retrieved: `MPD47_FAQ:Q1@p5:0`, `MPD47_GAZETTE_EN:4.6.5@p785:0`, `MPD47_FAQ:Q4@p20:0`, `MPD47_GAZETTE_EN:7.2.1@p814:0`, `MPD47_GAZETTE_EN:4.6.4@p781:0`, `MPD47_GAZETTE_EN:7.2.1@p813:0`</sub>
+
+### demo-14
+
+**What is the permissible FAR for plotted housing?**
+
+- **Where:** P_PLAIN (28.639973, 77.088994)
+- **Zones:** planning zone G; in none of the six policy zones
+- **Mode:** map   **Expected:** answer   (the demo's replacement)
+- **Answered** in 45 words
+- **Cost:** 25.1 s, 1 llm call(s), 3209 in / 149 out tokens, 0 rate-limit retr(y/ies)
+
+> The permissible FAR for plotted housing varies with plot size, ranging from 350 for plots up to 100 sqm, 300 for plots between 100 sqm and 250 sqm, and 200 for plots larger than 250 sqm as specified in the Master Plan gazette notification [C2].
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:7.2.1@p813:0` | 7.2.1 | Master Plan for Delhi 2047 gazette notification (English) | 813-814 |
+
+<sub>Retrieved: `MPD47_FAQ:Q1@p5:0`, `MPD47_GAZETTE_EN:7.2.1@p813:0`, `MPD47_GAZETTE_EN:7.2.1@p814:0`, `MPD47_GAZETTE_EN:9.1.3:0`, `MPD47_GAZETTE_EN:11.1.3@p859:0`, `MPD47_FAQ:Q6@p3:0`</sub>
+
+### demo-15
+
+**What is clause 4.2.1?**
+
+- **Where:** P_TOD (28.6328, 77.2197)
+- **Zones:** planning zone D; in TOD zone
+- **Mode:** map   **Expected:** answer   (in your pocket: BM25 earning its place)
+- **Answered** in 34 words
+- **Cost:** 14.8 s, 1 llm call(s), 1990 in / 129 out tokens, 0 rate-limit retr(y/ies)
+
+> Clause 4.2.1 of the Master Plan for Delhi 2047 defines key terms for the TOD policy, including “TOD Zone”, “TOD Plot”, “Carpet Area”, and “Developer Entity (DE)”, each with specific criteria and meanings [C1].
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:4.2.1:0` | 4.2.1 | Master Plan for Delhi 2047 gazette notification (English) | 750-751 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.2.1:0`, `MPD47_GAZETTE_EN:4.2@p750:0`, `MPD47_GAZETTE_EN:4.2.5:0`, `MPD47_GAZETTE_EN:4.2.3@p751:0`, `MPD47_GAZETTE_EN:4.2.4@p755:0`, `MPD47_GAZETTE_EN:4.2.2:0`</sub>
+
+### demo-16
+
+**How do I get my land included in a scheme?**
+
+- **Where:** P_LP (28.676901, 77.027085)
+- **Zones:** planning zone K-I; in land pooling area L
+- **Mode:** map   **Expected:** answer   (in your pocket)
+- **Answered** in 64 words
+- **Cost:** 15.0 s, 1 llm call(s), 1747 in / 198 out tokens, 0 rate-limit retr(y/ies)
+
+> Landowners must register and apply to the DDA according to the process specified in the Regulations, ensuring the parcel is within the notified land‑pooling area, free of encumbrances and that they have lawful ownership and physical possession [C1]
+> Any size parcel can be brought into pooling provided it falls in the area notified by DDA or the Government under the Land Pooling Policy [C5]
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:4.1.2:0` | 4.1.2 | Master Plan for Delhi 2047 gazette notification (English) | 747-748 |
+| `MPD47_FAQ:Q5@p8:0` | Q5 | FAQs on MPD-2047 | 8 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.1.2:0`, `MPD47_FAQ:Q8@p9:0`, `MPD47_FAQ:Q13@p9:0`, `MPD47_FAQ:Q16@p10:0`, `MPD47_FAQ:Q5@p8:0`, `MPD47_FAQ:Q4@p8:0`</sub>
+
+## b. agent mode, a place named in words
+
+### agent-01
+
+**What can be built near Hauz Khas metro?**
+
+- **Where:** no pin — the agent found 28.54381, 77.20588
+- **Zones:** planning zone F; in TOD zone
+- **Mode:** agent   **Expected:** answer   (interchange, D-084)
+- **Answered** in 97 words
+- **Cost:** 52.2 s, 4 llm call(s), 6612 in / 395 out tokens, 0 rate-limit retr(y/ies)
+- **Location:** 3 m from the expected place (tolerance 2000 m)
+
+Tool trace:
+
+1. `locate_place` {"query": "Hauz Khas metro"} -> found Hauz Khas (Delhi Metro interchange, 2 lines) at 28.54381, 77.20588
+1. `get_zones` {"lat": 28.543813, "lon": 77.205876} -> planning zone F; in TOD zone
+1. `search_clauses` {"k": 5, "lat": 28.543813, "lon": 77.205876, "query": "construction near metro"} -> 5 clause(s): S1 MPD47_GAZETTE_EN:4.2.1:0, S2 MPD47_GAZETTE_EN:4.2@p750:0, S3 MPD47_GAZETTE_EN:4.2.4@p755:0...
+
+> Near the Hauz Khas metro station, which lies within a TOD Zone, development is limited to Transit‑Oriented Development (TOD) projects on plots of at least 2000 sqm that meet the eligibility criteria set out in the policy [S1]
+> These TOD projects must be compact mixed‑use developments that integrate land use with the transit node and comply with the sustainability and green‑building norms of the Master Plan, including water conservation, solar energy use and waste management [S3]
+> Developers must also pay the prescribed TOD charges and any additional FAR charges beyond 400 as required by the DDA [S3]
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:4.2.1:0` | 4.2.1 | Master Plan for Delhi 2047 gazette notification (English) | 750-751 |
+| `MPD47_GAZETTE_EN:4.2.4@p755:0` | 4.2.4 | Master Plan for Delhi 2047 gazette notification (English) | 755-756 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.2.1:0`, `MPD47_GAZETTE_EN:4.2@p750:0`, `MPD47_GAZETTE_EN:4.2.4@p755:0`, `MPD47_FAQ:Q15@p13:0`, `MPD47_GAZETTE_EN:3.6.1@p721:1`</sub>
+
+### agent-02
+
+**Can I build a house on the Yamuna floodplain near ITO?**
+
+- **Where:** no pin — the agent found 28.62819, 77.24104
+- **Zones:** planning zone D; in TOD zone
+- **Mode:** agent   **Expected:** answer   (the floodplain, named in words)
+- **Answered** in 31 words
+- **Cost:** 35.8 s, 4 llm call(s), 6460 in / 247 out tokens, 0 rate-limit retr(y/ies)
+- **Location:** 13 m from the expected place (tolerance 3000 m)
+
+Tool trace:
+
+1. `locate_place` {"query": "ITO"} -> found ITO (Delhi Metro) at 28.62819, 77.24104
+1. `get_zones` {"lat": 28.628191, "lon": 77.241044} -> planning zone D; in TOD zone
+1. `search_clauses` {"k": 5, "lat": 28.628191, "lon": 77.241044, "query": "Yamuna floodplain house construction"} -> 5 clause(s): S1 MPD47_GAZETTE_EN:4.2.4@p754:0, S2 MPD47_GAZETTE_EN:3.1.2@p681:0, S3 DHC_YAMUNA_20240708:1:0...
+
+> The active Yamuna floodplain is designated as a ‘no construction zone’ where only recreational uses are permitted, and any unauthorised building such as a house must not be constructed there [S2].
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 | Master Plan for Delhi 2047 gazette notification (English) | 681-682 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.2.4@p754:0`, `MPD47_GAZETTE_EN:3.1.2@p681:0`, `DHC_YAMUNA_20240708:1:0`, `DHC_YAMUNA_20240708:3:0`, `DHC_YAMUNA_20240708:2:0`</sub>
+
+### agent-03
+
+**How much of my plot can I build on near Rajiv Chowk metro station?**
+
+- **Where:** no pin — the agent found 28.63271, 77.21931
+- **Zones:** planning zone D; in TOD zone
+- **Mode:** agent   **Expected:** answer   (gazetteer, a plain station)
+- **Answered** in 24 words
+- **Cost:** 45.0 s, 4 llm call(s), 6765 in / 227 out tokens, 0 rate-limit retr(y/ies)
+- **Location:** 1 m from the expected place (tolerance 2000 m)
+
+Tool trace:
+
+1. `locate_place` {"query": "Rajiv Chowk metro station"} -> found Rajiv Chowk (Delhi Metro) at 28.63271, 77.21931
+1. `get_zones` {"lat": 28.632706, "lon": 77.219312} -> planning zone D; in TOD zone
+1. `search_clauses` {"k": 5, "lat": 28.632706, "lon": 77.219312, "query": "maximum ground coverage plot"} -> 5 clause(s): S1 MPD47_GAZETTE_EN:4.2.3@p753:0, S2 MPD47_FAQ:Q13@p13:0, S3 MPD47_GAZETTE_EN:4.2.1:0...
+
+> For a TOD Plot near Rajiv Chowk metro station, the Master Plan permits a maximum ground coverage of 40% of the plot area [S1]
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:4.2.3@p753:0` | 4.2.3 | Master Plan for Delhi 2047 gazette notification (English) | 753-754 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.2.3@p753:0`, `MPD47_FAQ:Q13@p13:0`, `MPD47_GAZETTE_EN:4.2.1:0`, `MPD47_GAZETTE_EN:4.2.3@p752:0`, `MPD47_GAZETTE_EN:4.2.3@p751:0`</sub>
+
+### agent-04
+
+**What are the ground coverage rules for a plot near Dwarka Sector 21 metro station?**
+
+- **Where:** no pin — the agent found 28.55192, 77.05856
+- **Zones:** planning zone K-II; in TOD zone
+- **Mode:** agent   **Expected:** answer   (gazetteer, the D-049 query)
+- **Answered** in 36 words
+- **Cost:** 54.3 s, 4 llm call(s), 6948 in / 264 out tokens, 0 rate-limit retr(y/ies)
+- **Location:** 5 m from the expected place (tolerance 2000 m)
+
+Tool trace:
+
+1. `locate_place` {"query": "Dwarka Sector 21 metro station"} -> found Dwarka Sector 21, Dwarka Sector 21 Underpass, Najafgarh, Delhi, South West Delhi, Delhi, 110061, India at 28.55192, 77.05856
+1. `get_zones` {"lat": 28.5519218, "lon": 77.0585605} -> planning zone K-II; in TOD zone
+1. `search_clauses` {"k": 5, "lat": 28.5519218, "lon": 77.0585605, "query": "ground coverage plot"} -> 5 clause(s): S1 MPD47_GAZETTE_EN:4.2.3@p753:0, S2 MPD47_GAZETTE_EN:4.2.1:0, S3 MPD47_GAZETTE_EN:4.2.3@p751:0...
+
+> For a TOD plot near Dwarka Sector 21 metro station, the maximum ground coverage permitted is 40% of the plot area, with possible relaxations allowed by the TOD Committee under fire, safety and green‑space requirements [S1].
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:4.2.3@p753:0` | 4.2.3 | Master Plan for Delhi 2047 gazette notification (English) | 753-754 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:4.2.3@p753:0`, `MPD47_GAZETTE_EN:4.2.1:0`, `MPD47_GAZETTE_EN:4.2.3@p751:0`, `MPD47_GAZETTE_EN:4.2.3@p752:1`, `MPD47_GAZETTE_EN:4.2@p750:0`</sub>
+
+### agent-05
+
+**Is construction allowed in the Ridge near Chhatarpur?**
+
+- **Where:** no pin — the agent found 28.50672, 77.17500
+- **Zones:** planning zone J; in none of the six policy zones
+- **Mode:** agent   **Expected:** answer   (a Ridge question with no pin)
+- **Answered** in 39 words
+- **Cost:** 36.6 s, 4 llm call(s), 6976 in / 313 out tokens, 0 rate-limit retr(y/ies)
+- **Location:** 3 m from the expected place (tolerance 4000 m)
+
+Tool trace:
+
+1. `locate_place` {"query": "Chhatarpur"} -> found Chhatarpur (Delhi Metro) at 28.50672, 77.17500
+1. `get_zones` {"lat": 28.506724, "lon": 77.175002} -> planning zone J; in none of the six policy zones
+1. `search_clauses` {"k": 5, "lat": 28.506724, "lon": 77.175002, "query": "Ridge construction allowed"} -> 5 clause(s): S1 MPD47_GAZETTE_EN:3.1.2@p681:0, S2 MPD47_GAZETTE_EN:10.1@p843:0, S3 MPD47_GAZETTE_EN:10.1@p842:0...
+
+> The Ridge is designated as a Regional Park under the Master Plan for Delhi 2047 [S3]
+> Recreational use is permitted in all use zones, and construction is allowed only for recreational purposes such as parks and sports centres [S4]
+
+| marker | clause | document | pages |
+| --- | --- | --- | --- |
+| `MPD47_GAZETTE_EN:10.1@p842:0` | 10.1 | Master Plan for Delhi 2047 gazette notification (English) | 842 |
+| `MPD47_GAZETTE_EN:10.2.3:0` | 10.2.3 | Master Plan for Delhi 2047 gazette notification (English) | 847-849 |
+
+<sub>Retrieved: `MPD47_GAZETTE_EN:3.1.2@p681:0`, `MPD47_GAZETTE_EN:10.1@p843:0`, `MPD47_GAZETTE_EN:10.1@p842:0`, `MPD47_GAZETTE_EN:10.2.3:0`, `MPD47_GAZETTE_EN:5.1.6@p800:0`</sub>
 

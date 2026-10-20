@@ -1,6 +1,6 @@
 # Project status
 
-**As of 19 October 2026.** This page is for whoever picks ZoneWise up next with no memory
+**As of 20 October 2026.** This page is for whoever picks ZoneWise up next with no memory
 of it — a new AI session, or Dhruv in three weeks. It is deliberately not architecture
 (that is [ARCHITECTURE.md](ARCHITECTURE.md)) and not history (that is
 [reports/](../reports/README.md)). It is **state**: what exists, what a human has actually
@@ -31,18 +31,19 @@ Everything in this table exists, is tested, and runs.
 | Component | Where | State |
 | --- | --- | --- |
 | **Config** | [app/config.py](../app/config.py) | One frozen `Settings`, every value readable from `.env`; a malformed value falls back rather than stopping the server (D-065) |
-| **LLM wrapper** | [app/llm.py](../app/llm.py) | The only module that imports `anthropic` or `openai`. `LLM_PROVIDER` picks Anthropic or **Groq** (D-082); `GroqLLM` translates both ways so nothing else knows which; `FakeLLM` is the scripted stand-in every test uses |
+| **LLM wrapper** | [app/llm.py](../app/llm.py) | The only module that imports `anthropic` or `openai`. `LLM_PROVIDER` picks Anthropic or **Groq** (D-082); `GroqLLM` translates both ways so nothing else knows which; `FakeLLM` is the scripted stand-in every test uses. `json_object` asks for Groq's JSON mode, confirmed live on `gpt-oss-120b` (D-088) |
 | **PDF extraction** | [app/extract.py](../app/extract.py), [app/cleaning.py](../app/cleaning.py) | 560 pages extracted from 4 indexed documents, 1-based page numbers throughout |
 | **Chunking** | [app/chunking.py](../app/chunking.py) | 700 chunks, cut on the documents' own headings. Five systematic defects found and fixed by audit (D-066) |
 | **Audit** | [app/audit.py](../app/audit.py), [scripts/audit_chunks.py](../scripts/audit_chunks.py) | Eight mechanical quality checks with examples; before/after reports in `reports/` |
 | **Zone tagging** | [app/tagging.py](../app/tagging.py) | Six topics; 227 of 700 chunks tagged. Four may exclude, two may only boost |
 | **Indexes** | [app/indexing.py](../app/indexing.py) | Chroma (700 × 384-dim vectors) + BM25 pickle, both local and persistent |
 | **Retrieval** | [app/retrieval.py](../app/retrieval.py) | Hybrid search, RRF at k=60, raw per-index scores carried on every result |
+| **Query expansion scope** | [app/location.py](../app/location.py) | Only the **four** topics with a policy section expand the query — the same four that may exclude (D-086) |
 | **Reranker** | [app/rerank.py](../app/rerank.py) | Cross-encoder, working and measured — **off by default** (2.4 s vs 0.031 s a query, D-070) |
 | **Location logic** | [app/location.py](../app/location.py), [app/spatial.py](../app/spatial.py) | exclude / expand / boost from the zones at a point; buffers in EPSG:32643, stored as EPSG:4326 |
-| **Geocoding** | [app/geocode.py](../app/geocode.py) | Four steps — normalise, gazetteer, Nominatim ×2, not-found — each recording which one answered (D-073). Interchanges are grouped under their bare name within 300 m (D-084) |
-| **Answering** | [app/answer.py](../app/answer.py) | Five-step path with four abstention routes and a citation check with one retry |
-| **Agent** | [app/agent.py](../app/agent.py) | Tool loop with a round cap, for questions that arrive as text rather than a point |
+| **Geocoding** | [app/geocode.py](../app/geocode.py) | **Five** steps — normalise, gazetteer, Nominatim ×2, the contiguous sub-phrases, not-found — each recording which one answered (D-073, D-090). Interchanges are grouped under their bare name within 300 m (D-084) |
+| **Answering** | [app/answer.py](../app/answer.py) | Five-step path with four abstention routes. The model returns **JSON** — a list of sentences, each with its citations — and validation is structural, with one retry (D-088) |
+| **Agent** | [app/agent.py](../app/agent.py) | Tool loop with a round cap, for questions that arrive as text rather than a point. Search results are labelled `S1`, `S2`, … and the agent cites the label (D-089) |
 | **HTTP API** | [app/api.py](../app/api.py) | Seven public endpoints, five of which need no API key; rate limits, body-size check, four security headers, JSONL request log |
 | **Dev eval screen** | [app/dev_eval.py](../app/dev_eval.py), [web/src/components/VerifyPanel.jsx](../web/src/components/VerifyPanel.jsx) | Four endpoints, **404 unless `ZONEWISE_DEV=1`** (D-075); writes `eval/questions_verified.jsonl` and never touches the draft |
 | **Frontend** | [web/](../web/) | React + Vite + react-leaflet; map, zone chips, answer panel, clause drawer, tool trace, legend, verify panel |
@@ -83,10 +84,17 @@ This is the section that decides what you are allowed to say about this project.
   not by reading test names (D-078).
 - **The Dockerfile's `COPY` paths, `.dockerignore` and exact `CMD`** were each checked
   another way when the registry proved unreachable (D-079).
-- **The whole answering path runs against a real model.** 37 cases, 0 failures and 0
-  rate-limit errors through Groq, with every abstention route except `weak_retrieval`
-  taken at least once and the citation retry exercised 18 times (D-085). That the paths
-  *work* is now measured; whether the answers are *right* is not.
+- **The whole answering path runs against a real model, twice.** v1: 37 cases, 0
+  failures, every abstention route except `weak_retrieval` taken at least once and the
+  citation retry exercised 18 times (D-085). v2: the same 21 DEMO and agent cases after
+  D-086 to D-090, and **every one passed the citation check on its first attempt** — 0
+  retries against 12, 0 `citation_check_failed` against 3, 3,610 tokens a case against
+  5,354 (D-091). That the paths *work* is now measured twice; whether the answers are
+  *right* is still not measured at all.
+- **The fuel-station miss is fixed and the fix is bounded.** `11.1.1@p854` is rank 1 at
+  P_ZONEO under both wordings, three of the five demo beats are bit-identical, and
+  `reports/location_compare_v4.md` shows **2 of 9 points changed** — the two the change
+  is about. The cost is measured too, and it is real (D-086).
 
 ### Not checked by a human — be explicit about this
 
@@ -94,7 +102,8 @@ This is the section that decides what you are allowed to say about this project.
 | --- | --- |
 | **The chunk samples have not been hand-reviewed.** `reports/chunk_audit_after.md` and `data/processed/chunk_sample.md` exist and the mechanical checks pass, but no person has read a sample of chunks and said "yes, these are clauses". | Any claim that chunking is *good*, as opposed to passing its own checks |
 | **The tag samples have not been hand-reviewed.** `data/processed/tag_sample.md` exists; nobody has read the 37 `ridge` mentions to confirm they are about the Ridge, or the 15 `lda` primaries. | Confidence in the exclude/boost calls, particularly D-069 for `ridge` |
-| **The 21 live answers have not been read by a person.** 37 real answers and abstentions now exist in `reports/live_answers_v1.md`, produced through Groq on 20 October (D-085). The file's "suspected problems" list is mechanical rules, not judgement, and nobody has read an answer and said whether it is right. | Any claim about answer quality or citation accuracy. The answers exist; their correctness is unassessed |
+| **No live answer has been read by a person.** 37 in `reports/live_answers_v1.md` and 18 more in `reports/live_answers_v2.md` (D-085, D-091). Every mechanical rule in both files is syntax, not judgement. **Two things make this the top of the list now.** v2's answers are *much* shorter — median 116 words → 42, median citations 2 → 1 — and whether that is prompt rule 8 removing unsupported padding or the model dropping detail a user wanted is a question only a reader can answer. And `demo-07` still answers a should-abstain question: 60 confident words at P_RIDGE, down from 134, citing clauses that do not say it. | Any claim about answer quality or citation accuracy. The answers exist, the structure is sound, and their correctness is unassessed |
+| **The sub-phrase geocoding fallback has never run live.** D-090 is covered by nine unit tests and nothing triggered it in v2: the agent asked `locate_place("Chhatarpur")` on its own, which is D-089's prompt fix, so the fallback was never reached. | Any claim that the fallback works outside its tests |
 | **The evaluation questions are unverified.** All 60 in `eval/questions_draft.jsonl` are `drafted_by: claude_code` and `verified: false`. They were written by Claude *from the chunks*, which is the one setup that flatters retrieval metrics. | Every retrieval number. This is the single biggest blocker |
 | **The Docker image has never been built.** The registry was unreachable; the `COPY` paths, `.dockerignore`, lockfile and the exact `CMD` were each verified another way (D-079). | Any claim that it deploys |
 
@@ -123,10 +132,12 @@ n, and saying the questions were human-verified.
 | Map layers | **8**, from DDA's GIS portal |
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
-| Tests | **436 pass**; 405 run with no data at all, 31 marked `needs_data` |
+| Tests | **477 pass**; 446 run with no data at all, 31 marked `needs_data` |
 | Provider / model | **Groq**, `openai/gpt-oss-120b` (D-082). `LLM_PROVIDER=anthropic` still works unchanged |
-| Live answers recorded | **37** cases, 21 answered / 16 abstained, **not human-reviewed** (D-085) |
-| Decisions recorded | **85** in `DECISIONS.md` |
+| Live answers recorded | **37** in v1 and **21** in v2, **none human-reviewed** (D-085, D-091) |
+| First-attempt citation pass rate | **100%** in v2 (18 of 18 answers), against 14% over the same cases in v1 |
+| Tokens per live case | **3,610** mean in v2, against 5,354 in v1 |
+| Decisions recorded | **91** in `DECISIONS.md` |
 | API endpoints | **7** public + **4** dev-only behind `ZONEWISE_DEV=1` |
 | Metro gazetteer | **278** stations from OpenStreetMap, **14** of them interchanges also keyed under their bare name (gitignored, so a clone rebuilds it in one request) |
 | Requests logged | 727 lines in `data/logs/requests.jsonl`, all local testing |
@@ -149,28 +160,38 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
 
 ## 5. Known limitations
 
-1. **The live answers exist but nobody has read them.** 37 cases ran through Groq's
-   `openai/gpt-oss-120b` on 20 October: 21 answered, 16 abstained, 0 failures
-   (`reports/live_answers_v1.md`, D-085). Four things came out of it, none of them yet
-   human-judged. **The citation check is load-bearing**: 18 of the 25 map-mode cases
-   that reached the model needed the single retry, and most then passed — so two calls,
-   not one, is the normal path. **Agent mode cites much worse than map mode**: 5 of 11
-   failed the check twice against 5 of 26, because the agent must reproduce a full
-   chunk id rather than `[C3]`. **P_RIDGE answers when it should decline**: 134
-   confident words assembled from a Regional Park definition, a park built-up ceiling
-   and a drain-buffer rule, every sentence correctly cited — exactly what
-   `docs/DEMO.md` beat 5 predicted and called the first thing to check. And **the agent
-   builds compound place queries that miss**: it asked `locate_place("Chhatarpur
-   ridge")` and abstained, where `"Chhatarpur"` alone resolves instantly.
+1. **The live answers exist but nobody has read them, and that is now the single
+   biggest gap.** Two runs: 37 cases in v1 and the same 21 DEMO and agent cases again in
+   v2 after D-086 to D-090 (`reports/live_answers_v1.md`, `reports/live_answers_v2.md`,
+   D-085 and D-091). Three of v1's four findings are **fixed and measured**: the citation
+   retry has gone from firing on 18 of 22 map answers to **never**; agent mode, which
+   cited far worse than map mode because it had to reproduce a whole chunk id, now
+   passes 5 of 5 first time citing `[S1]`; and the agent's compound place query is
+   gone — it asks `locate_place("Chhatarpur")` and lands 3 m away. The fourth is
+   **not** fixed: **P_RIDGE still answers when it should decline**, in 60 words rather
+   than 134, still built out of clauses that do not say it. Structured output and an
+   explicit no-synthesis rule shortened the answer and did not stop it, which is the
+   clearest statement available of what a structural check cannot do.
+
+   Two new things to read, both of which need judgement rather than a rule. **v2's
+   answers are much shorter**: median 116 words → 42, median citations 2 → 1. That is
+   either rule 8 removing padding v1 could not support, or detail a user wanted.
+   And **`agent-02` may be a regression dressed as a win**: it now answers "Can I build
+   a house on the Yamuna floodplain near ITO?" by correctly quoting the no-construction
+   clause — at a point `get_zones` says is in a TOD zone, about a kilometre from the
+   floodplain. v1 abstained there.
 2. **The abstention pre-check catches nothing.** `ABSTAIN_THRESHOLD=0.5804` on
    `dense_cosine` refuses none of the 50 answerable drafts and catches none of the 10
    should-abstain ones. That is deliberate and provisional: **no retrieval score
    separates those two groups cleanly** (D-071), so the pre-check is a cost guard and the
    citation check is the correctness guard.
-3. **Two zone topics can never exclude.** `zone_o` and `ridge` have no policy section in
-   MPD-2047, so for a point in the Ridge, search can boost Ridge clauses but cannot drop
-   clauses belonging elsewhere. At P_RIDGE the plan simply does not contain a clause
-   saying you may not build there.
+3. **Two zone topics can neither exclude nor expand the query.** `zone_o` and `ridge`
+   have no policy section in MPD-2047, so for a point in the Ridge, search can boost
+   Ridge clauses but cannot drop clauses belonging elsewhere — and since D-086 it cannot
+   append the zone's words to the query either, because with no chapter to aim at those
+   words name a *place* and half-replace the question. One cause now disables two of the
+   three location steps for the same two topics. At P_RIDGE the plan simply does not
+   contain a clause saying you may not build there.
 4. **The fuel-station miss is fixed, and the fix has a cost.** At P_ZONEO, "Can a fuel
    station be built here?" used to miss 11.1.1 — the clause that says fuel stations are
    allowed "in all Use Zones except … Zone O" — at rank 14. Diagnosed on 20 October
@@ -193,27 +214,41 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
    counters and the daily cap protecting the API bill would silently double. The
    Dockerfile pins `--workers 1` for this reason.
 7. **The reranker costs 2.4 s a query** and is off, pending verified questions.
-8. **Six source documents are unreadable.** 2-page scanned pamphlets with no text layer;
+8. **The citation check is structural, never semantic.** It proves that every sentence
+   names a source that was really supplied and that the source exists. It cannot prove
+   the clause *says* the sentence, and v2 is the evidence: a 100% first-attempt pass
+   rate alongside `demo-07` still concluding something no clause states. The sharpest
+   version is that **the prompt asks for the defect**: rule 6 tells the model to say
+   official DDA documents should be checked — a sentence no clause supports — while rule
+   2 demands a citation on every sentence, and 7 of v1's 17 answers carry that line with
+   a marker bolted on (`reports/citation_failures_v1.md`). Both rules were kept, as
+   instructed; this is recorded, not fixed.
+9. **Six source documents are unreadable.** 2-page scanned pamphlets with no text layer;
    OCR was not attempted.
-9. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
-   gazetteer removes most of that dependency for metro-station queries, but it is
-   gitignored, so each machine builds it once.
-10. **Not legal advice**, and the README says so above the fold.
+10. **Geocoding depends on one donated service.** Nominatim, 1 req/sec, cached. The
+    gazetteer removes most of that dependency for metro-station queries, but it is
+    gitignored, so each machine builds it once. The sub-phrase fallback (D-090) can add
+    one more request for a query nothing else answers, so the worst case for one unknown
+    name is three.
+11. **Not legal advice**, and the README says so above the fold.
 
-*(The former limitation 10 — `Hauz Khas` not resolving from the gazetteer — is fixed.
-Interchanges are now grouped under their bare name at the centre of their platforms,
-with a hard 300 m rule and no merging beyond it. D-081 is resolved by D-084.)*
+*(Two former limitations are gone. `Hauz Khas` not resolving from the gazetteer: fixed,
+interchanges are now grouped under their bare name at the centre of their platforms,
+with a hard 300 m rule and no merging beyond it — D-081 resolved by D-084. And the
+fuel-station retrieval miss: diagnosed and fixed the same day, D-083 resolved by D-086,
+which is why limitation 4 now records a fix and its cost rather than a defect.)*
 
 ---
 
 ## 6. Open decisions
 
-Two, both waiting on the same thing: human-verified evaluation questions.
+Three, all waiting on the same thing: human-verified evaluation questions.
 
 | Open question | Current state | How it gets closed |
 | --- | --- | --- |
 | **The final abstention threshold** | `ABSTAIN_SIGNAL=dense_cosine`, `ABSTAIN_THRESHOLD=0.5804`, labelled *provisional* in `app/config.py`, `.env.example` and `eval/README.md` | `uv run python scripts\tune_abstention.py --questions eval\questions_verified.jsonl`, then put the widest-margin value in `.env` and **delete the word "provisional"** from those three files |
 | **Reranker on or off** | Off (`USE_RERANKER=0`). Lifts recall@1 0.340 → 0.460 on drafted questions, which is not evidence; demotes the correct clause on one real query | Compare `hybrid+location` against `hybrid+location+rerank` in the verified report. If the paired interval excludes 0, 2.4 s is probably worth it for a one-question interface; otherwise leave it off and say so |
+| **Whether Zone O and the Ridge should fuse four lists** | D-086 scoped expansion out for those two topics, which fixed the fuel-station miss and cost the questions whose subject *is* the place. A **four-list** variant — `dense(plain)`, `bm25(plain)`, `dense(expanded)`, `bm25(expanded)`, scoped to those two topics only — is measured and keeps both sides on all six questions tried. Not applied: six questions at two points is a finding, and it is a second embedding call for those points | Score it as a fifth configuration in `eval/run_eval.py` against `questions_verified.jsonl`, beside `hybrid+location+rerank`. The measurements are in `reports/diagnosis_fuel_station.md` § 5 |
 
 One smaller one: the model id **`claude-haiku-5-5`** in `app/config.py` is the default and
 has never been called, so it has never been confirmed against the live API. `LLM_MODEL`
@@ -238,11 +273,15 @@ dependency order:
    P_LDA, check the chips.
 5. ~~**Set up the API key**~~ — **done**, as a Groq key rather than an Anthropic one, so
    there is no bill to limit (D-082). `uv run python -m app.llm` confirms it.
-6. ~~**Live-test real answers**~~ — **done**: 37 cases recorded in
-   `reports/live_answers_v1.md` (D-085). What is left is the part only a person can do:
-   **read the 21 answers** and say which are right. Start with `demo-07`, the P_RIDGE
-   answer that should have been a refusal. `uv run python scripts\live_run.py --resume`
-   finishes the remaining 14 draft cases if you want them.
+6. ~~**Live-test real answers**~~ — **done twice**: 37 cases in
+   `reports/live_answers_v1.md` and the 21 DEMO and agent cases again in
+   `reports/live_answers_v2.md` after the five fixes (D-085, D-091). What is left is the
+   part only a person can do: **read v2's 18 answers** and say which are right, in this
+   order — `demo-07` (still answers where it should decline), `agent-02` (answers about
+   the floodplain at a point that is not in it), then any two short ones, because the
+   question to settle is whether 42 words with one citation is better or worse than
+   v1's 116 with two. Allow ~30 minutes. `uv run python scripts\live_run.py --resume`
+   on the **v1** state file finishes its remaining 14 draft cases if you want them.
 7. **Verify the questions** (~2 hours) — **the step that unblocks every number.** Keep
    ≥40: ~17 location, ~17 general, ~6 should-abstain.
 8. **Run the real evaluation** — the first quotable numbers.

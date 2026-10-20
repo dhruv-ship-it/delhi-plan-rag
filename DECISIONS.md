@@ -1026,3 +1026,43 @@ When the whole query matches neither the gazetteer nor Nominatim, `locate_place`
 **9 new tests, 474 pass, and none touches the network.** Covered, as asked: "chhatarpur ridge" resolving to Chhatarpur with `path=subphrase_gazetteer` and `matched="chhatarpur"`; "yamuna floodplain near ito" resolving to ITO; and a phrase with no real place in it still coming back `not_found` after exactly three requests, because a fallback that turns "no" into a point somewhere would be far worse than the miss it replaces. Plus `subphrases` being contiguous, longest first, capped at three words and empty for an empty string; the longest sub-phrase being the one Nominatim is asked about; a timeout skipping the fallback; `matched` surviving the cache; and a clean whole-query match never being pre-empted.
 
 Rejected: asking Nominatim about every sub-phrase (fifteen requests for a six-word query, against a donated service, to answer one question); dropping stop words and recombining the rest (invents phrases the user did not write, and "sector 21" would lose "21" to any list that counts it a stop word); and running the fallback before Nominatim rather than after (a two-word place name would then be answered by one of its halves, and "Hauz Khas" would resolve to "Hauz").
+
+## D-091 · 2026-10-20 · The v2 run: what D-086 to D-090 did, measured
+The 16 DEMO and 5 agent cases re-run through Groq's `openai/gpt-oss-120b` with the same budget, the same pacing and the same questions, into `reports/live_answers_v2.md`. `scripts/live_run.py` now takes its state file, report, label and case set as arguments and puts a case-by-case v1-against-v2 table at the top, so there is one script rather than a copy of it.
+
+| | v1 | v2 |
+| --- | --- | --- |
+| first-attempt pass rate, map mode | 14% (2 of 14) | **100% (13 of 13)** |
+| first-attempt pass rate, agent mode | not countable | **100% (5 of 5)** |
+| citation retries | 12 | **0** |
+| `citation_check_failed` | 3 | **0** |
+| should-abstain handled right | 3 of 4 | 3 of 4 |
+| agent location within tolerance | 4 of 4 | **5 of 5** |
+| tokens per case (mean) | 5,354 | **3,610** |
+| answered / abstained | 14 / 7 | 18 / 3 |
+| LLM calls | 2 per map case | **1 per map case** |
+| latency p50 / p95 (wall clock) | 35.9 s / 55.1 s | 17.9 s / 52.2 s |
+
+**What this is and is not.** 21 cases at temperature 0 through one model. It measures whether the machinery *works*; it says nothing about whether the answers are **right**, and **nobody has read them**. The structural check passing is not evidence that a clause supports its sentence — that is the whole point of the limitation D-088 records.
+
+**The citation retry has gone from the normal path to never.** D-085's headline was that 18 of 22 map answers needed the single retry, so a typical answer cost two calls. Every map case now passes first time, and the token saving is the arithmetic of that: one call instead of two, 3,610 tokens a case against 5,354, with the whole run at 75,808 tokens against a 150,000 budget. The retry machinery is untouched and still there; it simply did not fire. **`citation_check_failed` disappeared**: the three cases that ended that way in v1 — `demo-12`, `demo-16`, `agent-03` — all came back, two as answers and one as a clean `model_abstained`.
+
+**The agent fix is the cleanest single result.** `agent-03` is the case D-085 named: "How much of my plot can I build on near Rajiv Chowk metro station?" failed the citation check twice in v1 while the same question at the same point in map mode answered after one retry. In v2 it geocoded to **1 m** from Rajiv Chowk, searched with the point, and answered citing `[S1]`, which resolved to `MPD47_GAZETTE_EN:4.2.3@p753:0` — the right clause. All five agent cases passed first time and all five landed within tolerance.
+
+**`agent-05` was fixed by the prompt, not by the geocoder, and that matters.** It called `locate_place("Chhatarpur")` — the place name alone, which is what D-089's tool description now asks for — and resolved from the gazetteer to 3 m, where v1 asked for `"Chhatarpur ridge"` and abstained. So **D-090's sub-phrase fallback has still never run live**: nothing in this run triggered it, `Place.matched` is empty everywhere, and its evidence remains the nine unit tests. The two fixes were built independent on purpose and this run exercised one of them.
+
+### What looks worse, or at least different
+
+**Answers are much shorter and cite fewer clauses.** Median length 116 words → **42**; median citations 2 → **1**; 30 citations over 14 answered cases → 24 over 18. `demo-11` went from 106 words and 2 citations to 24 words and 1; `demo-13` from 215 and 4 to 50 and 2; `demo-02` from 166 and 2 to 52 and 1. Two readings fit and **only a person can choose between them**: either rule 8 ("do not combine clauses to reach a conclusion that none of them states") is doing exactly its job and v1's extra words were unsupported padding, or the model is now dropping supporting detail a user wanted. The one length rule that fired in v1 — `demo-13` at 215 words against a 200-word prompt rule — no longer fires, and nothing is near the limit.
+
+**`demo-07` still answers a should-abstain question.** At P_RIDGE, "Is construction allowed here?" produced 60 words concluding that permanent construction is prohibited, down from 134, citing clauses that do not say it. Rule 8 made it shorter and did not make it decline, and the should-abstain score is unchanged at 3 of 4. This is the same finding `docs/DEMO.md` beat 5 predicted and D-085 recorded, now with one more piece of evidence: **structured output and an explicit no-synthesis rule did not fix synthesis.**
+
+**`agent-02` answering may be a regression, not a win.** "Can I build a house on the Yamuna floodplain near ITO?" geocoded ITO to 13 m — and `get_zones` says that point is planning zone D in a TOD zone, **not** Zone O. v1 abstained. v2 answers, correctly quoting 3.1.2 on the active floodplain being a no-construction zone, at a point about a kilometre from the floodplain. The sentence is true about the floodplain and the point it was asked at is not in one, so the honest-looking answer hides the same mismatch v1's honest-looking abstention did. Counted as "answered" in the table above; flagged here as the first case a human should read after `demo-07`.
+
+**Two expectations changed, which the table reflects.** `demo-10` and `demo-11`, the fuel-station questions, were `either` in v1 because `docs/DEMO.md` recorded their retrieval as wrong. D-086 fixed it, so they are now `answer`, and both answered — `demo-11` in 24 words citing `11.1.1@p854`, the clause that says no. The expectation travels inside each case record, so regenerating v1's report does not rewrite its history; checked, and it comes back byte-identical.
+
+**One thing confirmed live about the provider.** `openai/gpt-oss-120b` accepts `response_format={"type": "json_object"}`, so every map-mode call in this run used Groq's JSON mode. Groq refuses the parameter when no message contains the word "json"; ZoneWise's prompts say "one JSON object", and uppercase satisfies it. That refusal is about the request rather than the model, so it no longer disables JSON mode for a whole run.
+
+**Latency is still not quotable**, for the reason D-085 gave: it is wall clock around the whole case, including the 2.5 s enforced gap and whatever Groq's 8,000-tokens-a-minute bucket holds back. It did halve, and the arithmetic says why — one call where there were two. The lowest figure in the run, against a full bucket, is 1.7 s.
+
+Rejected: re-running the 30 draft questions as well (they are unverified and were never a measurement — D-054 — and the comparison the lead asked for is over the cases both runs share); and changing anything in response to these numbers, which was ruled out in advance and is the right call, because the next thing this project needs is a person reading the eighteen answers, not another change measured against questions nobody has checked.

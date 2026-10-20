@@ -1,27 +1,27 @@
 {
   "started_at": "2026-10-20T05:15:56+00:00",
-  "updated_at": "2026-10-20T05:18:59+00:00",
+  "updated_at": "2026-10-20T05:23:38+00:00",
   "provider": "groq",
   "model": "openai/gpt-oss-120b",
   "min_interval_s": 2.5,
   "token_budget": 150000,
   "call_cap": 120,
   "total_cases": 21,
-  "tokens_used": 33179,
-  "calls_made": 12,
+  "tokens_used": 75808,
+  "calls_made": 35,
   "runs": 1,
-  "last_run_tokens": 33179,
-  "last_run_calls": 12,
+  "last_run_tokens": 75808,
+  "last_run_calls": 35,
   "rate_limit_events": 0,
   "api_retries": 0,
-  "stopped_because": null,
+  "stopped_because": "finished",
   "last_rate_limit": {
     "x-ratelimit-limit-requests": "1000",
-    "x-ratelimit-remaining-requests": "984",
-    "x-ratelimit-reset-requests": "23m2.4s",
+    "x-ratelimit-remaining-requests": "961",
+    "x-ratelimit-reset-requests": "56m9.6s",
     "x-ratelimit-limit-tokens": "8000",
-    "x-ratelimit-remaining-tokens": "98",
-    "x-ratelimit-reset-tokens": "59.265s"
+    "x-ratelimit-remaining-tokens": "49",
+    "x-ratelimit-reset-tokens": "59.632s"
   },
   "records": [
     {
@@ -647,6 +647,574 @@
       "api_retries": 0,
       "rate_limit_events": 0,
       "citation_retry": 0
+    },
+    {
+      "id": "demo-14",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "What is the permissible FAR for plotted housing?",
+      "point_name": "P_PLAIN",
+      "lat": 28.639973,
+      "lon": 77.088994,
+      "expect": "answer",
+      "note": "the demo's replacement",
+      "ran_at": "2026-10-20T05:18:59+00:00",
+      "error": null,
+      "zones_text": "planning zone G; in none of the six policy zones",
+      "located_lat": 28.639973,
+      "located_lon": 77.088994,
+      "answer": "The permissible FAR for plotted housing varies with plot size, ranging from 350 for plots up to 100 sqm, 300 for plots between 100 sqm and 250 sqm, and 200 for plots larger than 250 sqm as specified in the Master Plan gazette notification [C2].",
+      "answer_words": 45,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "clause_id": "7.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "813-814"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:7.2.1@p813:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_FAQ:Q1@p5:0",
+        "MPD47_GAZETTE_EN:7.2.1@p813:0",
+        "MPD47_GAZETTE_EN:7.2.1@p814:0",
+        "MPD47_GAZETTE_EN:9.1.3:0",
+        "MPD47_GAZETTE_EN:11.1.3@p859:0",
+        "MPD47_FAQ:Q6@p3:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 1,
+      "latency_ms": 25051,
+      "tool_trace": [],
+      "api_calls": 1,
+      "input_tokens": 3209,
+      "output_tokens": 149,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0
+    },
+    {
+      "id": "demo-15",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "What is clause 4.2.1?",
+      "point_name": "P_TOD",
+      "lat": 28.6328,
+      "lon": 77.2197,
+      "expect": "answer",
+      "note": "in your pocket: BM25 earning its place",
+      "ran_at": "2026-10-20T05:19:24+00:00",
+      "error": null,
+      "zones_text": "planning zone D; in TOD zone",
+      "located_lat": 28.6328,
+      "located_lon": 77.2197,
+      "answer": "Clause 4.2.1 of the Master Plan for Delhi 2047 defines key terms for the TOD policy, including “TOD Zone”, “TOD Plot”, “Carpet Area”, and “Developer Entity (DE)”, each with specific criteria and meanings [C1].",
+      "answer_words": 34,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.2.1:0",
+          "clause_id": "4.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "750-751"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.1:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2@p750:0",
+        "MPD47_GAZETTE_EN:4.2.5:0",
+        "MPD47_GAZETTE_EN:4.2.3@p751:0",
+        "MPD47_GAZETTE_EN:4.2.4@p755:0",
+        "MPD47_GAZETTE_EN:4.2.2:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 1,
+      "latency_ms": 14848,
+      "tool_trace": [],
+      "api_calls": 1,
+      "input_tokens": 1990,
+      "output_tokens": 129,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0
+    },
+    {
+      "id": "demo-16",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "How do I get my land included in a scheme?",
+      "point_name": "P_LP",
+      "lat": 28.676901,
+      "lon": 77.027085,
+      "expect": "answer",
+      "note": "in your pocket",
+      "ran_at": "2026-10-20T05:19:39+00:00",
+      "error": null,
+      "zones_text": "planning zone K-I; in land pooling area L",
+      "located_lat": 28.676901,
+      "located_lon": 77.027085,
+      "answer": "Landowners must register and apply to the DDA according to the process specified in the Regulations, ensuring the parcel is within the notified land‑pooling area, free of encumbrances and that they have lawful ownership and physical possession [C1]\nAny size parcel can be brought into pooling provided it falls in the area notified by DDA or the Government under the Land Pooling Policy [C5]",
+      "answer_words": 64,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.1.2:0",
+          "clause_id": "4.1.2",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "747-748"
+        },
+        {
+          "chunk_id": "MPD47_FAQ:Q5@p8:0",
+          "clause_id": "Q5",
+          "doc_title": "FAQs on MPD-2047",
+          "pages": "8"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.1.2:0",
+        "MPD47_FAQ:Q5@p8:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.1.2:0",
+        "MPD47_FAQ:Q8@p9:0",
+        "MPD47_FAQ:Q13@p9:0",
+        "MPD47_FAQ:Q16@p10:0",
+        "MPD47_FAQ:Q5@p8:0",
+        "MPD47_FAQ:Q4@p8:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 1,
+      "latency_ms": 14996,
+      "tool_trace": [],
+      "api_calls": 1,
+      "input_tokens": 1747,
+      "output_tokens": 198,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0
+    },
+    {
+      "id": "agent-01",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "What can be built near Hauz Khas metro?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.5438,
+        77.2059
+      ],
+      "radius_m": 2000,
+      "expect": "answer",
+      "note": "interchange, D-084",
+      "ran_at": "2026-10-20T05:19:54+00:00",
+      "error": null,
+      "zones_text": "planning zone F; in TOD zone",
+      "located_lat": 28.543813,
+      "located_lon": 77.205876,
+      "answer": "Near the Hauz Khas metro station, which lies within a TOD Zone, development is limited to Transit‑Oriented Development (TOD) projects on plots of at least 2000 sqm that meet the eligibility criteria set out in the policy [S1]\nThese TOD projects must be compact mixed‑use developments that integrate land use with the transit node and comply with the sustainability and green‑building norms of the Master Plan, including water conservation, solar energy use and waste management [S3]\nDevelopers must also pay the prescribed TOD charges and any additional FAR charges beyond 400 as required by the DDA [S3]",
+      "answer_words": 97,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.2.1:0",
+          "clause_id": "4.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "750-751"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.2.4@p755:0",
+          "clause_id": "4.2.4",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "755-756"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2.4@p755:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2@p750:0",
+        "MPD47_GAZETTE_EN:4.2.4@p755:0",
+        "MPD47_FAQ:Q15@p13:0",
+        "MPD47_GAZETTE_EN:3.6.1@p721:1"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 4,
+      "latency_ms": 52182,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Hauz Khas metro"
+          },
+          "summary": "found Hauz Khas (Delhi Metro interchange, 2 lines) at 28.54381, 77.20588"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.543813,
+            "lon": 77.205876
+          },
+          "summary": "planning zone F; in TOD zone"
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.543813,
+            "lon": 77.205876,
+            "query": "construction near metro"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:4.2.1:0, S2 MPD47_GAZETTE_EN:4.2@p750:0, S3 MPD47_GAZETTE_EN:4.2.4@p755:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 6612,
+      "output_tokens": 395,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "located_metres_off": 3
+    },
+    {
+      "id": "agent-02",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "Can I build a house on the Yamuna floodplain near ITO?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.6283,
+        77.241
+      ],
+      "radius_m": 3000,
+      "expect": "answer",
+      "note": "the floodplain, named in words",
+      "ran_at": "2026-10-20T05:20:46+00:00",
+      "error": null,
+      "zones_text": "planning zone D; in TOD zone",
+      "located_lat": 28.628191,
+      "located_lon": 77.241044,
+      "answer": "The active Yamuna floodplain is designated as a ‘no construction zone’ where only recreational uses are permitted, and any unauthorised building such as a house must not be constructed there [S2].",
+      "answer_words": 31,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "clause_id": "3.1.2",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "681-682"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.4@p754:0",
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:1:0",
+        "DHC_YAMUNA_20240708:3:0",
+        "DHC_YAMUNA_20240708:2:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 4,
+      "latency_ms": 35776,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "ITO"
+          },
+          "summary": "found ITO (Delhi Metro) at 28.62819, 77.24104"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.628191,
+            "lon": 77.241044
+          },
+          "summary": "planning zone D; in TOD zone"
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.628191,
+            "lon": 77.241044,
+            "query": "Yamuna floodplain house construction"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:4.2.4@p754:0, S2 MPD47_GAZETTE_EN:3.1.2@p681:0, S3 DHC_YAMUNA_20240708:1:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 6460,
+      "output_tokens": 247,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "located_metres_off": 13
+    },
+    {
+      "id": "agent-03",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "How much of my plot can I build on near Rajiv Chowk metro station?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.6327,
+        77.2193
+      ],
+      "radius_m": 2000,
+      "expect": "answer",
+      "note": "gazetteer, a plain station",
+      "ran_at": "2026-10-20T05:21:22+00:00",
+      "error": null,
+      "zones_text": "planning zone D; in TOD zone",
+      "located_lat": 28.632706,
+      "located_lon": 77.219312,
+      "answer": "For a TOD Plot near Rajiv Chowk metro station, the Master Plan permits a maximum ground coverage of 40% of the plot area [S1]",
+      "answer_words": 24,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "clause_id": "4.2.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "753-754"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.3@p753:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.3@p753:0",
+        "MPD47_FAQ:Q13@p13:0",
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2.3@p752:0",
+        "MPD47_GAZETTE_EN:4.2.3@p751:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 4,
+      "latency_ms": 44976,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Rajiv Chowk metro station"
+          },
+          "summary": "found Rajiv Chowk (Delhi Metro) at 28.63271, 77.21931"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.632706,
+            "lon": 77.219312
+          },
+          "summary": "planning zone D; in TOD zone"
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.632706,
+            "lon": 77.219312,
+            "query": "maximum ground coverage plot"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:4.2.3@p753:0, S2 MPD47_FAQ:Q13@p13:0, S3 MPD47_GAZETTE_EN:4.2.1:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 6765,
+      "output_tokens": 227,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "located_metres_off": 1
+    },
+    {
+      "id": "agent-04",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "What are the ground coverage rules for a plot near Dwarka Sector 21 metro station?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.5519,
+        77.0586
+      ],
+      "radius_m": 2000,
+      "expect": "answer",
+      "note": "gazetteer, the D-049 query",
+      "ran_at": "2026-10-20T05:22:07+00:00",
+      "error": null,
+      "zones_text": "planning zone K-II; in TOD zone",
+      "located_lat": 28.5519218,
+      "located_lon": 77.0585605,
+      "answer": "For a TOD plot near Dwarka Sector 21 metro station, the maximum ground coverage permitted is 40% of the plot area, with possible relaxations allowed by the TOD Committee under fire, safety and green‑space requirements [S1].",
+      "answer_words": 36,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.2.3@p753:0",
+          "clause_id": "4.2.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "753-754"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.3@p753:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.3@p753:0",
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2.3@p751:0",
+        "MPD47_GAZETTE_EN:4.2.3@p752:1",
+        "MPD47_GAZETTE_EN:4.2@p750:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 4,
+      "latency_ms": 54315,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Dwarka Sector 21 metro station"
+          },
+          "summary": "found Dwarka Sector 21, Dwarka Sector 21 Underpass, Najafgarh, Delhi, South West Delhi, Delhi, 110061, India at 28.55192, 77.05856"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.5519218,
+            "lon": 77.0585605
+          },
+          "summary": "planning zone K-II; in TOD zone"
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.5519218,
+            "lon": 77.0585605,
+            "query": "ground coverage plot"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:4.2.3@p753:0, S2 MPD47_GAZETTE_EN:4.2.1:0, S3 MPD47_GAZETTE_EN:4.2.3@p751:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 6948,
+      "output_tokens": 264,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "located_metres_off": 5
+    },
+    {
+      "id": "agent-05",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "Is construction allowed in the Ridge near Chhatarpur?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.5067,
+        77.175
+      ],
+      "radius_m": 4000,
+      "expect": "answer",
+      "note": "a Ridge question with no pin",
+      "ran_at": "2026-10-20T05:23:01+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in none of the six policy zones",
+      "located_lat": 28.506724,
+      "located_lon": 77.175002,
+      "answer": "The Ridge is designated as a Regional Park under the Master Plan for Delhi 2047 [S3]\nRecreational use is permitted in all use zones, and construction is allowed only for recreational purposes such as parks and sports centres [S4]",
+      "answer_words": 39,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:10.1@p842:0",
+          "clause_id": "10.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "842"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:10.2.3:0",
+          "clause_id": "10.2.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "847-849"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:10.2.3:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "MPD47_GAZETTE_EN:10.1@p843:0",
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:10.2.3:0",
+        "MPD47_GAZETTE_EN:5.1.6@p800:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "llm_calls": 4,
+      "latency_ms": 36574,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Chhatarpur"
+          },
+          "summary": "found Chhatarpur (Delhi Metro) at 28.50672, 77.17500"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.506724,
+            "lon": 77.175002
+          },
+          "summary": "planning zone J; in none of the six policy zones"
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.506724,
+            "lon": 77.175002,
+            "query": "Ridge construction allowed"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:3.1.2@p681:0, S2 MPD47_GAZETTE_EN:10.1@p843:0, S3 MPD47_GAZETTE_EN:10.1@p842:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 6976,
+      "output_tokens": 313,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "located_metres_off": 3
     }
   ]
 }

@@ -8,7 +8,7 @@
         1. ruff check .     lint: pyflakes (F), syntax errors (E9), import order (I).
                             Not a formatter - `ruff format` is deliberately not run
                             here or anywhere (D-080).
-        2. uv run pytest    all 383 tests. 31 of them need the built indexes and the
+        2. uv run pytest    all 477 tests. 31 of them need the built indexes and the
                             DDA layers; without that data they will fail rather than
                             skip, so on a clean clone use -NoData.
         3. npm run build    the frontend. Catches an import that no test touches,
@@ -22,7 +22,7 @@
     -m "not needs_data", because a GitHub runner has none of the gitignored data.
 
 .PARAMETER NoData
-    Run pytest with -m "not needs_data" - the 352 tests that need no built index or map
+    Run pytest with -m "not needs_data" - the 446 tests that need no built index or map
     layers. Use this on a clean clone, or to check nothing but the code.
 
 .PARAMETER SkipWeb
@@ -101,7 +101,7 @@ if ($NoData) {
 }
 $code = $LASTEXITCODE
 $secs = ((Get-Date) - $t).TotalSeconds
-$scope = if ($NoData) { '352 expected, no data needed' } else { '383 expected' }
+$scope = if ($NoData) { '446 expected, no data needed' } else { '477 expected' }
 if ($code -eq 0) {
     Add-Result -Name 'pytest' -State 'PASS' -Detail $scope -Seconds $secs
 } else {

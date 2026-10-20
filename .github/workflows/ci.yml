@@ -8,7 +8,7 @@ name: CI
 # and `data/layers/dda` are gitignored (D-014) — the PDFs are 109 MB, the DDA layers
 # have no stated licence, and the indexes are generated — so a runner has none of them.
 # Tests that need them are marked `needs_data` and deselected here, which is why the
-# step says `-m "not needs_data"` rather than plain `pytest`. 352 of the 383 tests run
+# step says `-m "not needs_data"` rather than plain `pytest`. 446 of the 477 tests run
 # without any data at all (D-078).
 
 on:

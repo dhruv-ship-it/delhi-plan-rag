@@ -590,7 +590,7 @@ resolves too, which is the fuzzy cutoff doing the job it was chosen for (D-081).
 absent file** rather than a stubbed empty dict: `gazetteer()` returns `{}`,
 `gazetteer_match()` returns `None` immediately, and `locate_place()` falls through to
 Nominatim. A corrupt half-written file behaves the same way. The suite was run with the
-file hidden and with it present — 383 both times — because the data is gitignored and a
+file hidden and with it present — the same count both times — because the data is gitignored and a
 fresh clone has none of it.
 
 **The limitation found by building it** is worth more than the feature: `"Hauz Khas"`
@@ -694,7 +694,7 @@ two suites.
 `npm run build`, then an assertion that `dist/index.html` and a JS bundle exist). The
 marker is declared in `pyproject.toml` under `[tool.pytest.ini_options]`, applied
 module-wide in `tests/test_api.py` with `pytestmark = pytest.mark.needs_data` and on one
-case in `tests/test_web_build.py`. **31 tests are marked; 348 of the 379 run with no data
+case in `tests/test_web_build.py`. **31 tests are marked; 446 of the 477 run with no data
 at all.**
 
 Two details carry most of the value. `concurrency` with `cancel-in-progress` means a
@@ -706,8 +706,9 @@ the marker going missing is a CI failure rather than a surprise.
 
 **Why we chose it this way, and how the set was proved.** The membership of
 `needs_data` was **not reasoned about** — it was established by experiment. `data/index`,
-`data/processed` and `data/layers/dda` were moved aside, the suite was re-run — **348
-passed, 31 deselected, nothing failed** — and then restored, 379 pass (D-078). The first
+`data/processed` and `data/layers/dda` were moved aside, the suite was re-run — on the
+night it was done, **348 passed, 31 deselected, nothing failed** — and then restored
+(D-078). The suite has grown since; the 31 marked cases have not. The first
 attempt at that found a case in `test_web_build.py` that no reading of test names would
 have caught: it mounts the frontend and asserts `status == "ok"`, which is an assertion
 about the index, not the bundle. `npm ci` rather than `npm install` for the same family
@@ -717,7 +718,7 @@ leave CI testing a dependency tree nobody has run locally.
 
 **How to explain it in an interview.** "My indexes and source PDFs aren't committed, so a
 CI runner can't run every test. I marked the 31 that need built data with a pytest marker
-and CI runs `-m 'not needs_data'` — 348 tests on a clean clone. Two things I'd point at:
+and CI runs `-m 'not needs_data'` — 446 tests on a clean clone. Two things I'd point at:
 I found the membership of that set by actually hiding the data directories and re-running,
 which caught a test whose name gave no hint it depended on the index; and CI asserts the
 deselected set is non-empty, so if someone deletes the marker it fails loudly instead of

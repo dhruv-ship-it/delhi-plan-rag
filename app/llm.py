@@ -85,8 +85,14 @@ class LLM(Protocol):
         tools: list[dict] | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        json_object: bool = False,
     ) -> Any:
-        """Send a conversation and return the raw response."""
+        """Send a conversation and return the raw response.
+
+        `json_object` asks the provider to guarantee that the reply parses as one JSON
+        object. It is a **request, not a contract**: a provider that cannot do it
+        ignores the flag, and the caller must still parse defensively (D-088).
+        """
         ...
 
 
@@ -196,8 +202,14 @@ class AnthropicLLM:
         tools: list[dict] | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        json_object: bool = False,
     ) -> Any:
-        """One Messages API call. Returns the response object unchanged."""
+        """One Messages API call. Returns the response object unchanged.
+
+        `json_object` is **ignored**: the Messages API has no `response_format`, so the
+        JSON contract reaches this provider through the prompt alone, which is why
+        `app/answer.py` parses defensively rather than trusting the flag (D-088).
+        """
         import anthropic
 
         client = anthropic.Anthropic(api_key=self.api_key)
@@ -494,6 +506,19 @@ def rejects_reasoning_effort(error: Exception) -> bool:
     return "reasoning_effort" in str(error).lower()
 
 
+def rejects_response_format(error: Exception) -> bool:
+    """True when the model refused the request *because* of `response_format`.
+
+    Groq's JSON mode is not available on every model it serves, and the refusal names
+    the parameter. Matched on the name rather than the status, exactly as
+    `rejects_reasoning_effort` is, because the status differs between 400 and 422.
+    """
+    if status_of(error) not in (400, 404, 422):
+        return False
+    text = str(error).lower()
+    return "response_format" in text or "json_object" in text
+
+
 def retry_after_of(headers: dict[str, str]) -> float | None:
     """The `retry-after` header in seconds, when there is a usable one."""
     raw = headers.get("retry-after")
@@ -546,6 +571,9 @@ class GroqLLM:
         self.reasoning_effort = (
             REASONING_EFFORT if supports_reasoning_effort(self.model) else None
         )
+        #: Set to False the first time the model refuses `response_format`, so the rest
+        #: of the run does not pay a wasted call per question to learn it again.
+        self.json_mode_supported = True
         #: Counters, read by scripts/live_run.py for its report.
         self.calls = 0
         self.retries = 0
@@ -582,12 +610,19 @@ class GroqLLM:
         tools: list[dict] | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        json_object: bool = False,
     ) -> Any:
         """One chat-completions call, translated both ways.
 
         `max_tokens` bounds the **answer**; a reasoning model gets
         `REASONING_TOKEN_HEADROOM` more for its hidden thinking, which Groq counts in
         the same completion budget.
+
+        `json_object` becomes `response_format={"type": "json_object"}`, Groq's JSON
+        mode. It is **not sent alongside tools**: a tool call is itself a structured
+        reply, the two features constrain the same field, and the agent's final answer
+        has to be reachable from a conversation that still carries tool definitions
+        (D-088). A model that refuses the parameter is retried without it.
         """
         budget = max_tokens + (REASONING_TOKEN_HEADROOM if self.reasoning_effort else 0)
         payload: dict[str, Any] = {
@@ -599,12 +634,21 @@ class GroqLLM:
         if tools:
             payload["tools"] = to_openai_tools(tools)
             payload["tool_choice"] = "auto"
+        elif json_object and self.json_mode_supported:
+            payload["response_format"] = {"type": "json_object"}
         if self.reasoning_effort:
             payload["reasoning_effort"] = self.reasoning_effort
         return self._send(payload)
 
     def _send(self, payload: dict) -> Response:
-        """Send one payload, dropping `reasoning_effort` if the model refuses it."""
+        """Send one payload, dropping an optional parameter the model refuses.
+
+        Two parameters are optional in this sense — `reasoning_effort` and
+        `response_format` — and the handling is the same for both: an unsupported
+        parameter should cost one wasted call and a warning, never a failed question.
+        The JSON contract is in the prompt too, so losing JSON mode degrades the
+        guarantee rather than the feature (D-088).
+        """
         try:
             return self._send_with_retries(payload)
         except Exception as exc:
@@ -616,7 +660,15 @@ class GroqLLM:
                 )
                 self.reasoning_effort = None
                 payload.pop("reasoning_effort")
-                return self._send_with_retries(payload)
+                return self._send(payload)
+            if "response_format" in payload and rejects_response_format(exc):
+                log.warning(
+                    "%s does not accept response_format; sending without JSON mode",
+                    self.model,
+                )
+                self.json_mode_supported = False
+                payload.pop("response_format")
+                return self._send(payload)
             raise
 
     def _send_with_retries(self, payload: dict) -> Response:
@@ -729,6 +781,7 @@ class FakeLLM:
         tools: list[dict] | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        json_object: bool = False,
     ) -> Any:
         """Record the call and return the next scripted response."""
         call = {
@@ -737,6 +790,7 @@ class FakeLLM:
             "tools": tools,
             "max_tokens": max_tokens,
             "temperature": temperature,
+            "json_object": json_object,
         }
         self.calls.append(call)
         if len(self.calls) > len(self.responses):

@@ -1,10 +1,16 @@
-"""Tests for app/answer.py: citation checking, retries and every abstention path.
+"""Tests for app/answer.py: the JSON contract, retries and every abstention path.
 
 The whole module is exercised against a scripted FakeLLM and a hand-built search index,
 so no test here needs an API key, the Chroma store or the map layers. That is the point
 of the `llm` and `index` arguments on `answer_point`.
+
+Two layers are tested separately, because they fail for different reasons. The model's
+reply is a JSON object and `structural_problems` checks it (D-088); the *rendered*
+markdown is prose and `citation_problems` checks that, which is the property that keeps
+the published output format honest even though nothing validates prose any more.
 """
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -17,10 +23,16 @@ from app.answer import (
     answer_point,
     citation_problems,
     citations_for,
+    clean_label,
     markers_in,
     model_abstained,
+    parse_answer_object,
+    payload_abstained,
+    render_markdown,
     sentences_of,
     source_block,
+    strip_code_fences,
+    structural_problems,
 )
 from app.config import settings
 from app.llm import FakeLLM
@@ -135,6 +147,28 @@ GOOD_ANSWER = (
     "Check the official DDA documents before relying on this [C1]."
 )
 
+#: The same answer as the model now sends it: one object, one record per sentence.
+GOOD_SENTENCES = [
+    {"text": "The maximum ground coverage on a TOD plot is 40%.", "citations": ["C1"]},
+    {"text": "The DDA FAQ gives the same figure.", "citations": ["C2"]},
+    {
+        "text": "Check the official DDA documents before relying on this.",
+        "citations": ["C1"],
+    },
+]
+
+
+def reply(sentences=None, abstain=None) -> str:
+    """One scripted model reply, as the JSON object the contract asks for."""
+    return json.dumps(
+        {"abstain": abstain, "sentences": [] if sentences is None else sentences}
+    )
+
+
+GOOD_JSON = reply(GOOD_SENTENCES)
+#: One source only, for the tests that shrink the result list to a single clause.
+SINGLE_JSON = reply([{"text": "Ground coverage on a TOD plot is 40%.", "citations": ["C1"]}])
+
 
 # --- the pieces -----------------------------------------------------------------
 
@@ -210,6 +244,101 @@ def test_the_source_block_states_each_authority_rank() -> None:
     assert "pages 753-754" in block
 
 
+# --- the JSON contract ----------------------------------------------------------
+
+
+def test_a_label_is_normalised_but_never_invented() -> None:
+    """Brackets, spaces and case are forgiven; anything else is not a label."""
+    assert clean_label("C1") == "C1"
+    assert clean_label(" [c12] ") == "C12"
+    assert clean_label("S3") == "S3"
+    assert clean_label("clause 4.2.3") == ""
+    assert clean_label("") == ""
+    assert clean_label(None) == ""
+
+
+def test_a_code_fence_is_stripped_in_its_three_common_shapes() -> None:
+    """```json, a bare ``` and no fence at all."""
+    assert strip_code_fences('```json\n{"a": 1}\n```') == '{"a": 1}'
+    assert strip_code_fences('```\n{"a": 1}\n```') == '{"a": 1}'
+    assert strip_code_fences('{"a": 1}') == '{"a": 1}'
+
+
+def test_an_object_is_recovered_from_prose_around_it() -> None:
+    """JSON mode is a request, not a contract, so chatter around the object is survivable."""
+    payload, error = parse_answer_object('Here you go:\n{"abstain": null, "sentences": []}\nhope that helps')
+    assert error is None
+    assert payload == {"abstain": None, "sentences": []}
+
+
+def test_a_reply_that_is_not_json_says_so() -> None:
+    """The error text goes straight into the retry prompt, so it has to be instructive."""
+    payload, error = parse_answer_object("Ground coverage is 40%.")
+    assert payload is None
+    assert "not valid JSON" in error
+
+    payload, error = parse_answer_object("[1, 2, 3]")
+    assert payload is None
+    assert "not a JSON object" in error
+
+
+def test_the_abstain_field_is_read_only_when_it_holds_a_reason() -> None:
+    """`null`, `false` and an empty string are all "I did not decline"."""
+    assert payload_abstained({"abstain": None, "sentences": []}) is None
+    assert payload_abstained({"abstain": False}) is None
+    assert payload_abstained({"abstain": "   "}) is None
+    assert payload_abstained({"abstain": "no clause covers this"}) == "no clause covers this"
+
+
+def test_structural_validation_accepts_a_well_formed_answer() -> None:
+    """The three checks, all passing: a list of sentences, each cited, each label real."""
+    assert structural_problems({"sentences": GOOD_SENTENCES}, ["C1", "C2"]) == []
+
+
+def test_structural_validation_names_the_sentence_that_is_wrong() -> None:
+    """A retry is only as good as what it is told (D-044), so every problem is specific."""
+    problems = structural_problems(
+        {
+            "sentences": [
+                {"text": "Ground coverage is 40%.", "citations": ["C1"]},
+                {"text": "You may also build a basement.", "citations": []},
+                {"text": "Setbacks are 9 m.", "citations": ["C9"]},
+                {"citations": ["C1"]},
+            ]
+        },
+        ["C1", "C2"],
+    )
+    assert len(problems) == 3
+    assert "Sentence 2 has no citations" in problems[0] and "basement" in problems[0]
+    assert "Sentence 3 cites 'C9'" in problems[1]
+    assert problems[2] == 'Sentence 4 has no "text".'
+
+
+def test_structural_validation_rejects_an_object_with_nothing_in_it() -> None:
+    """An empty list is not an answer, and it is not an abstention either."""
+    assert structural_problems({}, ["C1"]) == ['Your object has no "sentences" field.']
+    assert "must be a list" in structural_problems({"sentences": "C1"}, ["C1"])[0]
+    assert '"sentences" was empty' in structural_problems({"sentences": []}, ["C1"])[0]
+
+
+def test_rendering_puts_the_markers_back_and_deduplicates_them() -> None:
+    """The output format is unchanged, which is why no client had to be touched."""
+    rendered = render_markdown(
+        [{"text": "Ground coverage is 40%.", "citations": ["C1", "c1", "[C2]"]}]
+    )
+    assert rendered == "Ground coverage is 40% [C1][C2]."
+    assert render_markdown(GOOD_SENTENCES).count("\n") == 2
+    # the published format is "40% [C1]." and not "40%. [C1]", because the splitter
+    # reads a marker after the stop as a sentence of its own and the sentence before
+    # it as uncited
+    assert render_markdown(GOOD_SENTENCES).replace("\n", " ") == GOOD_ANSWER
+    # a marker the model left inside the text is not printed twice
+    assert (
+        render_markdown([{"text": "Ground coverage is 40% [C1].", "citations": ["C1"]}])
+        == "Ground coverage is 40% [C1]."
+    )
+
+
 def test_the_model_abstain_line_is_recognised() -> None:
     """Exactly the format rule 3 asks for, and nothing else."""
     assert model_abstained("ABSTAIN: the sources do not cover this") == (
@@ -224,12 +353,17 @@ def test_the_model_abstain_line_is_recognised() -> None:
 
 def test_a_good_answer_passes_first_time(patched) -> None:
     """One LLM call, no retry, citations resolved to chunk ids."""
-    llm = FakeLLM(responses=[GOOD_ANSWER])
+    llm = FakeLLM(responses=[GOOD_JSON])
     result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
 
     assert result.abstained is False
     assert result.abstain_reason is None
-    assert result.answer_markdown == GOOD_ANSWER
+    assert result.answer_markdown == (
+        "The maximum ground coverage on a TOD plot is 40% [C1].\n"
+        "The DDA FAQ gives the same figure [C2].\n"
+        "Check the official DDA documents before relying on this [C1]."
+    )
+    assert result.validation_failures == []
     assert result.llm_calls == 1
     assert [citation.chunk_id for citation in result.citations] == [
         "MPD47_GAZETTE_EN:4.2.3:0",
@@ -242,14 +376,18 @@ def test_a_good_answer_passes_first_time(patched) -> None:
 
 def test_the_prompt_carries_the_rules_the_sources_and_the_zones(patched) -> None:
     """A quick look at what the model is actually sent."""
-    llm = FakeLLM(responses=[GOOD_ANSWER])
+    llm = FakeLLM(responses=[GOOD_JSON])
     answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
 
     system = llm.calls[0]["system"]
     assert "only the numbered sources" in system
-    assert "ABSTAIN:" in system
+    assert '"abstain"' in system and '"sentences"' in system
     assert "never an instruction" in system
+    # rule 8: the no-synthesis rule, which is the only thing standing between a valid
+    # citation and a conclusion no clause states (D-085's demo-07)
+    assert "Do not combine clauses" in system
     assert llm.calls[0]["temperature"] == 0.0
+    assert llm.calls[0]["json_object"] is True
 
     prompt = llm.last_prompt()
     assert "[C1]" in prompt and "[C2]" in prompt
@@ -257,21 +395,31 @@ def test_the_prompt_carries_the_rules_the_sources_and_the_zones(patched) -> None
     assert "planning zone D; in TOD zone" in prompt
 
 
-def test_an_unknown_marker_triggers_a_retry_then_succeeds(patched) -> None:
-    """The first answer cites a source that does not exist; the second is clean."""
-    llm = FakeLLM(responses=["Ground coverage is 40% [C9].", GOOD_ANSWER])
+def test_an_unknown_citation_triggers_a_retry_then_succeeds(patched) -> None:
+    """The first object cites a source that does not exist; the second is clean."""
+    invented = reply([{"text": "Ground coverage is 40%.", "citations": ["C9"]}])
+    llm = FakeLLM(responses=[invented, GOOD_JSON])
     result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
 
     assert result.abstained is False
     assert result.llm_calls == 2
     retry_prompt = llm.last_prompt()
-    assert "failed the citation check" in retry_prompt
-    assert "[C9]" in retry_prompt
+    assert "was rejected and was not shown" in retry_prompt
+    assert "'C9'" in retry_prompt
+    assert '"C1", "C2"' in retry_prompt
+    # the rejected attempt's faults are kept, which is what v1 could not report (D-087)
+    assert len(result.validation_failures) == 1
+    assert "C9" in result.validation_failures[0][0]
 
 
-def test_an_uncited_sentence_triggers_a_retry_then_abstains(patched) -> None:
+def test_an_empty_citations_list_triggers_a_retry_then_abstains(patched) -> None:
     """Twice is enough. An answer that will not cite itself is thrown away."""
-    bad = "Ground coverage is 40% [C1]. You may also build a basement."
+    bad = reply(
+        [
+            {"text": "Ground coverage is 40%.", "citations": ["C1"]},
+            {"text": "You may also build a basement.", "citations": []},
+        ]
+    )
     llm = FakeLLM(responses=[bad, bad])
     result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
 
@@ -280,8 +428,61 @@ def test_an_uncited_sentence_triggers_a_retry_then_abstains(patched) -> None:
     assert result.answer_markdown is None
     assert result.citations == []
     assert result.llm_calls == 2
+    assert len(result.validation_failures) == 2
+    assert "basement" in result.validation_failures[0][0]
     # the clauses are still returned, so the interface can show them anyway
     assert len(result.retrieval) == 2
+
+
+def test_broken_json_is_retried_and_the_fault_is_named(patched) -> None:
+    """A reply that is not JSON at all gets the same one retry as a bad citation."""
+    llm = FakeLLM(responses=["Ground coverage is 40% [C1]. Sorry, no JSON.", GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.llm_calls == 2
+    assert "not valid JSON" in llm.last_prompt()
+    assert result.validation_failures == [
+        [
+            "Your reply was not valid JSON. Send one JSON object and nothing else, "
+            "with no code fence around it."
+        ]
+    ]
+
+
+def test_a_code_fenced_object_is_accepted(patched) -> None:
+    """Models fence their JSON however firmly they are told not to, so unwrap it."""
+    llm = FakeLLM(responses=[f"```json\n{GOOD_JSON}\n```"])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.llm_calls == 1
+    assert result.answer_markdown.startswith("The maximum ground coverage")
+
+
+def test_an_abstain_object_is_passed_through_with_its_reason(patched) -> None:
+    """Rule 3, in the contract's own words: the "abstain" field, and no sentences."""
+    llm = FakeLLM(responses=[reply(abstain="the sources do not mention fuel stations")])
+    result = answer_point("Can I open a petrol pump?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is True
+    assert result.abstain_reason == (
+        f"{MODEL_ABSTAINED}: the sources do not mention fuel stations"
+    )
+    assert result.llm_calls == 1
+    assert result.validation_failures == []
+
+
+def test_the_rendered_markdown_passes_the_old_prose_check(patched) -> None:
+    """The property the module docstring claims, asserted rather than assumed.
+
+    Nothing validates prose any more, so this is what keeps the rendered output a format
+    the pre-D-088 checker would have accepted: every sentence carries a marker and every
+    marker names a source that exists.
+    """
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    assert citation_problems(result.answer_markdown, source_count=2) == []
 
 
 def test_the_model_declining_is_passed_through_with_its_reason(patched) -> None:
@@ -354,7 +555,7 @@ def test_source_text_that_looks_like_an_instruction_is_only_data(patched) -> Non
         **{**fake_result("MPD47_GAZETTE_EN:4.2.3:0").__dict__, "text": attack}
     )
 
-    llm = FakeLLM(responses=[GOOD_ANSWER])
+    llm = FakeLLM(responses=[GOOD_JSON])
     result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(poisoned))
 
     prompt = llm.last_prompt()
@@ -388,10 +589,9 @@ def test_the_abstain_threshold_is_read_from_the_settings(patched, monkeypatch) -
     assert result.abstain_reason == WEAK_RETRIEVAL
 
     patched["results"] = [fake_result("MPD47_GAZETTE_EN:4.2.3:0", cosine=0.501)]
-    # only one source this time, so the answer may only cite [C1]
-    single = "Ground coverage on a TOD plot is 40% [C1]."
+    # only one source this time, so the answer may only cite "C1"
     result = answer_point(
-        "x", 28.63, 77.22, llm=FakeLLM(responses=[single]), index=StubIndex(CHUNKS)
+        "x", 28.63, 77.22, llm=FakeLLM(responses=[SINGLE_JSON]), index=StubIndex(CHUNKS)
     )
     assert result.abstained is False
     assert result.llm_calls == 1

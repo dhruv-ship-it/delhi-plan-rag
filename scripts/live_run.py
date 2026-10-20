@@ -338,6 +338,9 @@ def run_case(case: dict, client: GroqLLM, index) -> dict:
             "retrieved_chunk_ids": retrieved,
             "abstained": result.abstained,
             "abstain_reason": result.abstain_reason,
+            # One problems list per rejected attempt (D-087). v1 recorded only a count,
+            # so `reports/citation_failures_v1.md` could not say which rule fired.
+            "validation_failures": [list(attempt) for attempt in result.validation_failures],
             "llm_calls": result.llm_calls,
             "latency_ms": result.latency_ms,
             "tool_trace": list(result.tool_trace),
@@ -348,10 +351,10 @@ def run_case(case: dict, client: GroqLLM, index) -> dict:
             "rate_limit_events": client.rate_limit_events - before_limits,
         }
     )
-    # In map mode one call is the answer, so anything beyond it is the citation retry.
-    # In agent mode the calls include the tool rounds, so a retry cannot be separated
-    # from them and the field is left unset rather than guessed at.
-    record["citation_retry"] = max(0, result.llm_calls - 1) if case["mode"] == "map" else None
+    # The number of rejected attempts, read off the record rather than inferred from the
+    # call count. Before D-087 this was `llm_calls - 1`, which only worked in map mode:
+    # an agent run's calls include its tool rounds, so the field had to be left unset.
+    record["citation_retry"] = len(result.validation_failures)
 
     expected = list(case.get("expected_chunk_ids") or [])
     if expected:

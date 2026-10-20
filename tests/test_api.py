@@ -214,11 +214,24 @@ def test_an_unknown_chunk_id_is_a_404(client) -> None:
 
 # --- ask, with a key ------------------------------------------------------------
 
-GOOD_ANSWER_TEMPLATE = "Ground coverage on a TOD plot is capped at 40% [C1]. Check DDA documents [C1]."
+#: One scripted reply in the JSON contract the model now answers in (D-088). The API
+#: still returns rendered markdown, which is the point of asserting both here.
+GOOD_ANSWER_JSON = json.dumps(
+    {
+        "abstain": None,
+        "sentences": [
+            {"text": "Ground coverage on a TOD plot is capped at 40%.", "citations": ["C1"]},
+            {"text": "Check DDA documents.", "citations": ["C1"]},
+        ],
+    }
+)
+GOOD_ANSWER_MARKDOWN = (
+    "Ground coverage on a TOD plot is capped at 40% [C1].\nCheck DDA documents [C1]."
+)
 
 
 def test_ask_returns_a_cited_answer(client) -> None:
-    fake = use_llm([GOOD_ANSWER_TEMPLATE])
+    fake = use_llm([GOOD_ANSWER_JSON])
     lat, lon = RAJIV_CHOWK
     body = client.post(
         "/api/ask",
@@ -226,7 +239,8 @@ def test_ask_returns_a_cited_answer(client) -> None:
     ).json()
 
     assert body["abstained"] is False
-    assert body["answer_markdown"] == GOOD_ANSWER_TEMPLATE
+    assert body["answer_markdown"] == GOOD_ANSWER_MARKDOWN
+    assert body["validation_failures"] == []
     assert body["citations"][0]["marker"] == "C1"
     assert body["citations"][0]["chunk_id"]
     assert body["zones"]["tod"] is True
@@ -341,7 +355,7 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
 def test_the_per_minute_limit_returns_a_friendly_429(client) -> None:
     """Ten in a minute from one address is enough (D-051)."""
     lat, lon = RAJIV_CHOWK
-    use_llm([GOOD_ANSWER_TEMPLATE] * settings.rate_limit_per_minute)
+    use_llm([GOOD_ANSWER_JSON] * settings.rate_limit_per_minute)
     payload = {"question": "How much can I build?", "lat": lat, "lon": lon}
 
     for number in range(settings.rate_limit_per_minute):
@@ -391,7 +405,7 @@ def test_requests_are_logged_with_the_fields_that_matter(client) -> None:
     path = settings.requests_log_path
     before = path.read_text(encoding="utf-8").count("\n") if path.exists() else 0
 
-    use_llm([GOOD_ANSWER_TEMPLATE])
+    use_llm([GOOD_ANSWER_JSON])
     lat, lon = RAJIV_CHOWK
     client.post("/api/ask", json={"question": "logging check", "lat": lat, "lon": lon})
 

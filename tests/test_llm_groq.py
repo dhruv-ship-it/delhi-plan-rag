@@ -29,6 +29,7 @@ from app.llm import (
     is_rate_limited,
     rate_limit_of,
     rejects_reasoning_effort,
+    rejects_response_format,
     retry_after_of,
     supports_reasoning_effort,
     text_of,
@@ -314,6 +315,71 @@ def test_a_non_reasoning_model_is_sent_neither() -> None:
     sent = client.client.chat.completions.payloads[0]
     assert "reasoning_effort" not in sent
     assert sent["max_tokens"] == 900
+
+
+def test_json_mode_is_sent_as_groqs_own_response_format() -> None:
+    """D-088. `json_object=True` becomes Groq's JSON mode, and nothing else changes."""
+    client = groq([said('{"abstain": null, "sentences": []}')])
+    client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+    sent = client.client.chat.completions.payloads[0]
+    assert sent["response_format"] == {"type": "json_object"}
+
+
+def test_json_mode_is_not_asked_for_unless_the_caller_asks() -> None:
+    """The flag defaults off, so the agent's tool rounds are untouched."""
+    client = groq([said("ok [C1].")])
+    client.chat(messages=[{"role": "user", "content": "q"}])
+    assert "response_format" not in client.client.chat.completions.payloads[0]
+
+
+def test_json_mode_is_never_sent_alongside_tools() -> None:
+    """A tool call is itself a structured reply; the two constrain the same field.
+
+    This matters because the agent's final answer is reached from a conversation that
+    still carries tool definitions, so the agent gets its JSON from the prompt instead
+    (D-088) and parses defensively either way.
+    """
+    client = groq([said("ok")])
+    client.chat(
+        messages=[{"role": "user", "content": "q"}],
+        tools=[{"name": "t", "description": "d", "input_schema": {"type": "object"}}],
+        json_object=True,
+    )
+    sent = client.client.chat.completions.payloads[0]
+    assert "tools" in sent
+    assert "response_format" not in sent
+
+
+def test_a_model_that_rejects_response_format_is_retried_without_it(clock) -> None:
+    """Losing JSON mode degrades the guarantee, never the question."""
+    refusal = FakeAPIError("400 'response_format' is not supported for this model", 400)
+    client = groq([refusal, said('{"abstain": null, "sentences": []}')])
+
+    response = client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+
+    assert text_of(response) == '{"abstain": null, "sentences": []}'
+    assert client.json_mode_supported is False
+    first, second = client.client.chat.completions.payloads
+    assert "response_format" in first
+    assert "response_format" not in second
+
+
+def test_a_refused_json_mode_is_not_asked_for_again() -> None:
+    """One wasted call per run to learn it, not one per question."""
+    refusal = FakeAPIError("400 'response_format' is unsupported", 400)
+    client = groq([refusal, said("{}"), said("{}")])
+    client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+    client.chat(messages=[{"role": "user", "content": "q"}], json_object=True)
+    assert len(client.client.chat.completions.payloads) == 3
+    assert "response_format" not in client.client.chat.completions.payloads[2]
+
+
+def test_rejects_response_format_reads_both_wordings() -> None:
+    """Groq names either the parameter or the value, and the status varies."""
+    assert rejects_response_format(FakeAPIError("response_format unsupported", 400))
+    assert rejects_response_format(FakeAPIError("json_object is not available", 422))
+    assert rejects_response_format(FakeAPIError("rate limited", 429)) is False
+    assert rejects_response_format(RuntimeError("something else")) is False
 
 
 def test_supports_reasoning_effort_matches_the_published_name() -> None:

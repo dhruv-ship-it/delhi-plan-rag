@@ -12,13 +12,17 @@ import pytest
 
 from app.spatial import (
     ALL_LAYERS,
+    TOPIC_LAYERS,
     clean_zone_name,
+    distance_to_topic,
     get_zones,
     in_water,
     load_layer,
     load_layers,
+    metric_shapes,
     topics_for,
 )
+from app.tagging import TOPICS
 
 
 def square(x0: float, y0: float, x1: float, y1: float) -> dict:
@@ -179,3 +183,61 @@ def test_a_missing_layer_file_says_what_to_run(toy_folder: Path) -> None:
     with pytest.raises(Exception) as caught:
         load_layer("tod_zone", toy_folder)
     assert "06_fetch_layers.py" in str(caught.value)
+
+
+# --- how far away is a zone the point is not in? (D-094) ------------------------
+
+
+@pytest.fixture
+def toy_distances(toy_folder: Path):
+    """The toy layers, with both caches cleared so nothing real is measured."""
+    load_layers.cache_clear()
+    metric_shapes.cache_clear()
+    folder = str(toy_folder)
+    load_layers(folder)
+    yield folder
+    load_layers.cache_clear()
+    metric_shapes.cache_clear()
+
+
+def test_a_point_inside_a_zone_is_zero_metres_from_it(toy_distances) -> None:
+    """A distance, not a "how far outside": inside is 0.0 and not None."""
+    inside_tod = (28.57, 77.07)
+    assert distance_to_topic(*inside_tod, "tod", toy_distances) == pytest.approx(0.0)
+
+
+def test_a_point_outside_a_zone_gets_its_distance_in_metres(toy_distances) -> None:
+    """The toy TOD square runs to 77.10, so a point at 77.15 is about 5 km east of it.
+
+    Asserted as a range rather than a figure: the value is a real UTM distance and
+    pinning it would make the test about pyproj's arithmetic.
+    """
+    metres = distance_to_topic(28.57, 77.15, "tod", toy_distances)
+    assert metres is not None
+    assert 4_000 < metres < 6_000
+
+
+def test_zone_o_is_measured_from_the_planning_zone_and_not_a_layer(toy_distances) -> None:
+    """Zone O has no layer of its own, so planning_zones is filtered on its name.
+
+    The toy zone O runs from 77.2 to 77.3. A point at 77.07 is west of it, and a point
+    inside it is 0 m away — which is the check that the filter kept the right polygon
+    and not all three planning zones.
+    """
+    assert distance_to_topic(28.6, 77.25, "zone_o", toy_distances) == pytest.approx(0.0)
+    metres = distance_to_topic(28.6, 77.07, "zone_o", toy_distances)
+    assert metres is not None and metres > 10_000
+    # planning zone G covers 77.07, so a point there is in *a* planning zone already
+    assert get_zones(28.6, 77.07, load_layers(toy_distances))["planning_zone"] == "G"
+
+
+def test_every_policy_topic_has_a_layer_to_measure_against() -> None:
+    """A topic with no entry would silently answer None and the note would lose its
+    distance, so the mapping has to cover all six (D-094)."""
+    assert set(TOPIC_LAYERS) == set(TOPICS)
+    assert all(name for name, _ in TOPIC_LAYERS.values())
+
+
+def test_an_unknown_topic_has_no_distance(toy_distances) -> None:
+    """None rather than an exception: the note drops the distance clause and goes on."""
+    assert distance_to_topic(28.6, 77.1, "not_a_topic", toy_distances) is None

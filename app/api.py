@@ -217,6 +217,9 @@ def answer_log_payload(question: str, result: Any) -> dict:
         "abstain_reason": result.abstain_reason,
         "llm_calls": result.llm_calls,
         "latency_ms": result.latency_ms,
+        # "" for most questions. Worth a line in the log when it is not, because it
+        # says the answer is about a point the question did not quite describe (D-094).
+        "location_note": result.location_note,
     }
 
 

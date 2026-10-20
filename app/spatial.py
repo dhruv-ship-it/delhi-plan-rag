@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from shapely import transform
 from shapely.geometry import Point, shape
 from shapely.strtree import STRtree
 
@@ -213,3 +214,104 @@ def topics_for(zones: dict) -> list[str]:
     if not zones.get("inside_delhi"):
         return []
     return [topic for topic, key in TOPIC_KEYS if zones.get(key)]
+
+
+# --- how far away is a zone the point is not in? --------------------------------
+#
+# `get_zones` answers "is the point in this zone?". A question that *names* a zone the
+# point is not in needs the other half of that answer: how far off it is. One kilometre
+# from the Yamuna floodplain and one metre from it are the same `zone_o: false`, and
+# only the first of those is honest to describe as "not in the floodplain" without
+# qualification (D-094).
+
+#: Metres, which is what a distance has to be measured in. UTM zone 43N covers Delhi
+#: and is the projection the rest of this project measures in (scripts/06_fetch_layers.py,
+#: and the buffers CLAUDE.md pins).
+METRIC_CRS = "EPSG:32643"
+
+#: Which layer holds each policy topic's polygons, and the `zone_name` a feature must
+#: carry to count. `zone_o` has no layer of its own — it *is* planning zone "O" — so the
+#: planning_zones layer is filtered, exactly as `get_zones` does it. The topic names
+#: come from app.tagging and the layer names from DDA, and they differ for the Ridge.
+TOPIC_LAYERS: dict[str, tuple[str, str | None]] = {
+    "tod": ("tod_zone", None),
+    "hdc": ("high_density_corridor", None),
+    "zone_o": ("planning_zones", "O"),
+    "land_pooling": ("land_pooling_area", None),
+    "ridge": ("regional_park", None),
+    "lda": ("low_density_area", None),
+}
+
+
+@lru_cache(maxsize=1)
+def to_metres():
+    """The EPSG:4326 -> EPSG:32643 transform, built once.
+
+    `always_xy=True` so it takes (lon, lat) in and gives (easting, northing) out, which
+    is the order shapely uses and the order the GeoJSON is stored in.
+    """
+    from pyproj import Transformer
+
+    return Transformer.from_crs("EPSG:4326", METRIC_CRS, always_xy=True).transform
+
+
+def in_metres(geometry):
+    """One geometry, reprojected into EPSG:32643.
+
+    `shapely.transform` hands the whole coordinate array over at once, which pyproj
+    takes as-is, so a 200-vertex polygon is one call rather than 200. The array is
+    copied and written through its own columns so that nothing here has to import numpy
+    to build a new one — shapely brings it, but this project does not declare it.
+    """
+
+    def project(coordinates):
+        moved = coordinates.copy()
+        moved[:, 0], moved[:, 1] = to_metres()(coordinates[:, 0], coordinates[:, 1])
+        return moved
+
+    return transform(geometry, project)
+
+
+@lru_cache(maxsize=32)
+def metric_shapes(topic: str, folder: str | None = None) -> tuple[tuple, STRtree] | None:
+    """One topic's polygons projected into metres, with an index over them.
+
+    Cached, and keyed the same way `load_layers` is keyed, because projecting 208 low
+    density area polygons is not something to do per question. None when the topic has
+    no polygons at all, which a filtered layer can legitimately produce.
+    """
+    name, keep = TOPIC_LAYERS[topic]
+    layer = load_layers(folder)[name]
+    shapes = [
+        in_metres(geometry)
+        for geometry, properties in zip(layer.geometries, layer.properties)
+        if keep is None or clean_zone_name(properties.get("zone_name")) == keep
+    ]
+    if not shapes:
+        return None
+    return tuple(shapes), STRtree(shapes)
+
+
+def distance_to_topic(
+    lat: float, lon: float, topic: str, folder: str | None = None
+) -> float | None:
+    """Metres from the point to the nearest polygon of `topic`, in EPSG:32643.
+
+    0.0 when the point is inside one, so this is a distance and not a "how far outside";
+    None when the topic is not one of the six, or has no polygons in the layers.
+
+    `folder` rather than a loaded `layers` dict, unlike `get_zones`, because the
+    projected shapes are cached and a cache has to be keyed by something hashable —
+    the same string `load_layers` is already keyed by.
+    """
+    if topic not in TOPIC_LAYERS:
+        return None
+    found = metric_shapes(topic, folder)
+    if found is None:
+        return None
+    shapes, tree = found
+    point = in_metres(Point(lon, lat))
+    nearest = tree.nearest(point)
+    if nearest is None:
+        return None
+    return float(shapes[int(nearest)].distance(point))

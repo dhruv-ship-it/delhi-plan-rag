@@ -330,6 +330,18 @@ button:focus-visible {
   font-style: italic;
 }
 
+/* The named-zone mismatch note, above the answer. It is a statement about the point
+   rather than about the documents, so it is styled as a notice and not as prose
+   (D-094). */
+.location-note {
+  background: var(--warn-soft);
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 0.8rem;
+  font-size: 0.88rem;
+}
+
 /* The fixed caveat under every answer and every refusal. It is `result.disclaimer`,
    added by the API in code and never written by the model, so it is styled as a note
    about the app rather than as part of the answer (D-092). */

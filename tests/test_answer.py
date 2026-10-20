@@ -646,3 +646,77 @@ def test_the_prompt_no_longer_asks_the_model_for_a_caveat(patched) -> None:
     assert "Do not give legal advice" in system
     # and the disclaimer string itself is never shown to the model
     assert DISCLAIMER not in system
+
+
+# --- the named-zone mismatch note (D-094) ---------------------------------------
+
+NOTE = (
+    "This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest "
+    "Zone O boundary is about 1.1 km away."
+)
+
+
+@pytest.fixture
+def noted(patched, monkeypatch):
+    """The fixture above, plus a fixed location note. The note's own text is tested
+    in tests/test_retrieval.py; what is tested here is where it goes."""
+    monkeypatch.setattr("app.answer.location_note", lambda *args: NOTE)
+    return patched
+
+
+def test_the_note_reaches_the_prompt_with_an_instruction_to_answer_for_the_point(
+    noted,
+) -> None:
+    """A fact plus an instruction, both deterministic (D-094)."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point(
+        "Can I build on the Yamuna floodplain here?", 28.63, 77.22,
+        llm=llm, index=StubIndex(CHUNKS),
+    )
+
+    prompt = llm.last_prompt()
+    assert NOTE in prompt
+    assert "established from DDA's own map layers rather than by you" in prompt
+    assert "Answer for the point the question was asked at" in prompt
+    assert "Do not answer for the zone the question names instead" in prompt
+    # the note comes after the sources and the question, not instead of them
+    assert prompt.index("Sources:") < prompt.index("Question:") < prompt.index(NOTE)
+
+
+def test_the_note_is_a_field_and_never_one_of_the_validated_sentences(noted) -> None:
+    """Code-generated, like the disclaimer, so the citation check never sees it."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point(
+        "Can I build on the Yamuna floodplain here?", 28.63, 77.22,
+        llm=llm, index=StubIndex(CHUNKS),
+    )
+
+    assert result.location_note == NOTE
+    assert result.to_dict()["location_note"] == NOTE
+    assert NOTE not in (result.answer_markdown or "")
+    assert len(result.citations) == 2, "the note adds no citation"
+
+
+def test_a_refusal_carries_the_note_too(noted, monkeypatch) -> None:
+    """Weak retrieval still happened at a point, and the point is still not in Zone O."""
+    with_threshold(monkeypatch, 0.95)
+    result = answer_point(
+        "Can I build on the Yamuna floodplain here?", 28.63, 77.22,
+        llm=FakeLLM(responses=[]), index=StubIndex(CHUNKS),
+    )
+    assert result.abstain_reason == WEAK_RETRIEVAL
+    assert result.location_note == NOTE
+
+
+def test_no_note_means_no_extra_block_in_the_prompt(patched) -> None:
+    """The common case: the question names no zone, so nothing is added at all.
+
+    `app.answer.location_note` is the real function here, and the question names
+    nothing, so this also checks that the default is silence rather than a sentence
+    saying everything matched.
+    """
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.location_note == ""
+    assert "Note about where this question was asked" not in llm.last_prompt()

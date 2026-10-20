@@ -13,11 +13,17 @@ from app.location import (
     EXPANDS_QUERY,
     EXPANSION_TERMS,
     FUSES_FOUR_LISTS,
+    NOTE_LABELS,
+    NOTE_SHORT_LABELS,
+    describe_distance,
     describe_zones,
     excluded_topics_for,
     expand_query,
     location_aware_search,
+    location_note,
     matches_point,
+    mismatched_topics,
+    named_zone_topics,
     place_query,
     should_exclude,
 )
@@ -435,3 +441,112 @@ def test_the_score_breakdown_is_first_pair_first() -> None:
     assert results[0].dense_distance == pytest.approx(0.4)
     assert results[0].dense_cosine == pytest.approx(0.6)
     assert results[0].dense_rank == 1
+
+
+# --- the named-zone mismatch note (D-094) ---------------------------------------
+
+#: A point in a TOD zone and in nothing else, which is what `get_zones` says about the
+#: place the agent landed on for v2's `agent-02`.
+TOD_ONLY = {
+    "inside_delhi": True,
+    "planning_zone": "D",
+    "tod": True,
+    "hdc": False,
+    "land_pooling": False,
+    "land_pooling_zone": None,
+    "zone_o": False,
+    "regional_park": False,
+    "lda": False,
+}
+
+
+@pytest.fixture
+def fixed_distance(monkeypatch):
+    """Answer every distance query with one number, set by the test.
+
+    The distance itself is `app/spatial.py`'s job and is tested there against toy
+    polygons. What is tested here is the sentence built from it.
+    """
+    state = {"metres": 1_100.0}
+    monkeypatch.setattr(
+        "app.location.distance_to_topic", lambda lat, lon, topic: state["metres"]
+    )
+    return state
+
+
+def test_a_question_naming_a_zone_is_recognised_by_the_tagging_regexes() -> None:
+    """The same rules that tag a clause, read on the question (D-094)."""
+    assert named_zone_topics("Can I build a house on the Yamuna floodplain near ITO?") == [
+        "zone_o"
+    ]
+    assert named_zone_topics("Is construction allowed in the Ridge near Chhatarpur?") == [
+        "ridge"
+    ]
+    assert named_zone_topics("What is the maximum ground coverage here?") == []
+    # "bridge" is not "ridge": the word boundary in the pattern is doing real work
+    assert named_zone_topics("Can I build near the bridge?") == []
+
+
+def test_a_named_zone_the_point_is_in_produces_no_note(fixed_distance) -> None:
+    """Matching zone, nothing to say. This is the common good case."""
+    assert mismatched_topics("What are the TOD norms here?", TOD_ONLY) == []
+    assert location_note("What are the TOD norms here?", 28.63, 77.22, TOD_ONLY) == ""
+
+
+def test_the_agent_02_case_gets_a_note_naming_zone_o_and_its_distance(
+    fixed_distance,
+) -> None:
+    """v2's `agent-02`: the floodplain named, a point in a TOD zone about a km away.
+
+    The answer it produced was a correct quotation of the no-construction clause about
+    a place the user is not standing in, which `docs/PROJECT_STATUS.md` called a
+    regression dressed as a win. The note is what makes that visible.
+    """
+    question = "Can I build a house on the Yamuna floodplain near ITO?"
+    assert mismatched_topics(question, TOD_ONLY) == ["zone_o"]
+    assert location_note(question, 28.6283, 77.2410, TOD_ONLY) == (
+        "This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest "
+        "Zone O boundary is about 1.1 km away."
+    )
+
+
+def test_several_named_zones_get_one_sentence_each_in_topics_order(
+    fixed_distance,
+) -> None:
+    """One sentence per named zone the point is outside, deterministic in order."""
+    question = "Is a farmhouse allowed in the Ridge or in a land pooling area here?"
+    assert mismatched_topics(question, TOD_ONLY) == ["land_pooling", "ridge", "lda"]
+    note = location_note(question, 28.63, 77.22, TOD_ONLY)
+    assert note.count("This point is not inside") == 3
+    assert note.index("land pooling") < note.index("Ridge") < note.index("Low Density")
+    # the zone the point *is* in is never mentioned, even though the question could
+    assert "TOD" not in note
+
+
+def test_a_point_outside_delhi_gets_no_note(fixed_distance) -> None:
+    """Outside NCT Delhi none of the six zones mean anything, so neither does a note."""
+    assert mismatched_topics("Ridge?", {"inside_delhi": False}) == []
+    assert location_note("Ridge?", 19.07, 72.87, {"inside_delhi": False}) == ""
+
+
+def test_a_note_without_a_distance_still_says_the_point_is_outside(monkeypatch) -> None:
+    """The distance clause is dropped, not guessed, when the layers cannot answer."""
+    monkeypatch.setattr("app.location.distance_to_topic", lambda lat, lon, topic: None)
+    assert location_note("Yamuna floodplain?", 28.63, 77.22, TOD_ONLY) == (
+        "This point is not inside Zone O (Yamuna floodplain) on DDA's map."
+    )
+
+
+def test_distances_are_rounded_so_a_note_claims_no_accuracy_it_has_not_got() -> None:
+    """DDA's shapes are simplified for a browser, so "613 m" would be a false precision."""
+    assert describe_distance(12.0) == "less than 50 m"
+    assert describe_distance(613.0) == "about 600 m"
+    assert describe_distance(999.0) == "about 1000 m"
+    assert describe_distance(1_137.0) == "about 1.1 km"
+    assert describe_distance(20_192.0) == "about 20.2 km"
+
+
+def test_every_topic_can_be_named_in_a_note() -> None:
+    """A topic missing from either label map would produce a KeyError mid-answer."""
+    assert set(NOTE_LABELS) == set(TOPICS)
+    assert set(NOTE_SHORT_LABELS) == set(TOPICS)

@@ -56,7 +56,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.config import settings
 from app.llm import LLM, get_llm, text_of
-from app.location import describe_zones
+from app.location import describe_zones, location_note
 from app.retrieval import (
     Result,
     SearchIndex,
@@ -149,6 +149,18 @@ abstain.
 """
 )
 
+#: What the model is told when the question names a zone the point is not in (D-094).
+#: The note itself is built by `app.location.location_note` from DDA's layers, so this
+#: block is a fact plus an instruction and contains no judgement of its own.
+LOCATION_NOTE_TEMPLATE = """\
+Note about where this question was asked, established from DDA's own map layers rather \
+than by you: {note}
+
+Answer for the point the question was asked at, using only the sources above. Do not \
+answer for the zone the question names instead. If the sources do not say what applies \
+at this point, set "abstain" to one short reason and send no sentences.
+"""
+
 #: Added on the retry, listing exactly what was wrong with the first attempt.
 RETRY_TEMPLATE = """\
 Your previous answer was rejected and was not shown to anyone. Problems:
@@ -211,6 +223,11 @@ class AnswerResult:
     #: rather than asked of the model, so it is never one of the validated sentences and
     #: never needs a citation (D-092).
     disclaimer: str = DISCLAIMER
+    #: A deterministic sentence per zone the question named that the point is not in,
+    #: with how far away that zone is. Built by code from DDA's layers, so like the
+    #: disclaimer it is never one of the validated sentences (D-094). "" when the
+    #: question names no zone the point is outside, which is the common case.
+    location_note: str = ""
     #: Only set for the agent, which reaches the same shape by a different route.
     tool_trace: list[dict] = field(default_factory=list)
     #: One problems list per rejected attempt, newest last. Empty when the first
@@ -258,14 +275,28 @@ def source_block(results: list[Result], chunks: dict[str, dict]) -> str:
     return "\n\n".join(parts)
 
 
-def build_user_message(question: str, results: list[Result], chunks: dict, zones: dict) -> str:
-    """The user turn: the sources, then the question and where it was asked."""
-    return (
+def build_user_message(
+    question: str,
+    results: list[Result],
+    chunks: dict,
+    zones: dict,
+    note: str = "",
+) -> str:
+    """The user turn: the sources, then the question, where it was asked, and any note.
+
+    `note` is the named-zone mismatch note (D-094) and is appended with the instruction
+    to answer for the located point. It is passed in rather than computed here so the
+    one string the API returns is the one the model was shown.
+    """
+    message = (
         f"Sources:\n\n{source_block(results, chunks)}\n\n"
         f"---\n\n"
         f"Question: {question}\n"
         f"Where the question is about: {describe_zones(zones)}\n"
     )
+    if note:
+        message += "\n" + LOCATION_NOTE_TEMPLATE.format(note=note)
+    return message
 
 
 # --- reading the model's JSON ---------------------------------------------------
@@ -537,6 +568,7 @@ def _abstain(
     llm_calls: int,
     started: float,
     failures: list[list[str]] | None = None,
+    note: str = "",
 ) -> AnswerResult:
     """Build a refusal, keeping whatever retrieval found so the UI can still show it."""
     return AnswerResult(
@@ -552,6 +584,7 @@ def _abstain(
         llm_calls=llm_calls,
         latency_ms=int((time.perf_counter() - started) * 1000),
         validation_failures=[list(attempt) for attempt in (failures or [])],
+        location_note=note,
     )
 
 
@@ -598,17 +631,23 @@ def answer_point(
     if not zones.get("inside_delhi"):
         return _abstain(question, lat, lon, zones, OUTSIDE_DELHI, [], 0, started)
 
+    # Built before retrieval and before any call, because it is a fact about the point
+    # rather than about what was found, and a refusal should carry it too (D-094).
+    note = location_note(question, lat, lon, zones)
+
     index = index or get_index()
     report = SearchReport(query=question, expanded_query=question)
     results = search(question, k=k, mode="hybrid", zones=zones, index=index, report=report)
 
     if is_weak(results):
-        return _abstain(question, lat, lon, zones, WEAK_RETRIEVAL, results, 0, started)
+        return _abstain(
+            question, lat, lon, zones, WEAK_RETRIEVAL, results, 0, started, note=note
+        )
 
     client = llm or get_llm()
     sources = {f"C{number}": result for number, result in enumerate(results, start=1)}
     labels = list(sources)
-    user_message = build_user_message(question, results, index.chunks, zones)
+    user_message = build_user_message(question, results, index.chunks, zones, note)
     messages: list[dict] = [{"role": "user", "content": user_message}]
     calls = 0
     failures: list[list[str]] = []
@@ -633,7 +672,7 @@ def answer_point(
         if refusal is not None:
             result = _abstain(
                 question, lat, lon, zones, MODEL_ABSTAINED, results, calls, started,
-                failures,
+                failures, note=note,
             )
             result.abstain_reason = f"{MODEL_ABSTAINED}: {refusal}"
             return result
@@ -656,6 +695,7 @@ def answer_point(
                 llm_calls=calls,
                 latency_ms=int((time.perf_counter() - started) * 1000),
                 validation_failures=failures,
+                location_note=note,
             )
 
         failures.append(problems)
@@ -673,5 +713,5 @@ def answer_point(
 
     return _abstain(
         question, lat, lon, zones, CITATION_CHECK_FAILED, results, calls, started,
-        failures,
+        failures, note=note,
     )

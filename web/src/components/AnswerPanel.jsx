@@ -82,6 +82,15 @@ export default function AnswerPanel({ result, onOpenCitation, onOpenChunk }) {
 
   return (
     <section className="answer">
+      {/* A deterministic note, built server-side from DDA's map layers when the question
+          names a zone the point is not in (D-094). Above the answer, because it changes
+          what the answer is about. */}
+      {result.location_note && (
+        <p className="location-note">
+          <strong>Where this is:</strong> {result.location_note}
+        </p>
+      )}
+
       {result.abstained ? (
         <ReasonNote reason={result.abstain_reason} />
       ) : (

@@ -251,6 +251,8 @@ def test_ask_returns_a_cited_answer(client) -> None:
         "Not legal advice. Check the official MPD-2047 text and DDA before acting."
     )
     assert body["disclaimer"] not in body["answer_markdown"]
+    # the named-zone note is its own field too, and empty when nothing mismatches (D-094)
+    assert body["location_note"] == ""
 
 
 def test_ask_outside_delhi_abstains_without_calling_the_model(client) -> None:

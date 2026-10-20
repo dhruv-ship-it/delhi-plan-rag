@@ -571,3 +571,96 @@ def test_the_agent_answer_carries_the_disclaimer_and_its_prompt_asks_for_none(st
     assert "official DDA documents should be checked" not in system
     assert "Do not add a caveat" in system
     assert "Do not give legal advice" in system
+
+
+# --- the named-zone mismatch note (D-094) ---------------------------------------
+
+FLOODPLAIN_NOTE = (
+    "This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest "
+    "Zone O boundary is about 1.1 km away."
+)
+#: v2's `agent-02`, which answered about the floodplain at a point in a TOD zone.
+AGENT_02 = "Can I build a house on the Yamuna floodplain near ITO?"
+
+
+def test_agent_02_gets_the_note_in_the_get_zones_result_and_on_the_answer(
+    stubs, monkeypatch
+) -> None:
+    """The case `docs/PROJECT_STATUS.md` called a regression dressed as a win.
+
+    `get_zones` says TOD zone; the question says Yamuna floodplain. The tool result now
+    carries the mismatch and the instruction to answer for the point, and the answer
+    carries the note as its own field.
+    """
+    monkeypatch.setattr("app.agent.location_note", lambda *args: FLOODPLAIN_NOTE)
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("locate_place", {"query": "ITO"}, "t1"),
+            tool_use_response("get_zones", {"lat": 28.6283, "lon": 77.2410}, "t2"),
+            tool_use_response(
+                "search_clauses",
+                {"query": "construction Yamuna floodplain", "lat": 28.6283, "lon": 77.2410},
+                "t3",
+            ),
+            said("No construction is permitted in the active floodplain.", "S1"),
+        ]
+    )
+    result = run_agent(AGENT_02, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.location_note == FLOODPLAIN_NOTE
+    assert FLOODPLAIN_NOTE not in (result.answer_markdown or "")
+
+    # the model saw it: it is in the get_zones tool result sent back as a tool_result
+    sent = json.dumps(llm.calls[2]["messages"], ensure_ascii=False)
+    assert FLOODPLAIN_NOTE in sent
+    assert "Answer for this point, not for the zone the question names" in sent
+    # and in the trace, so a reader of the report sees why the answer is hedged
+    zones_step = next(step for step in result.tool_trace if step["tool"] == "get_zones")
+    assert FLOODPLAIN_NOTE in zones_step["summary"]
+
+
+def test_a_located_search_carries_the_note_even_without_get_zones(
+    stubs, monkeypatch
+) -> None:
+    """A model that passes coordinates straight to search_clauses still gets told."""
+    monkeypatch.setattr("app.agent.location_note", lambda *args: FLOODPLAIN_NOTE)
+    llm = FakeLLM(
+        responses=[
+            tool_use_response(
+                "search_clauses",
+                {"query": "floodplain construction", "lat": 28.6283, "lon": 77.2410},
+                "t1",
+            ),
+            said("No construction is permitted in the active floodplain.", "S1"),
+        ]
+    )
+    result = run_agent(AGENT_02, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.location_note == FLOODPLAIN_NOTE
+    assert FLOODPLAIN_NOTE in json.dumps(llm.calls[1]["messages"], ensure_ascii=False)
+
+
+def test_a_matching_zone_adds_nothing_to_the_tool_result(stubs) -> None:
+    """The real `location_note` on a question that names the zone the point is in.
+
+    `stubs` puts the point in a TOD zone and the question says TOD, so there is no
+    mismatch and the tool result is exactly what it was before D-094.
+    """
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("get_zones", {"lat": 28.6318, "lon": 77.2194}, "t1"),
+            tool_use_response(
+                "search_clauses",
+                {"query": "ground coverage", "lat": 28.6318, "lon": 77.2194},
+                "t2",
+            ),
+            said("Ground coverage on a TOD plot is 40%.", "S1"),
+        ]
+    )
+    result = run_agent("What is the ground coverage in a TOD zone here?", llm=llm,
+                       index=StubIndex(CHUNKS))
+
+    assert result.location_note == ""
+    sent = json.dumps(llm.calls[-1]["messages"], ensure_ascii=False)
+    assert "location_note" not in sent
+    assert "answer_for" not in sent

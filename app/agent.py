@@ -34,6 +34,14 @@ a two-character thing to get right rather than a thirty-character one.
 The final answer uses the same JSON contract as map mode (D-088), so the structure that
 removed the sentence splitter from one path removes it from both.
 
+**When the question names a zone the point is not in, the tool result says so (D-094).**
+`get_zones` and a located `search_clauses` both carry a `location_note` built in code
+from DDA's layers — "this point is not inside Zone O … the nearest Zone O boundary is
+about 600 m away" — and an instruction to answer for the point rather than for the zone
+the question named. v2's `agent-02` is why: "can I build a house on the Yamuna
+floodplain near ITO?" came back with the floodplain's no-construction clause, correctly
+quoted, about a point in a TOD zone some way from the floodplain.
+
 Returns the same `AnswerResult` as `answer.py`, plus a `tool_trace` of what it did.
 """
 
@@ -56,7 +64,7 @@ from app.answer import (
 from app.config import settings
 from app.geocode import locate_place
 from app.llm import LLM, get_llm, text_of, tool_calls_of
-from app.location import describe_zones
+from app.location import describe_zones, location_note
 from app.retrieval import Result, SearchIndex, get_index, search
 from app.spatial import get_zones
 
@@ -68,6 +76,15 @@ LABEL_PREFIX = "S"
 
 #: How much of a clause's text a search result shows the model.
 TOOL_TEXT_CHARS = 1200
+
+#: What goes beside a named-zone mismatch note in a tool result (D-094). The note is
+#: built by `app.location.location_note` from DDA's layers; this is the instruction that
+#: has to travel with it, because the agent chose the point and will otherwise answer
+#: about the zone the question named.
+NOTE_INSTRUCTION = (
+    "Answer for this point, not for the zone the question names. If no clause you "
+    "retrieve says what applies here, abstain and say why."
+)
 
 AGENT_SYSTEM_PROMPT = (
     """\
@@ -221,8 +238,14 @@ MAX_K = 10
 class AgentRun:
     """The state of one agent run: what it found, what it searched, what it may cite."""
 
-    def __init__(self, index: SearchIndex) -> None:
+    def __init__(self, index: SearchIndex, question: str = "") -> None:
         self.index = index
+        #: The question as asked, kept because the named-zone note is built from its
+        #: own words and the tools only ever see a place name or a query (D-094).
+        self.question = question
+        #: The note, recomputed whenever a tool establishes a point. "" when the
+        #: question names no zone the point is outside.
+        self.location_note: str = ""
         #: chunk_id -> the search result record, for every clause ever returned.
         self.retrieved: dict[str, dict] = {}
         #: label -> the Result itself, which is what a citation resolves through.
@@ -266,6 +289,25 @@ class AgentRun:
         self.trace.append({"tool": tool, "input": tool_input, "summary": summary})
 
 
+def remember_note(run: AgentRun) -> str:
+    """Recompute the named-zone mismatch note for the point this run has established.
+
+    Called from every tool that sets a point, so the note is never stale: an agent that
+    locates one place, searches, then locates another gets the note for the second.
+    """
+    if run.lat is None or run.lon is None or not run.zones:
+        return ""
+    run.location_note = location_note(run.question, run.lat, run.lon, run.zones)
+    return run.location_note
+
+
+def with_note(output: dict, note: str) -> dict:
+    """A tool result with the note and its instruction attached, when there is one."""
+    if not note:
+        return output
+    return dict(output, location_note=note, answer_for=NOTE_INSTRUCTION)
+
+
 def run_locate_place(run: AgentRun, tool_input: dict) -> dict:
     """The locate_place tool."""
     place = locate_place(str(tool_input.get("query", "")))
@@ -287,13 +329,14 @@ def run_locate_place(run: AgentRun, tool_input: dict) -> dict:
 
 
 def run_get_zones(run: AgentRun, tool_input: dict) -> dict:
-    """The get_zones tool."""
+    """The get_zones tool, which is also where the named-zone note is established."""
     lat, lon = float(tool_input["lat"]), float(tool_input["lon"])
     zones = get_zones(lat, lon)
     run.zones = zones
     run.lat, run.lon = lat, lon
-    run.note("get_zones", tool_input, describe_zones(zones))
-    return zones
+    note = remember_note(run)
+    run.note("get_zones", tool_input, describe_zones(zones) + (f" — {note}" if note else ""))
+    return with_note(dict(zones), note)
 
 
 def run_search_clauses(run: AgentRun, tool_input: dict) -> dict:
@@ -303,10 +346,14 @@ def run_search_clauses(run: AgentRun, tool_input: dict) -> dict:
     lat, lon = tool_input.get("lat"), tool_input.get("lon")
 
     zones = None
+    note = ""
     if lat is not None and lon is not None:
         zones = get_zones(float(lat), float(lon))
         run.zones = zones
         run.lat, run.lon = float(lat), float(lon)
+        # A model that skips get_zones and passes coordinates straight to the search
+        # still has to be told the question names a zone it is not standing in.
+        note = remember_note(run)
 
     results = search(query, k=k, mode="hybrid", zones=zones, index=run.index)
     labels = run.remember(results)
@@ -332,7 +379,7 @@ def run_search_clauses(run: AgentRun, tool_input: dict) -> dict:
         tool_input,
         f"{len(results)} clause(s)" + (f": {first}" if first else "") + ("..." if len(results) > 3 else ""),
     )
-    return {"query": query, "located": zones is not None, "results": shown}
+    return with_note({"query": query, "located": zones is not None, "results": shown}, note)
 
 
 RUNNERS = {
@@ -422,6 +469,7 @@ def _result(
         latency_ms=int((time.perf_counter() - started) * 1000),
         tool_trace=list(run.trace),
         validation_failures=[list(attempt) for attempt in (failures or [])],
+        location_note=run.location_note,
     )
 
 
@@ -437,7 +485,7 @@ def run_agent(
     against a FakeLLM without an API key.
     """
     started = time.perf_counter()
-    run = AgentRun(index or get_index())
+    run = AgentRun(index or get_index(), question)
     client = llm or get_llm()
     messages: list[dict] = [{"role": "user", "content": question}]
     calls = 0

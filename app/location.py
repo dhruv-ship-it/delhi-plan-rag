@@ -42,6 +42,15 @@ So the three asymmetries all come from one fact about the corpus — MPD-2047 ha
 Zone O chapter and no Ridge chapter — and they line up: the four topics with a policy
 section exclude, expand and fuse two lists; the two without never exclude, and fuse
 four lists so that their place words are an *extra* vote rather than a replacement.
+
+One more thing lives here, and it is not a retrieval step: `location_note` (D-094). A
+question can *name* a zone the point is not in, and retrieval will answer it well and
+about the wrong place. The note is a deterministic sentence built from `get_zones` and
+the layers — "this point is not inside Zone O … the nearest Zone O boundary is about
+600 m away" — which the API returns as its own field, the interface shows above the
+answer, and the model is given as context with an instruction to answer for the point.
+It is written in code and is never one of the sentences the citation check validates,
+for the same reason the disclaimer is not (D-092): nothing in the corpus states it.
 """
 
 from app.config import settings
@@ -52,8 +61,8 @@ from app.retrieval import (
     apply_reranker,
     reciprocal_rank_fusion,
 )
-from app.spatial import topics_for
-from app.tagging import TOPICS
+from app.spatial import distance_to_topic, topics_for
+from app.tagging import TOPICS, mentions_of
 
 #: What gets appended to the query for each zone the point is in. These are the words a
 #: planner would use, so the dense index has something to match on and the keyword index
@@ -168,6 +177,115 @@ def describe_zones(zones: dict) -> str:
         ]
     parts.append("in " + ", ".join(found) if found else "in none of the six policy zones")
     return "; ".join(parts)
+
+
+# --- the named-zone mismatch note (D-094) ---------------------------------------
+#
+# A question can name a zone the point is not in: "can I build a house on the Yamuna
+# floodplain near ITO?" asked at a point `get_zones` says is in a TOD zone, 620 m from
+# the nearest Zone O polygon. Retrieval answers that question well — the floodplain
+# words are in the query, so the no-construction clause comes back — and the answer is
+# then about a zone the user is not standing in. v2's `agent-02` did exactly this and
+# `docs/PROJECT_STATUS.md` called it "a regression dressed as a win".
+#
+# The fix is a sentence written **here**, in code, from `get_zones` and the layers: the
+# point is not in that zone, and here is how far away it is. It is deterministic, it is
+# never part of the validated sentences, and the model is told to answer for the point
+# rather than for the zone the question named.
+
+#: How each zone is named in a note. Longer than `ZONE_LABELS` because a note is a
+#: sentence and needs its articles: "a TOD zone", "the Ridge".
+NOTE_LABELS: dict[str, str] = {
+    "tod": "a TOD zone",
+    "hdc": "the High Density Corridor",
+    "zone_o": "Zone O (Yamuna floodplain)",
+    "land_pooling": "a land pooling area",
+    "ridge": "the Ridge / a Regional Park",
+    "lda": "a Low Density Area",
+}
+
+#: The short form, for the second half of the note. "the nearest Zone O boundary" reads
+#: and "the nearest Zone O (Yamuna floodplain) boundary" does not.
+NOTE_SHORT_LABELS: dict[str, str] = {
+    "tod": "TOD zone",
+    "hdc": "High Density Corridor",
+    "zone_o": "Zone O",
+    "land_pooling": "land pooling area",
+    "ridge": "Ridge / Regional Park",
+    "lda": "Low Density Area",
+}
+
+#: Below this many metres a note says "less than" rather than a rounded figure, because
+#: "about 0 m away" is wrong and "about 50 m away" would be invented precision.
+NEAREST_FLOOR_M = 50
+#: Metres are rounded to this, so a note never implies the layers are survey-accurate.
+METRE_STEP = 50
+
+
+def describe_distance(metres: float) -> str:
+    """One readable distance: "less than 50 m", "about 600 m", "about 1.1 km".
+
+    Rounded hard on purpose. The layers are DDA's published GIS shapes simplified for a
+    browser, so a note that said "613 m" would claim an accuracy nothing here has.
+    """
+    if metres < NEAREST_FLOOR_M:
+        return f"less than {NEAREST_FLOOR_M} m"
+    if metres < 1000:
+        return f"about {int(round(metres / METRE_STEP)) * METRE_STEP} m"
+    return f"about {metres / 1000:.1f} km"
+
+
+def named_zone_topics(question: str) -> list[str]:
+    """The zone topics the question's own words name, in `TOPICS` order.
+
+    The same regexes that tag the chunks (`app.tagging.mentions_of`), used on the
+    question instead of on a clause. Reusing them is the point: a question that says
+    "Yamuna floodplain" and a clause that says it are recognised by one rule, so the
+    note cannot disagree with the tagging about what counts as naming a zone.
+    """
+    return list(mentions_of(question))
+
+
+def mismatched_topics(question: str, zones: dict) -> list[str]:
+    """The zone topics the question names that the point is **not** in."""
+    if not zones.get("inside_delhi"):
+        return []
+    inside = set(topics_for(zones))
+    return [topic for topic in named_zone_topics(question) if topic not in inside]
+
+
+def note_for_topic(topic: str, lat: float, lon: float) -> str:
+    """One sentence: the point is not in this zone, and how far away the zone is.
+
+    The distance clause is dropped rather than guessed when the layers cannot answer.
+    A note is a convenience, so losing the distance has to cost the distance and not
+    the answer.
+    """
+    try:
+        metres = distance_to_topic(lat, lon, topic)
+    except Exception:  # pragma: no cover - needs the layers or pyproj to be broken
+        metres = None
+    tail = ""
+    if metres is not None:
+        tail = (
+            f"; the nearest {NOTE_SHORT_LABELS[topic]} boundary is "
+            f"{describe_distance(metres)} away"
+        )
+    return f"This point is not inside {NOTE_LABELS[topic]} on DDA's map{tail}."
+
+
+def location_note(question: str, lat: float | None, lon: float | None, zones: dict) -> str:
+    """The whole note for one question at one point, or "" when there is nothing to say.
+
+    One sentence per zone the question names and the point is not in, in `TOPICS` order.
+    Empty — which is the common case — when the question names no zone, when it names
+    only zones the point is in, or when there is no point at all.
+    """
+    if lat is None or lon is None:
+        return ""
+    return " ".join(
+        note_for_topic(topic, lat, lon) for topic in mismatched_topics(question, zones)
+    )
 
 
 def _filtered(

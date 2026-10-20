@@ -321,8 +321,12 @@ def test_agent_without_a_key_is_a_503(client) -> None:
 
 
 def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
-    """A full tool conversation through HTTP, with the geocoder cache warm."""
-    chunk_id = "MPD47_GAZETTE_EN:4.2.3@p753:0"
+    """A full tool conversation through HTTP, with the geocoder cache warm.
+
+    The agent cites `S1` rather than a chunk id (D-089), so the assertion is that the
+    label resolved to the clause the search actually put first — which is the server-side
+    map doing its job — rather than to a chunk id named in this test.
+    """
     use_llm(
         [
             tool_use_response("locate_place", {"query": "Connaught Place"}, "t1"),
@@ -332,7 +336,17 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
                 {"query": "maximum ground coverage TOD", "lat": 28.6317695, "lon": 77.2193804},
                 "t3",
             ),
-            f"Ground coverage there is capped at 40% [{chunk_id}].",
+            json.dumps(
+                {
+                    "abstain": None,
+                    "sentences": [
+                        {
+                            "text": "Ground coverage there is capped at 40%.",
+                            "citations": ["S1"],
+                        }
+                    ],
+                }
+            ),
         ]
     )
     body = client.post(
@@ -345,7 +359,9 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
         "get_zones",
         "search_clauses",
     ]
-    assert body["citations"][0]["chunk_id"] == chunk_id
+    assert body["answer_markdown"] == "Ground coverage there is capped at 40% [S1]."
+    assert body["citations"][0]["marker"] == "S1"
+    assert body["citations"][0]["chunk_id"] == body["retrieval"][0]["chunk_id"]
     assert body["zones"]["planning_zone"] == "D"
 
 

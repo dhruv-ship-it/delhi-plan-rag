@@ -2,11 +2,11 @@ import { Fragment } from 'react'
 
 // Renders the answer with every citation marker turned into a clickable chip.
 //
-// There are two marker formats, because the two endpoints cite differently: /api/ask
-// uses [C1], [C2] against the numbered sources it was given, and /api/agent uses the
-// whole chunk id, [MPD47_GAZETTE_EN:4.2.3@p753:0], because it chose what to retrieve.
-// Both arrive as `citations` with a `marker` field, so the renderer just looks each
-// bracketed token up in that list.
+// There are two marker formats, because the two endpoints number their sources
+// differently: /api/ask uses [C1], [C2] against the clauses it was given, and
+// /api/agent uses [S1], [S2] - a label its own search issued, since it chose what to
+// retrieve (D-089). Both arrive as `citations` with a `marker` field, so the renderer
+// just looks each bracketed token up in that list and needs no rule of its own.
 
 const MARKER = /\[([^\]\s][^\]]*)\]/g
 

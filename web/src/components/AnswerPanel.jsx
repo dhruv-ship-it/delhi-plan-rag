@@ -2,6 +2,10 @@ import { Fragment } from 'react'
 
 // Renders the answer with every citation marker turned into a clickable chip.
 //
+// The caveat under every answer is `result.disclaimer`, a fixed string the API adds in
+// code (D-092). It is deliberately not part of the answer text: the model is told not to
+// write a caveat, because a caveat no clause states cannot carry an honest citation.
+//
 // There are two marker formats, because the two endpoints number their sources
 // differently: /api/ask uses [C1], [C2] against the clauses it was given, and
 // /api/agent uses [S1], [S2] - a label its own search issued, since it chose what to
@@ -120,6 +124,8 @@ export default function AnswerPanel({ result, onOpenCitation, onOpenChunk }) {
           </ul>
         </details>
       )}
+
+      {result.disclaimer && <p className="disclaimer">{result.disclaimer}</p>}
 
       {typeof result.latency_ms === 'number' && (
         <p className="muted small">

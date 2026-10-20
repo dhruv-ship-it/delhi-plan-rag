@@ -17,6 +17,7 @@ import pytest
 
 from app.answer import (
     CITATION_CHECK_FAILED,
+    DISCLAIMER,
     MODEL_ABSTAINED,
     OUTSIDE_DELHI,
     WEAK_RETRIEVAL,
@@ -144,7 +145,7 @@ def patched(monkeypatch):
 GOOD_ANSWER = (
     "The maximum ground coverage on a TOD plot is 40% [C1]. "
     "The DDA FAQ gives the same figure [C2]. "
-    "Check the official DDA documents before relying on this [C1]."
+    "The 40% limit applies to the TOD plot as a whole [C1]."
 )
 
 #: The same answer as the model now sends it: one object, one record per sentence.
@@ -152,7 +153,7 @@ GOOD_SENTENCES = [
     {"text": "The maximum ground coverage on a TOD plot is 40%.", "citations": ["C1"]},
     {"text": "The DDA FAQ gives the same figure.", "citations": ["C2"]},
     {
-        "text": "Check the official DDA documents before relying on this.",
+        "text": "The 40% limit applies to the TOD plot as a whole.",
         "citations": ["C1"],
     },
 ]
@@ -364,7 +365,7 @@ def test_a_good_answer_passes_first_time(patched) -> None:
     assert result.answer_markdown == (
         "The maximum ground coverage on a TOD plot is 40% [C1].\n"
         "The DDA FAQ gives the same figure [C2].\n"
-        "Check the official DDA documents before relying on this [C1]."
+        "The 40% limit applies to the TOD plot as a whole [C1]."
     )
     assert result.validation_failures == []
     assert result.llm_calls == 1
@@ -598,3 +599,50 @@ def test_the_abstain_threshold_is_read_from_the_settings(patched, monkeypatch) -
     )
     assert result.abstained is False
     assert result.llm_calls == 1
+
+
+# --- the disclaimer, added in code and never written by the model (D-092) --------
+
+
+def test_every_answer_carries_the_fixed_disclaimer(patched) -> None:
+    """One string, the same every time, outside the sentences the check validates."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.disclaimer == DISCLAIMER
+    assert result.disclaimer == (
+        "Not legal advice. Check the official MPD-2047 text and DDA before acting."
+    )
+    # it is not part of the answer, so it carries no marker and is never validated
+    assert result.disclaimer not in (result.answer_markdown or "")
+    assert result.to_dict()["disclaimer"] == DISCLAIMER
+
+
+def test_a_refusal_carries_the_disclaimer_too(patched) -> None:
+    """A refusal is still a reply about planning law, so it gets the same caveat."""
+    patched["zones"] = {"inside_delhi": False}
+    result = answer_point("x", 19.07, 72.87, llm=FakeLLM(responses=[]), index=StubIndex(CHUNKS))
+
+    assert result.abstain_reason == OUTSIDE_DELHI
+    assert result.disclaimer == DISCLAIMER
+
+
+def test_the_prompt_no_longer_asks_the_model_for_a_caveat(patched) -> None:
+    """Rule 6's duty to say "check official DDA documents" is gone (D-092).
+
+    This is the rule-2/rule-6 contradiction `reports/citation_failures_v1.md` found:
+    rule 6 asked for a sentence no clause states while rule 2 demanded a citation on
+    every sentence, so 7 of v1's 17 answers cited a clause for a sentence it does not
+    support. The assertion is on the prompt rather than on an answer, because what was
+    fixed is the instruction.
+    """
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    system = llm.calls[0]["system"]
+    assert "official DDA documents should be checked" not in system
+    assert "Do not add a caveat" in system
+    # the no-legal-advice half of rule 6 stays
+    assert "Do not give legal advice" in system
+    # and the disclaimer string itself is never shown to the model
+    assert DISCLAIMER not in system

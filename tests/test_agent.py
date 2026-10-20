@@ -24,7 +24,7 @@ from app.agent import (
     run_agent,
     run_tool,
 )
-from app.answer import CITATION_CHECK_FAILED, MODEL_ABSTAINED
+from app.answer import CITATION_CHECK_FAILED, DISCLAIMER, MODEL_ABSTAINED
 from app.llm import FakeLLM, text_response, tool_use_response
 from app.retrieval import Result
 
@@ -548,3 +548,26 @@ def test_the_agent_system_prompt_states_the_citation_and_injection_rules(stubs) 
     assert llm.calls[0]["temperature"] == 0.0
     # JSON mode is never asked for here, because the call still carries tools (D-089)
     assert llm.calls[0]["json_object"] is False
+
+
+# --- the disclaimer (D-092) -----------------------------------------------------
+
+
+def test_the_agent_answer_carries_the_disclaimer_and_its_prompt_asks_for_none(stubs) -> None:
+    """The same fixed caveat as map mode, and the same rule 6 change (D-092)."""
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "ground coverage TOD"}, "t1"),
+            said("Ground coverage on a TOD plot is 40%.", "S1"),
+        ]
+    )
+    result = run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.disclaimer == DISCLAIMER
+    assert result.disclaimer not in (result.answer_markdown or "")
+
+    system = llm.calls[0]["system"]
+    assert "official DDA documents should be checked" not in system
+    assert "Do not add a caveat" in system
+    assert "Do not give legal advice" in system

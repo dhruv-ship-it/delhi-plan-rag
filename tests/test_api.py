@@ -246,6 +246,11 @@ def test_ask_returns_a_cited_answer(client) -> None:
     assert body["zones"]["tod"] is True
     assert body["llm_calls"] == 1
     assert fake.call_count == 1
+    # the caveat is a field the API adds in code, not a sentence the model wrote (D-092)
+    assert body["disclaimer"] == (
+        "Not legal advice. Check the official MPD-2047 text and DDA before acting."
+    )
+    assert body["disclaimer"] not in body["answer_markdown"]
 
 
 def test_ask_outside_delhi_abstains_without_calling_the_model(client) -> None:

@@ -330,6 +330,17 @@ button:focus-visible {
   font-style: italic;
 }
 
+/* The fixed caveat under every answer and every refusal. It is `result.disclaimer`,
+   added by the API in code and never written by the model, so it is styled as a note
+   about the app rather than as part of the answer (D-092). */
+.disclaimer {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .notice {
   background: var(--accent-soft);
   border: 1px solid #bfdbfe;

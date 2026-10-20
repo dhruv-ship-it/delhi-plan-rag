@@ -17,6 +17,14 @@ Exclusion and boosting are deliberately asymmetric. Exclusion acts only on
 primary zone is never dropped, so the general norms in chapters 7 to 13 always stay in
 play. Boosting acts on `zone_primary` or `zone_mentions`, so merely naming the zone is
 enough to be ranked higher but never enough to push anything out.
+
+**Expansion is asymmetric in the same way, and for the same reason (D-086).** Only the
+four topics that have a policy section of their own expand the query — the same four
+that are allowed to exclude. `zone_o` and `ridge` have no section in MPD-2047, so their
+terms name a *place* rather than a policy, and appending them replaces the subject of
+the question instead of qualifying it: at P_ZONEO the clause that answers "can a fuel
+station be built here?" fell from rank 1 to rank 14 because ~160 floodplain chunks rose
+past it. Those two topics still boost, and exclusion is unchanged.
 """
 
 from app.config import settings
@@ -42,6 +50,12 @@ EXPANSION_TERMS: dict[str, str] = {
     "lda": "low density area LDA farmhouse",
 }
 
+#: The topics whose terms may be appended to the query: the four that have a policy
+#: section of their own in MPD-2047, which is the same four `should_exclude` acts on.
+#: A dense query is one point in embedding space and appending a topic *moves* it, so
+#: the move is only safe when there is a chapter to move towards (D-086).
+EXPANDS_QUERY: tuple[str, ...] = ("tod", "hdc", "land_pooling", "lda")
+
 #: How a point's zones are described back to a reader.
 ZONE_LABELS: dict[str, str] = {
     "tod": "TOD zone",
@@ -54,8 +68,17 @@ ZONE_LABELS: dict[str, str] = {
 
 
 def expand_query(query: str, topics: list[str]) -> tuple[str, list[str]]:
-    """Add the point's zone words to the query. Returns (query sent, terms added)."""
-    terms = [EXPANSION_TERMS[topic] for topic in topics if topic in EXPANSION_TERMS]
+    """Add the point's zone words to the query. Returns (query sent, terms added).
+
+    Only the topics in `EXPANDS_QUERY` contribute. A point in Zone O or on the Ridge
+    therefore searches with the user's own words, unexpanded, and relies on the boost
+    instead (D-086).
+    """
+    terms = [
+        EXPANSION_TERMS[topic]
+        for topic in topics
+        if topic in EXPANDS_QUERY and topic in EXPANSION_TERMS
+    ]
     if not terms:
         return query, []
     return f"{query} {' '.join(terms)}", terms

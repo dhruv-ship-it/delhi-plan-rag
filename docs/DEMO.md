@@ -107,23 +107,56 @@ and saying so is better than hoping nobody reads it.
 
 | rank | clause | heading |
 | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1 ENVIRONMENT → 3.1.2 Green-Blue Infrastructure |
-| 2 | `DHC_YAMUNA_20240708:2:0` | **Delhi High Court order, 8 July 2024** |
-| 3 | `NGT_OA572_GNCTD_REPORT:3@p25:1` | GNCTD report to the NGT on floodplain demarcation |
+| 1 | `DHC_YAMUNA_20240708:2:0` | **Delhi High Court order, 8 July 2024** |
+| 2 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1 ENVIRONMENT → 3.1.2 Green-Blue Infrastructure |
+| 3 | `MPD47_GAZETTE_EN:9.2:0` | 9.2 Household Industries |
 
-**What the viewer should notice:** the corpus is **not one document**. Rank 1 is the
-clause carrying "active floodplain shall be a *no construction zone*", and rank 2 is a
-High Court order — a different document with a different authority rank. The top cosine
-here is **0.8489**, the highest of any beat, which is what strong agreement looks like.
+**What the viewer should notice:** the corpus is **not one document**, and the document
+at rank 1 is **not the Master Plan**. A High Court order comes first — authority rank 2,
+a different document, retrieved by the same search — and the clause carrying "active
+floodplain shall be a *no construction zone*" is behind it at rank 2. Top-1 cosine
+**0.6813**. Be honest about rank 3: 9.2 Household Industries is there because it
+mentions Zone O in passing, and it is not an answer to the question.
 
 **If you have 10 seconds more**, ask the sharper version: **"What are the rules for the
-active floodplain?"** puts 3.1.2 at rank 1 with cosine **0.8529**.
+active floodplain?"** puts 3.1.2 back at rank 1 with cosine **0.7854**, the highest at
+this point, followed by two chunks of the NGT report.
 
 **Say, and this is the interesting part:** "Zone O is the one zone with *no policy
 section* in the Master Plan. The plan defines it and then only ever names it in other
-policies' exclusion lists. So for this zone the system is allowed to boost clauses and
-expand the query, but it is **never** allowed to exclude anything — because there is no
-heading that means 'this rule is about the floodplain'."
+policies' exclusion lists. So for this zone the system boosts clauses that mention it,
+but it is **never** allowed to exclude anything — there is no heading that means 'this
+rule is about the floodplain' — and since 20 October it does not expand the query here
+either, because appending 'Zone O Yamuna floodplain' to a question about something else
+replaced the question instead of qualifying it (D-086)."
+
+**If you are asked what that cost:** this beat used to open on 3.1.2 with a cosine of
+0.8489, and the NGT report was at rank 3. Both numbers were higher because the query
+itself had the floodplain words appended to it. The trade is written up in
+`reports/diagnosis_fuel_station.md` § 5, and the question it bought back is in beat 3b
+below.
+
+### Beat 3b — the fuel station, and a rule that says no (optional, 20 seconds)
+
+**Stay on P_ZONEO.** Ask:
+
+> **Can a fuel station be built here?**
+
+| rank | clause | heading |
+| --- | --- | --- |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1 Transportation → 11.1.1 Development Control Norms |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 — the fuel-station norms |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18: Residential Use Zone — permitted use premises |
+
+Rank 1 is the sentence *"Fuel stations may be permitted in all Use Zones except
+Recreational (Regional Park, District Park, etc.) and **Zone O**"*, and rank 2 is the
+norms that go with it, so the viewer gets the permission rule and the controls together.
+
+**Worth saying if you want one war story:** this question was **cut from this demo on 19
+October**, because the clause sat at rank 14. The cause was not the embedding model or
+the chunking: it was query expansion appending the zone's own name to a question that was
+about something else. `reports/diagnosis_fuel_station.md` is the whole investigation, and
+the fix was four lines. Use it if you are asked "how do you debug retrieval".
 
 ### Beat 4 — the Low Density Area, and what exclusion is worth (1:30–2:00)
 
@@ -154,15 +187,19 @@ question a normal person would ask.
 
 | rank | clause | heading | cosine |
 | --- | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:10.1@p842:0` | 10.1 Use Premises and Definitions | 0.7419 |
-| 2 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 Green-Blue Infrastructure | 0.7144 |
-| 3 | `MPD47_GAZETTE_EN:3.1.2@p683:0` | 3.1.2 Green-Blue Infrastructure | 0.6954 |
+| 1 | `MPD47_GAZETTE_EN:10.1@p843:0` | 10.1 Use Premises and Definitions | 0.6766 |
+| 2 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 Green-Blue Infrastructure | 0.6590 |
+| 3 | `MPD47_GAZETTE_EN:9.2:0` | 9.2 Household Industries | 0.6629 |
 
 **Do not skip this beat, and do not dress it up.** The chips say Regional Park and
 planning zone J. What comes back is chapter 10's **definition** of a Regional Park — and
 what does *not* come back is a clause saying you may not build there, **because the
 Master Plan does not phrase it that way.** The Ridge, like Zone O, has no policy section
 of its own: 37 chunks mention it and every one sits in a section about something else.
+The cosines are lower than they were before 20 October (0.6766 against 0.7419) for the
+same reason as in beat 3: the query is no longer padded with the zone's own vocabulary
+(D-086), so the numbers are a more honest measure of how well the question matches the
+corpus — and the answer is "not very well", which is the point of the beat.
 
 **Say:** "This is a should-abstain question, and I'd rather show you one than only show
 you the ones that work. The honest output here is the definition of what this land is,
@@ -255,8 +292,8 @@ Cut after being run, which is why the list is here:
 
 | Question | Point | Why it was cut |
 | --- | --- | --- |
-| "Can a fuel station be built here?" | P_ZONEO | Returns 3.1.2 and the NGT report, but **not 11.1.1**, the clause that actually says fuel stations are allowed "in all Use Zones except … Zone O". The explicit wording, "Can a fuel station be built **in Zone O**?", does not surface it either. `reports/day2_queries_v3.md` has it at **rank 1 in hybrid mode** for that question asked *without* a point (and ranks 1 and 2 are both 11.1.1), so something about the location path is costing it here. A real finding, and not a demo. |
-| "Can I build a house here?" | P_RIDGE | Works, but its top cosine is 0.6907 against 0.7419 for "Is construction allowed here?", and the second is the more natural way to set up the abstention point. |
+| ~~"Can a fuel station be built here?"~~ | P_ZONEO | **No longer cut — it is beat 3b above.** It was cut on 19 October because 11.1.1 sat at rank 14; it was diagnosed on 20 October (query expansion, `reports/diagnosis_fuel_station.md`) and fixed the same day (D-086). It is now rank 1, under both wordings. |
+| "Can I build a house here?" | P_RIDGE | Still cut, and now for a stronger reason. It used to be a weaker version of "Is construction allowed here?" (top cosine 0.6907 against 0.7419); after D-086 its top 5 is Group Housing norms and a slum FAQ rather than anything about the Ridge, because this is a question whose subject *is* the place and those are the ones the expansion was helping. The cost table in `reports/diagnosis_fuel_station.md` § 5 has the ranks. |
 | "How much of my plot can I build on?" | P_PLAIN | Honest but unexciting: 35 chunks excluded, 0 boosted, and ranks 2 and 3 wander to non-conforming industrial areas and slum ISR norms. Use **"What is the permissible FAR for plotted housing?"** instead if you want this point — 7.2.1 Plotted Housing lands at ranks 2 and 3. |
 
 Two that **do** work and were left out only for time, worth keeping in your pocket:
@@ -280,5 +317,6 @@ Two that **do** work and were left out only for time, worth keeping in your pock
 | Blank page at :5173 | Vite not running | look at the second PowerShell window |
 
 The numbers in this file were observed on **19 October 2026** against 700 chunks with the
-reranker off. If the pipeline is rebuilt, re-run the questions before trusting the clause
+reranker off, except beats 3, 3b and 5, which were re-run on **20 October** after D-086
+scoped query expansion to the four topics that have a policy section. If the pipeline is rebuilt, re-run the questions before trusting the clause
 ids — `reports/README.md` explains why a chunk count dates a report.

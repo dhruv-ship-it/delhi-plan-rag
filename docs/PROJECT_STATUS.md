@@ -171,20 +171,20 @@ Regenerate with `uv run python scripts/04_tag_zones.py`, which rewrites
    MPD-2047, so for a point in the Ridge, search can boost Ridge clauses but cannot drop
    clauses belonging elsewhere. At P_RIDGE the plan simply does not contain a clause
    saying you may not build there.
-4. **One known retrieval miss, found on 19 October and diagnosed on 20 October.** At
-   P_ZONEO, "Can a fuel station be built here?" does **not** return 11.1.1 — the clause
-   that says fuel stations are allowed "in all Use Zones except … Zone O". It sits at
-   rank 14 as shipped against rank 3 with no point at all. **The step responsible is
-   query expansion** (step 2 of three), and the mechanism is that `zone_o` has no policy
-   section to expand towards, so its terms `Zone O Yamuna floodplain` act as a new
-   *subject* rather than as a qualifier: the clause's dense cosine actually *rises*
-   (0.6143 → 0.6519) while its dense rank collapses from 11 to 173, because ~160
-   floodplain chunks rise further. Exclusion changes nothing and the boost is helping.
-   With expansion suppressed for the two topics that have no policy section the clause
-   is **rank 1**, and three of the five demo beats come back bit-identical. **A fix is
-   proposed and deliberately not applied** (D-083), because it waits on the verified
-   question set like every other retrieval change and it moves two published demo beats.
-   Full diagnosis: `reports/diagnosis_fuel_station.md`.
+4. **The fuel-station miss is fixed, and the fix has a cost.** At P_ZONEO, "Can a fuel
+   station be built here?" used to miss 11.1.1 — the clause that says fuel stations are
+   allowed "in all Use Zones except … Zone O" — at rank 14. Diagnosed on 20 October
+   (`reports/diagnosis_fuel_station.md`): the step was **query expansion**, and the
+   mechanism is that `zone_o` has no policy section to expand towards, so its terms act
+   as a new *subject* rather than a qualifier. **Fixed the same day by D-086**: only the
+   four topics with a policy section expand the query, which is the same four that may
+   exclude. The clause is now **rank 1** under both wordings and three of the five demo
+   beats are bit-identical. **What it cost:** questions whose subject *is* the place now
+   do worse — "Can I construct a building here?" at P_ZONEO loses `3.1.2@p681` from rank
+   1 to outside a 200-deep list, and "Can I build a house here?" at P_RIDGE loses the
+   Regional Park definition the same way. A measured four-list alternative keeps both
+   sides and is **not applied**, waiting on the verified questions like everything else
+   (D-086). `reports/location_compare_v4.md` has the before/after at nine points.
 5. **The corpus is what it is.** 45 of the FAQ's 99 chunks are under 40 words (one Q+A is
    one chunk); 18 chunks are under 40% alphabetic because they are norms tables; the NGT
    report is a scan; nine drainage tables defeated table detection. Documented in

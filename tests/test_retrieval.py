@@ -10,6 +10,7 @@ import pytest
 from app.config import settings
 from app.indexing import tokenize
 from app.location import (
+    EXPANDS_QUERY,
     EXPANSION_TERMS,
     describe_zones,
     excluded_topics_for,
@@ -139,6 +140,65 @@ def test_expansion_appends_the_zone_words_for_each_zone_the_point_is_in() -> Non
 def test_expansion_leaves_a_query_alone_when_the_point_is_in_no_zone() -> None:
     """Nothing to add, so nothing is added."""
     assert expand_query("What FAR can I get here?", []) == ("What FAR can I get here?", [])
+
+
+def test_zone_o_boosts_but_does_not_expand() -> None:
+    """D-086. Zone O has no policy section, so its words name a place, not a policy.
+
+    Appending them moved the dense query to a different subject: the clause that answers
+    "can a fuel station be built here?" fell from rank 1 to rank 14 while its own cosine
+    *rose*, because ~160 floodplain chunks rose further.
+    """
+    assert expand_query("Can a fuel station be built here?", ["zone_o"]) == (
+        "Can a fuel station be built here?",
+        [],
+    )
+
+
+def test_the_ridge_boosts_but_does_not_expand() -> None:
+    """The other half of D-086, and the same reason: no policy section to aim at."""
+    assert expand_query("What is the parking norm here?", ["ridge"]) == (
+        "What is the parking norm here?",
+        [],
+    )
+
+
+def test_a_point_in_both_kinds_of_zone_expands_only_for_the_policy_one() -> None:
+    """The scope is per topic, not per point, so a TOD plot inside Zone O still expands."""
+    expanded, terms = expand_query("What FAR can I get here?", ["tod", "zone_o"])
+    assert expanded == "What FAR can I get here? transit oriented development TOD zone"
+    assert terms == [EXPANSION_TERMS["tod"]]
+
+
+def test_the_two_topics_that_may_not_expand_are_the_two_that_may_not_exclude() -> None:
+    """The asymmetry is the same one twice over, which is the whole argument for D-086.
+
+    `zone_o` and `ridge` have no `zone_primary` anywhere in the corpus, so exclusion has
+    nothing to find for them, and no chapter heading to move a dense query towards, so
+    expansion has nothing to aim at. One cause, two steps.
+    """
+    assert set(EXPANDS_QUERY) == {"tod", "hdc", "land_pooling", "lda"}
+    assert set(EXPANDS_QUERY) <= set(TOPICS)
+    assert set(TOPICS) - set(EXPANDS_QUERY) == {"zone_o", "ridge"}
+    # every topic that may expand still has terms to expand with
+    assert all(topic in EXPANSION_TERMS for topic in EXPANDS_QUERY)
+
+
+def test_the_unexpanded_topics_keep_their_terms_on_file() -> None:
+    """The vocabulary is kept, so widening the scope back is one tuple and not research."""
+    assert EXPANSION_TERMS["zone_o"] == "Zone O Yamuna floodplain"
+    assert EXPANSION_TERMS["ridge"] == "Ridge regional park Aravalli forest"
+
+
+def test_a_zone_o_chunk_is_still_boosted_and_still_never_excluded() -> None:
+    """D-086 changed step 2 only. Steps 1 and 3 behave exactly as before.
+
+    `11.1.1@p854` is the real shape of the clause this all started with: no primary zone,
+    and `zone_o` among its mentions.
+    """
+    clause = toy(primary="", mentions=["zone_o", "ridge"])
+    assert matches_point(clause, ["zone_o"])
+    assert not should_exclude(clause, excluded_topics_for(["zone_o"]))
 
 
 def test_the_expansion_terms_survive_the_keyword_tokenizer() -> None:

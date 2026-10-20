@@ -11,24 +11,24 @@
 | configuration | query actually searched | 11.1.1@p854 | dense | BM25 | excluded | boosted |
 | --- | --- | --- | --- | --- | --- | --- |
 | no point at all (plain hybrid) | `Can a fuel station be built here?` | 3 | 10 | 2 | 0 | 0 |
-| the point, everything on (what ships) | `Can a fuel station be built here? Zone O Yamuna floodplain` | 14 (boosted) | — (raw pool: absent) | 2 | 1 | 24 |
-| the point, no exclusion | `Can a fuel station be built here? Zone O Yamuna floodplain` | 14 (boosted) | — (raw pool: absent) | 2 | 0 | 24 |
-| the point, no boost | `Can a fuel station be built here? Zone O Yamuna floodplain` | 15 (boosted) | — (raw pool: absent) | 2 | 1 | 24 |
-| the point, no query expansion | `Can a fuel station be built here?` | 1 (boosted) | 8 | 2 | 9 | 3 |
+| **before D-086**: the point, expansion for every topic | `Can a fuel station be built here? Zone O Yamuna floodplain` | 14 (boosted) | — (raw pool: absent) | 2 | 1 | 24 |
+| the point, everything on (what ships now) | `Can a fuel station be built here?` | 1 (boosted) | 8 | 2 | 10 | 3 |
+| the point, no exclusion | `Can a fuel station be built here?` | 1 (boosted) | 10 | 2 | 0 | 3 |
+| the point, no boost | `Can a fuel station be built here?` | 2 (boosted) | 8 | 2 | 10 | 3 |
+| the point, no query expansion at all | `Can a fuel station be built here?` | 1 (boosted) | 8 | 2 | 10 | 3 |
 | the point, all three steps off | `Can a fuel station be built here?` | 3 (boosted) | 10 | 2 | 0 | 3 |
-| **proposed**: expand only where there is a policy section | `Can a fuel station be built here?` | 1 (boosted) | 8 | 2 | 9 | 3 |
 
 All five chunks of clause 11.1.1, by fused rank:
 
 | configuration | 11.1.1@p851 | 11.1.1@p852 | 11.1.1@p853 | 11.1.1@p854 | 11.1.1@p855 |
 | --- | --- | --- | --- | --- | --- |
-| no point at all (plain hybrid) | 26 | **not returned** | 48 | 3 | 1 |
-| the point, everything on (what ships) | **not returned** | **not returned** | **not returned** | 14 (boosted) | 8 |
-| the point, no exclusion | **not returned** | **not returned** | **not returned** | 14 (boosted) | 8 |
-| the point, no boost | **not returned** | **not returned** | **not returned** | 15 (boosted) | 5 |
-| the point, no query expansion | 25 | **not returned** | 42 | 1 (boosted) | 2 |
-| the point, all three steps off | 26 | **not returned** | 48 | 3 (boosted) | 1 |
-| **proposed**: expand only where there is a policy section | 25 | **not returned** | 42 | 1 (boosted) | 2 |
+| no point at all (plain hybrid) | 25 | **not returned** | 47 | 3 | 1 |
+| **before D-086**: the point, expansion for every topic | **not returned** | **not returned** | **not returned** | 14 (boosted) | 8 |
+| the point, everything on (what ships now) | 24 | **not returned** | 41 | 1 (boosted) | 2 |
+| the point, no exclusion | 26 | **not returned** | 48 | 1 (boosted) | 2 |
+| the point, no boost | 23 | **not returned** | 40 | 2 (boosted) | 1 |
+| the point, no query expansion at all | 24 | **not returned** | 41 | 1 (boosted) | 2 |
+| the point, all three steps off | 25 | **not returned** | 47 | 3 (boosted) | 1 |
 
 **Top 6, no point at all (plain hybrid):**
 
@@ -39,20 +39,9 @@ All five chunks of clause 11.1.1, by fused rank:
 | 3 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.03041 | no |
 | 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
 | 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02858 | no |
-| 6 | `MPD47_GAZETTE_EN:3.5@p1004:0` | 3.5 | 0.02535 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.0252 | no |
 
-**Top 6, the point, everything on (what ships):**
-
-| rank | chunk | clause | fused | boosted |
-| --- | --- | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 | 0.04433 | yes |
-| 2 | `NGT_OA572_GNCTD_REPORT:3@p25:1` | 3 | 0.04231 | yes |
-| 3 | `NGT_OA572_GNCTD_REPORT:5@p30:0` | 5 | 0.04174 | yes |
-| 4 | `NGT_OA572_GNCTD_REPORT:7@p7:0` | 7 | 0.0401 | yes |
-| 5 | `NGT_OA572_GNCTD_REPORT:3@p18:0` | 3 | 0.03875 | yes |
-| 6 | `NGT_OA572_GNCTD_REPORT:3@p24:0` | 3 | 0.03684 | yes |
-
-**Top 6, the point, no exclusion:**
+**Top 6, **before D-086**: the point, expansion for every topic:**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
@@ -63,18 +52,7 @@ All five chunks of clause 11.1.1, by fused rank:
 | 5 | `NGT_OA572_GNCTD_REPORT:3@p18:0` | 3 | 0.03875 | yes |
 | 6 | `NGT_OA572_GNCTD_REPORT:3@p24:0` | 3 | 0.03684 | yes |
 
-**Top 6, the point, no boost:**
-
-| rank | chunk | clause | fused | boosted |
-| --- | --- | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 | 0.02955 | yes |
-| 2 | `DHC_YAMUNA_20240708:3:0` | 3 | 0.02859 | no |
-| 3 | `NGT_OA572_GNCTD_REPORT:3@p25:1` | 3 | 0.02821 | yes |
-| 4 | `NGT_OA572_GNCTD_REPORT:5@p30:0` | 5 | 0.02783 | yes |
-| 5 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.02764 | no |
-| 6 | `NGT_OA572_GNCTD_REPORT:5@p8:0` | 5 | 0.02727 | no |
-
-**Top 6, the point, no query expansion:**
+**Top 6, the point, everything on (what ships now):**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
@@ -83,7 +61,40 @@ All five chunks of clause 11.1.1, by fused rank:
 | 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03058 | no |
 | 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
 | 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02899 | no |
-| 6 | `MPD47_GAZETTE_EN:3.5@p1004:0` | 3.5 | 0.02583 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02571 | no |
+
+**Top 6, the point, no exclusion:**
+
+| rank | chunk | clause | fused | boosted |
+| --- | --- | --- | --- | --- |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04562 | yes |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03279 | no |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03058 | no |
+| 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
+| 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02858 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.0252 | no |
+
+**Top 6, the point, no boost:**
+
+| rank | chunk | clause | fused | boosted |
+| --- | --- | --- | --- | --- |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03279 | no |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.03083 | yes |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03058 | no |
+| 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
+| 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02899 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02571 | no |
+
+**Top 6, the point, no query expansion at all:**
+
+| rank | chunk | clause | fused | boosted |
+| --- | --- | --- | --- | --- |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04625 | yes |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03279 | no |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03058 | no |
+| 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
+| 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02899 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02571 | no |
 
 **Top 6, the point, all three steps off:**
 
@@ -94,42 +105,31 @@ All five chunks of clause 11.1.1, by fused rank:
 | 3 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.03041 | yes |
 | 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
 | 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02858 | no |
-| 6 | `MPD47_GAZETTE_EN:3.5@p1004:0` | 3.5 | 0.02535 | no |
-
-**Top 6, **proposed**: expand only where there is a policy section:**
-
-| rank | chunk | clause | fused | boosted |
-| --- | --- | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04625 | yes |
-| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03279 | no |
-| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03058 | no |
-| 4 | `MPD47_GAZETTE_EN:5.1.7@p807:0` | 5.1.7 | 0.03002 | no |
-| 5 | `MPD47_GAZETTE_EN:3.6.1@p726:0` | 3.6.1 | 0.02899 | no |
-| 6 | `MPD47_GAZETTE_EN:3.5@p1004:0` | 3.5 | 0.02583 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.0252 | no |
 
 ## Can a fuel station be built in Zone O?
 
 | configuration | query actually searched | 11.1.1@p854 | dense | BM25 | excluded | boosted |
 | --- | --- | --- | --- | --- | --- | --- |
 | no point at all (plain hybrid) | `Can a fuel station be built in Zone O?` | 2 | 5 | 1 | 0 | 0 |
-| the point, everything on (what ships) | `Can a fuel station be built in Zone O? Zone O Yamuna floodplain` | 11 (boosted) | — (raw pool: absent) | 2 | 1 | 28 |
-| the point, no exclusion | `Can a fuel station be built in Zone O? Zone O Yamuna floodplain` | 11 (boosted) | — (raw pool: absent) | 2 | 0 | 28 |
-| the point, no boost | `Can a fuel station be built in Zone O? Zone O Yamuna floodplain` | 11 (boosted) | — (raw pool: absent) | 2 | 1 | 28 |
-| the point, no query expansion | `Can a fuel station be built in Zone O?` | 1 (boosted) | 5 | 1 | 14 | 7 |
+| **before D-086**: the point, expansion for every topic | `Can a fuel station be built in Zone O? Zone O Yamuna floodplain` | 11 (boosted) | — (raw pool: absent) | 2 | 1 | 28 |
+| the point, everything on (what ships now) | `Can a fuel station be built in Zone O?` | 1 (boosted) | 5 | 1 | 14 | 7 |
+| the point, no exclusion | `Can a fuel station be built in Zone O?` | 1 (boosted) | 5 | 1 | 0 | 8 |
+| the point, no boost | `Can a fuel station be built in Zone O?` | 2 (boosted) | 5 | 1 | 14 | 7 |
+| the point, no query expansion at all | `Can a fuel station be built in Zone O?` | 1 (boosted) | 5 | 1 | 14 | 7 |
 | the point, all three steps off | `Can a fuel station be built in Zone O?` | 2 (boosted) | 5 | 1 | 0 | 8 |
-| **proposed**: expand only where there is a policy section | `Can a fuel station be built in Zone O?` | 1 (boosted) | 5 | 1 | 14 | 7 |
 
 All five chunks of clause 11.1.1, by fused rank:
 
 | configuration | 11.1.1@p851 | 11.1.1@p852 | 11.1.1@p853 | 11.1.1@p854 | 11.1.1@p855 |
 | --- | --- | --- | --- | --- | --- |
 | no point at all (plain hybrid) | 28 | **not returned** | **not returned** | 2 | 1 |
-| the point, everything on (what ships) | **not returned** | **not returned** | **not returned** | 11 (boosted) | 6 |
-| the point, no exclusion | **not returned** | **not returned** | **not returned** | 11 (boosted) | 6 |
-| the point, no boost | **not returned** | **not returned** | **not returned** | 11 (boosted) | 3 |
-| the point, no query expansion | 30 | **not returned** | 50 | 1 (boosted) | 2 |
+| **before D-086**: the point, expansion for every topic | **not returned** | **not returned** | **not returned** | 11 (boosted) | 6 |
+| the point, everything on (what ships now) | 30 | **not returned** | 50 | 1 (boosted) | 2 |
+| the point, no exclusion | 31 | **not returned** | **not returned** | 1 (boosted) | 2 |
+| the point, no boost | 27 | **not returned** | 48 | 2 (boosted) | 1 |
+| the point, no query expansion at all | 30 | **not returned** | 50 | 1 (boosted) | 2 |
 | the point, all three steps off | 28 | **not returned** | **not returned** | 2 (boosted) | 1 |
-| **proposed**: expand only where there is a policy section | 30 | **not returned** | 50 | 1 (boosted) | 2 |
 
 **Top 6, no point at all (plain hybrid):**
 
@@ -142,7 +142,7 @@ All five chunks of clause 11.1.1, by fused rank:
 | 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02361 | no |
 | 6 | `MPD47_GAZETTE_EN:9.4:0` | 9.4 | 0.01587 | no |
 
-**Top 6, the point, everything on (what ships):**
+**Top 6, **before D-086**: the point, expansion for every topic:**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
@@ -153,29 +153,40 @@ All five chunks of clause 11.1.1, by fused rank:
 | 5 | `NGT_OA572_GNCTD_REPORT:5@p8:0` | 5 | 0.03054 | no |
 | 6 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03033 | no |
 
+**Top 6, the point, everything on (what ships now):**
+
+| rank | chunk | clause | fused | boosted |
+| --- | --- | --- | --- | --- |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04767 | yes |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03252 | no |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03105 | no |
+| 4 | `MPD47_GAZETTE_EN:Annexure 19:0` | Annexure 19 | 0.02947 | no |
+| 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02429 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02346 | no |
+
 **Top 6, the point, no exclusion:**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
-| 1 | `NGT_OA572_GNCTD_REPORT:3@p25:1` | 3 | 0.0458 | yes |
-| 2 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 | 0.04224 | yes |
-| 3 | `NGT_OA572_GNCTD_REPORT:7@p7:0` | 7 | 0.04113 | yes |
-| 4 | `NGT_OA572_GNCTD_REPORT:5@p30:0` | 5 | 0.03907 | yes |
-| 5 | `NGT_OA572_GNCTD_REPORT:5@p8:0` | 5 | 0.03054 | no |
-| 6 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03033 | no |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04767 | yes |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03252 | no |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03105 | no |
+| 4 | `MPD47_GAZETTE_EN:Annexure 19:0` | Annexure 19 | 0.02927 | no |
+| 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02361 | no |
+| 6 | `MPD47_GAZETTE_EN:12.3.2:0` | 12.3.2 | 0.02143 | yes |
 
 **Top 6, the point, no boost:**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
-| 1 | `NGT_OA572_GNCTD_REPORT:3@p25:1` | 3 | 0.03054 | yes |
-| 2 | `NGT_OA572_GNCTD_REPORT:5@p8:0` | 5 | 0.03054 | no |
-| 3 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03033 | no |
-| 4 | `DHC_YAMUNA_20240708:3:0` | 3 | 0.02861 | no |
-| 5 | `MPD47_GAZETTE_EN:3.1.2@p681:0` | 3.1.2 | 0.0283 | yes |
-| 6 | `NGT_OA572_GNCTD_REPORT:11:0` | 11 | 0.02763 | no |
+| 1 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03252 | no |
+| 2 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.03178 | yes |
+| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03105 | no |
+| 4 | `MPD47_GAZETTE_EN:Annexure 19:0` | Annexure 19 | 0.02947 | no |
+| 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02429 | no |
+| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02346 | no |
 
-**Top 6, the point, no query expansion:**
+**Top 6, the point, no query expansion at all:**
 
 | rank | chunk | clause | fused | boosted |
 | --- | --- | --- | --- | --- |
@@ -197,24 +208,14 @@ All five chunks of clause 11.1.1, by fused rank:
 | 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02361 | no |
 | 6 | `MPD47_GAZETTE_EN:9.4:0` | 9.4 | 0.01587 | no |
 
-**Top 6, **proposed**: expand only where there is a policy section:**
+## What the fix did to the five DEMO beats
 
-| rank | chunk | clause | fused | boosted |
-| --- | --- | --- | --- | --- |
-| 1 | `MPD47_GAZETTE_EN:11.1.1@p854:0` | 11.1.1 | 0.04767 | yes |
-| 2 | `MPD47_GAZETTE_EN:11.1.1@p855:0` | 11.1.1 | 0.03252 | no |
-| 3 | `MPD47_GAZETTE_EN:Annexure 18:0` | Annexure 18 | 0.03105 | no |
-| 4 | `MPD47_GAZETTE_EN:Annexure 19:0` | Annexure 19 | 0.02947 | no |
-| 5 | `MPD47_GAZETTE_EN:Annexure 20:0` | Annexure 20 | 0.02429 | no |
-| 6 | `MPD47_GAZETTE_EN:11.2.1:0` | 11.2.1 | 0.02346 | no |
+`before` is expansion for every topic, which is what `docs/DEMO.md` was first
+written against. `now` is what ships after D-086, with `zone_o` and `ridge` no
+longer expanding. Three of the five are expected to be **identical**, because
+`tod`, `hdc` and `lda` keep their expansion.
 
-## What the proposal would do to the five DEMO beats
-
-`ships` is `docs/DEMO.md` as published. `proposed` is the same search with the
-`zone_o` and `ridge` expansion terms removed. Three of the five are expected to be
-**identical**, because `tod`, `hdc` and `lda` keep their expansion.
-
-| beat | question | top 3, ships | top 3, proposed | same? |
+| beat | question | top 3, before | top 3, now | same? |
 | --- | --- | --- | --- | --- |
 | beat 1 P_TOD | How much of my plot can I build on? | `4.2.1:0`, `4.2.3@p751:0`, `4.2.3@p753:0` | `4.2.1:0`, `4.2.3@p751:0`, `4.2.3@p753:0` | **identical** |
 | beat 2 P_HDC | How much of my plot can I build on? | `4.3@p757:0`, `Q1@p15:0`, `1.7.1@p666:0` | `4.3@p757:0`, `Q1@p15:0`, `1.7.1@p666:0` | **identical** |

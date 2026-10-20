@@ -33,6 +33,7 @@ from app.extract import use_utf8_output  # noqa: E402
 from app.location import expand_query  # noqa: E402
 from app.retrieval import SearchReport, get_index, search  # noqa: E402
 from app.spatial import get_zones, topics_for  # noqa: E402
+from app.tagging import TOPICS  # noqa: E402
 
 #: The clause the question is about, and the one chunk of it that carries the permission
 #: sentence. The other four chunks of 11.1.1 are reported too, because "11.1.1 came back"
@@ -73,29 +74,21 @@ def location_settings(**changes):
         location_module.settings = original
 
 
-#: The four zone topics that have a policy section of their own in MPD-2047 — the same
-#: four that are allowed to exclude (D-023, D-069). `zone_o` and `ridge` have none.
-HAVE_A_POLICY_SECTION = ("tod", "hdc", "land_pooling", "lda")
-
-
 @contextlib.contextmanager
-def expansion_scoped_to_policy_sections():
-    """Run a block with the expansion terms for `zone_o` and `ridge` removed.
+def expansion_for_every_topic():
+    """Run a block with the **pre-D-086** behaviour: all six topics expand the query.
 
-    This is the **proposed** fix, measured but not applied: `expand_query` adds terms
-    only for topics it has an entry for, so dropping the two entries is exactly the
-    behaviour "expand only where there is a policy section to expand towards".
+    The fix shipped on 20 October scopes expansion to `location.EXPANDS_QUERY`, the four
+    topics with a policy section of their own. Widening that tuple back out to every
+    tagged topic reproduces exactly what the first version of this diagnosis measured,
+    so the before/after columns below are still a real comparison and not a memory.
     """
-    original = dict(location_module.EXPANSION_TERMS)
-    location_module.EXPANSION_TERMS = {
-        topic: terms
-        for topic, terms in original.items()
-        if topic in HAVE_A_POLICY_SECTION
-    }
+    original = location_module.EXPANDS_QUERY
+    location_module.EXPANDS_QUERY = TOPICS
     try:
         yield
     finally:
-        location_module.EXPANSION_TERMS = original
+        location_module.EXPANDS_QUERY = original
 
 
 def point_of(name: str) -> tuple[float, float]:
@@ -149,16 +142,16 @@ def pool_positions(index, query: str, depth: int, chunk_ids) -> dict[str, dict]:
 #: and the settings changes that produce it; `None` means no point at all.
 CONFIGURATIONS = (
     ("no point at all (plain hybrid)", None),
-    ("the point, everything on (what ships)", {}),
+    ("**before D-086**: the point, expansion for every topic", "all_six"),
+    ("the point, everything on (what ships now)", {}),
     ("the point, no exclusion", {"zone_exclusion": False}),
     ("the point, no boost", {"zone_boost": 1.0}),
-    ("the point, no query expansion", {"zone_query_expansion": False}),
+    ("the point, no query expansion at all", {"zone_query_expansion": False}),
     ("the point, all three steps off", {
         "zone_exclusion": False,
         "zone_boost": 1.0,
         "zone_query_expansion": False,
     }),
-    ("**proposed**: expand only where there is a policy section", "scoped"),
 )
 
 
@@ -168,9 +161,9 @@ def run_one(index, question: str, lat: float, lon: float, changes: dict | None) 
     if changes is None:
         results = search(question, k=DEEP_K, mode="hybrid", index=index, report=report)
         query_sent = question
-    elif changes == "scoped":
+    elif changes == "all_six":
         zones = get_zones(lat, lon)
-        with expansion_scoped_to_policy_sections():
+        with expansion_for_every_topic():
             results = search(
                 question, k=DEEP_K, mode="hybrid", zones=zones, index=index, report=report
             )
@@ -264,23 +257,24 @@ BEATS = (
 def beat_lines(index) -> list[str]:
     """What the proposal would do to the five published DEMO beats."""
     out = [
-        "## What the proposal would do to the five DEMO beats",
+        "## What the fix did to the five DEMO beats",
         "",
-        "`ships` is `docs/DEMO.md` as published. `proposed` is the same search with the",
-        "`zone_o` and `ridge` expansion terms removed. Three of the five are expected to be",
-        "**identical**, because `tod`, `hdc` and `lda` keep their expansion.",
+        "`before` is expansion for every topic, which is what `docs/DEMO.md` was first",
+        "written against. `now` is what ships after D-086, with `zone_o` and `ridge` no",
+        "longer expanding. Three of the five are expected to be **identical**, because",
+        "`tod`, `hdc` and `lda` keep their expansion.",
         "",
-        "| beat | question | top 3, ships | top 3, proposed | same? |",
+        "| beat | question | top 3, before | top 3, now | same? |",
         "| --- | --- | --- | --- | --- |",
     ]
     for label, point_name, question in BEATS:
         lat, lon = point_of(point_name)
         zones = get_zones(lat, lon)
+        with expansion_for_every_topic():
+            before = search(question, k=3, mode="hybrid", zones=zones, index=index)
         shipped = search(question, k=3, mode="hybrid", zones=zones, index=index)
-        with expansion_scoped_to_policy_sections():
-            proposed = search(question, k=3, mode="hybrid", zones=zones, index=index)
-        a = [item.chunk_id.split(":", 1)[1] for item in shipped]
-        b = [item.chunk_id.split(":", 1)[1] for item in proposed]
+        a = [item.chunk_id.split(":", 1)[1] for item in before]
+        b = [item.chunk_id.split(":", 1)[1] for item in shipped]
         out.append(
             f"| {label} | {question} | {', '.join('`' + c + '`' for c in a)} "
             f"| {', '.join('`' + c + '`' for c in b)} "
@@ -325,7 +319,7 @@ def main() -> int:
         sections.extend(lines_for(question, runs))
         print()
 
-    print("the five DEMO beats, ships against proposed:")
+    print("the five DEMO beats, before D-086 against what ships now:")
     sections.extend(beat_lines(index))
     print()
 

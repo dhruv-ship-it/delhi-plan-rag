@@ -1,7 +1,8 @@
-# Why clause 11.1.1 does not come back for the fuel-station question at P_ZONEO
+# Why clause 11.1.1 did not come back for the fuel-station question at P_ZONEO
 
-**20 October 2026. 700 chunks, reranker off. Diagnosis only — no retrieval code was
-changed, and the fix at the end is proposed rather than applied.**
+**20 October 2026. 700 chunks, reranker off. The diagnosis in §§ 1-4 is unchanged.
+§ 5 was a proposal when this file was first written; it was applied later the same day
+as D-086, and § 5 now records what it did and what it cost.**
 
 Regenerate every number here with:
 
@@ -29,9 +30,11 @@ does not return `MPD47_GAZETTE_EN:11.1.1@p854:0`, the chunk that contains:
 
 That is the clause that answers the question, and it answers it with a **no**. Asked
 with no point at all, hybrid search puts it at rank 3 (with another chunk of 11.1.1, the
-fuel-station norms on p855, at rank 1). Asked at the point, it falls to **rank 14** —
+fuel-station norms on p855, at rank 1). Asked at the point, it fell to **rank 14** —
 eight ranks below what a user ever sees. `docs/DEMO.md` cut the question for this reason
-and `docs/PROJECT_STATUS.md` carries it as limitation 4.
+and `docs/PROJECT_STATUS.md` carried it as limitation 4. **Both have since been updated:
+the clause is now rank 1 at the point** (§ 5), and everything in §§ 1-4 below describes
+the behaviour as it was when the fault was found.
 
 **It is the location path, and specifically it is step 2 of three: query expansion.**
 
@@ -46,10 +49,10 @@ filtering; the raw-pool note says where it sat before filtering, which is how
 | configuration | query actually searched | fused rank | dense | BM25 |
 | --- | --- | --- | --- | --- |
 | no point at all | `Can a fuel station be built here?` | **3** | 10 | 2 |
-| the point, everything on (ships) | `…built here? Zone O Yamuna floodplain` | **14** | — (absent from a 60-deep raw pool) | 2 |
+| the point, everything on (**as it shipped before D-086**) | `…built here? Zone O Yamuna floodplain` | **14** | — (absent from a 60-deep raw pool) | 2 |
 | the point, no exclusion | `…built here? Zone O Yamuna floodplain` | **14** | — (absent) | 2 |
 | the point, no boost | `…built here? Zone O Yamuna floodplain` | **15** | — (absent) | 2 |
-| the point, **no query expansion** | `Can a fuel station be built here?` | **1** | 8 | 2 |
+| the point, **no query expansion** (**what ships now**, § 5) | `Can a fuel station be built here?` | **1** | 8 | 2 |
 | the point, all three off | `Can a fuel station be built here?` | **3** | 10 | 2 |
 
 The explicit wording behaves the same way: *"Can a fuel station be built in Zone O?"*
@@ -152,27 +155,33 @@ time, in a second step.
 
 ---
 
-## 5. Proposed fix (not applied)
+## 5. The fix, applied (D-086)
 
-**Apply query expansion only for topics that have a policy section of their own** — the
-same four that are already allowed to exclude. `zone_o` and `ridge` keep the other two
-steps: they are still boosted, and exclusion is unaffected.
+**Query expansion now runs only for topics that have a policy section of their own** —
+the same four that are already allowed to exclude. `zone_o` and `ridge` keep the other
+two steps: they are still boosted, and exclusion is unaffected.
 
-In `app/location.py` that is a few lines: a constant naming the four topics, and
-`expand_query` skipping the others. Measured, with the terms for the two topics removed:
+In `app/location.py` that is one tuple and one filter:
+
+```python
+EXPANDS_QUERY: tuple[str, ...] = ("tod", "hdc", "land_pooling", "lda")
+```
+
+and `expand_query` skipping every topic outside it. Measured, as shipped:
 
 | | fuel station, "here" | fuel station, "in Zone O" |
 | --- | --- | --- |
-| ships | rank 14 | rank 11 |
-| proposed | **rank 1** | **rank 1** |
+| before D-086 | rank 14 | rank 11 |
+| now | **rank 1** | **rank 1** |
 
 and `11.1.1@p855`, the fuel-station norms, follows at rank 2 in both — so the user gets
 the permission rule *and* the controls.
 
-**What it does to the five published demo beats**, which is the test that matters,
-because these are the answers the project already shows people:
+**What it did to the five published demo beats.** Three come back **bit-identical**, not
+similar — the three whose topics keep their expansion — and the two that change are
+exactly the two the fix is about:
 
-| beat | top 3, ships | top 3, proposed | |
+| beat | top 3, before | top 3, now | |
 | --- | --- | --- | --- |
 | 1 P_TOD | `4.2.1`, `4.2.3@p751`, `4.2.3@p753` | identical | **unchanged** |
 | 2 P_HDC | `4.3@p757`, `Q1@p15`, `1.7.1@p666` | identical | **unchanged** |
@@ -180,24 +189,52 @@ because these are the answers the project already shows people:
 | 3 P_ZONEO | `3.1.2@p681`, `2:0`, `3@p25:1` | `2:0`, `3.1.2@p681`, `9.2` | changed |
 | 5 P_RIDGE | `10.1@p842`, `3.1.2@p681`, `3.1.2@p683` | `10.1@p843`, `3.1.2@p681`, `9.2` | changed |
 
-Three are **bit-identical**, not similar — the three whose topics keep their expansion.
-The two that change are exactly the two the fix is about:
+`docs/DEMO.md` has been re-run and updated for those two beats, and the fuel-station
+question has moved out of its "did not make it" list.
 
-- **Beat 3** keeps both of its best sources and swaps their order: the High Court order
-  (`DHC_YAMUNA_20240708:2:0`) moves to rank 1 and the Green-Blue Infrastructure clause to
-  rank 2. Arguably better — the court order is the document that actually prohibits
-  construction — but it is a change, and the demo's cosine figure would need re-running.
-  The sharper wording the demo also offers, *"What are the rules for the active
-  floodplain?"*, still puts `3.1.2@p681` at rank 1.
-- **Beat 5** stays in chapter 10's definitions and moves one chunk along, `10.1@p842` to
-  `10.1@p843`. The demo's point about that beat — that what comes back is a *definition*
-  and not a permission rule — survives, but the clause ids in the table change.
+### What it cost, which is the part worth reading
+
+The fix is **not free**, and the same mechanism that explains the win explains the loss.
+Appending `Zone O Yamuna floodplain` supplies a new *subject*; that is a defect when the
+question's subject is something else (a fuel station) and an *advantage* when the
+question's subject **is** the place. Both kinds of question exist at these two points,
+and the second kind now does worse. Measured over a 200-deep list, with
+`reports/location_compare_v4.md` carrying the generated tables:
+
+| point | question | clause | before | now |
+| --- | --- | --- | --- | --- |
+| P_ZONEO | Can a fuel station be built here? | `11.1.1@p854` | 14 | **1** |
+| P_ZONEO | Is construction allowed here? | `DHC_YAMUNA_20240708:2` | 2 | **1** |
+| P_ZONEO | Is construction allowed here? | `3.1.2@p681` | 1 | 2 |
+| P_ZONEO | Is construction allowed here? | `NGT…:3@p25:1` | 3 | **>200** |
+| P_ZONEO | Can I construct a building here? | `3.1.2@p681` | 1 | **>200** |
+| P_ZONEO | Can I construct a building here? | `DHC_YAMUNA_20240708:2` | 2 | 9 |
+| P_ZONEO | What are the rules for the active floodplain? | `3.1.2@p681` | 1 | 1 |
+| P_RIDGE | Is construction allowed here? | `10.1@p843` | 8 | **1** |
+| P_RIDGE | Can I build a house here? | `10.1@p842` | 1 | **>200** |
+
+Read the two P_ZONEO construction rows together, because they are the uncomfortable
+pair. *"Is construction allowed here?"* survives — it keeps the court order and the
+no-construction clause at ranks 1 and 2, and loses only the NGT report — while *"Can I
+construct a building here?"*, which is the same question in different words, loses all
+three and comes back with chapter 13 utilities and a slum FAQ. The top 5 at P_RIDGE for
+*"Can I build a house here?"* is now Group Housing norms rather than the Regional Park
+definition. Of the three, only *"Is construction allowed here?"* was asked live in v1.
+
+**Why it still ships.** The questions it helps are the ones the product is for: a user
+clicks a point and asks about a *subject* — a fuel station, a height, a parking norm —
+and expects the point to qualify the question rather than replace it. A user whose
+question is already about the floodplain has typed the floodplain words themselves, and
+that case still works: *"What are the rules for the active floodplain?"* keeps `3.1.2` at
+rank 1 either way. It is a trade of the narrower case for the broader one, made
+deliberately and on a lead decision, and it is recorded here so that the next person
+reading these two beats knows what was given up rather than discovering it.
 
 ### Three alternatives, measured and rejected
 
 | alternative | fuel station | what it costs |
 | --- | --- | --- |
-| **Fuse a third list**: add `dense(original query)` to the RRF alongside `dense(expanded)` and `bm25(expanded)` | rank 1 | Breaks beats 2 and 4: the un-expanded dense list votes for the FAQ's conversational phrasing, so `Q5@p15` and `Q18@p16` displace the gazette's `4.3@p757`, putting **authority rank 3 above authority rank 1**. Beat 1 loses `4.2.1` from the top 3. |
+| **Fuse a third list**: add `dense(original query)` to the RRF alongside `dense(expanded)` and `bm25(expanded)`, **at every point** | rank 1 | Breaks beats 2 and 4: the un-expanded dense list votes for the FAQ's conversational phrasing, so `Q5@p15` and `Q18@p16` displace the gazette's `4.3@p757`, putting **authority rank 3 above authority rank 1**. Beat 1 loses `4.2.1` from the top 3. |
 | **The same at half weight** (`0.5/(k+rank)`) | rank 8 — still invisible | The worst of both: the FAQ promotion on beats 2 and 4 happens anyway and the fuel-station clause does not reach the top 6. |
 | **Expand the keyword query only**, leaving the dense query plain | rank 1 | Same FAQ-over-gazette problem on beats 2 and 4, and it throws away the dense half of the location effect at *every* point, not just the two that need it. |
 
@@ -208,33 +245,57 @@ the FAQ's short conversational chunks. The expansion is what keeps the gazette o
 It should therefore be removed only where it has nothing to aim at, which is the two
 topics with no policy section — and not weakened everywhere.
 
-A fourth option, **turning expansion off entirely**, is the same measurement as row 5 of
+A fourth option, **turning expansion off entirely**, is the same measurement as row 6 of
 § 2 and is rejected for the same reason: it would discard the effect that beats 1, 2 and
 4 exist to show.
 
+### A fifth option, measured after the fix and not applied
+
+The cost table above prompted one more measurement, recorded because it is the obvious
+next move rather than because it is being made. **Fuse four lists instead of two, scoped
+to `zone_o` and `ridge` only** — `dense(plain)`, `bm25(plain)`, `dense(expanded)`,
+`bm25(expanded)`. Scoping is what makes it different from the rejected row above: the
+other four topics never reach this code path, so beats 1, 2 and 4 cannot move, by
+construction and for the same reason the shipped fix cannot move them.
+
+| point | question | clause | before | shipped | 4-list |
+| --- | --- | --- | --- | --- | --- |
+| P_ZONEO | fuel station, "here" | `11.1.1@p854` | 14 | **1** | **1** |
+| P_ZONEO | Can I construct a building here? | `3.1.2@p681` | 1 | >200 | **2** |
+| P_ZONEO | Can I construct a building here? | `DHC…:2` | 2 | 9 | **1** |
+| P_ZONEO | Is construction allowed here? | `DHC…:2` | 2 | **1** | **1** |
+| P_RIDGE | Can I build a house here? | `10.1@p842` | 1 | >200 | **1** |
+| P_RIDGE | Is construction allowed here? | `3.1.2@p681` | 2 | 2 | **1** |
+
+On these six questions it is better than both the old behaviour and the shipped fix: it
+keeps every win and gives back every loss. It is **not applied** for the three reasons
+D-083 gave and that have not changed — there is still no verified question set, six
+questions at two points is a finding and not evidence, and it is a second embedding call
+and a second BM25 pass for those points. It belongs in `eval/run_eval.py` as a
+configuration to score once `eval/questions_verified.jsonl` exists, which is where the
+reranker and the abstention threshold are already waiting.
+
 ---
 
-## 6. What has to happen before this is applied
+## 6. What was waiting on this, and what still is
 
-Not tonight, and not unattended. Three reasons, in order of weight:
+When this file was first written, § 6 listed three things that had to happen before the
+fix was applied. Two are now done and one is unchanged:
 
-1. **There is still no verified question set.** Every retrieval change in this project
-   waits on the same thing (D-070 for the reranker, D-071 for the threshold), and this one
-   is no different: two questions at one point is a finding, not evidence. The honest
-   version of this fix ships as a setting that is **off by default** and as a fifth
-   configuration in `eval/run_eval.py`, scored against `questions_verified.jsonl`
-   alongside `hybrid`, `hybrid+location` and `hybrid+location+rerank`.
-2. **It changes two published demo beats.** `docs/DEMO.md` prints observed clause ids and
-   says they were observed. If the fix is switched on, those two tables have to be re-run
-   and the beat-3 narrative re-read, because a court order at rank 1 is a different story
-   to tell than an environment clause at rank 1.
-3. **The `ridge` half is untested against a question that needs it.** The fix is justified
-   by a mechanism that applies to both topics, but it is only *measured* on `zone_o`. A
-   Ridge question whose subject is not the Ridge — "what is the parking norm here?" at
-   P_RIDGE — would be the matching test, and there is not one in the draft set.
+1. **~~There is still no verified question set.~~** Still true, and it is still the
+   reason every *other* retrieval change waits (D-070 for the reranker, D-071 for the
+   threshold, and the 4-list option above). This one was applied anyway, on a lead
+   decision, because the failure it fixes is a mechanism that generalises past the one
+   question rather than a score that might be noise.
+2. **~~It changes two published demo beats.~~** Done: `docs/DEMO.md` beats 3 and 5 have
+   been re-run and rewritten, including the cosine figures, and the beat-3 narrative now
+   leads with the High Court order.
+3. **The `ridge` half is still untested against a question that needs it.** The fix is
+   justified by a mechanism that applies to both topics, but it is *measured* on
+   `zone_o`. A Ridge question whose subject is not the Ridge — "what is the parking norm
+   here?" at P_RIDGE — is the matching test, and there is still no draft or verified
+   question of that shape. The P_RIDGE rows of the cost table are the other half of the
+   same gap: they show the fix hurting the Ridge questions that *are* about the Ridge,
+   with nothing yet showing it helping one that is not.
 
-**What should happen now, and costs nothing:** `docs/PROJECT_STATUS.md` limitation 4 can
-stop saying "not diagnosed". It is diagnosed. The step is query expansion, the mechanism
-is that a place name acts as a subject rather than a qualifier, and the scope is the two
-zones that have no policy section — which is the same pair, for the same underlying
-reason, as the pair that cannot exclude.
+`docs/PROJECT_STATUS.md` limitation 4 is now a record of a fix rather than of a miss.

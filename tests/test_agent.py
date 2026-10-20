@@ -121,6 +121,8 @@ def stubs(monkeypatch):
             self.lon = data.get("lon")
             self.display_name = data.get("display_name")
             self.reason = data.get("reason")
+            #: Which contiguous part of the query answered, when only a part did (D-090).
+            self.matched = data.get("matched")
             self._data = data
 
         def to_dict(self):
@@ -175,6 +177,22 @@ def test_locate_place_records_the_point_it_found(stubs) -> None:
     assert run.lat == pytest.approx(28.6318)
     assert run.trace[0]["tool"] == "locate_place"
     assert "Connaught Place" in run.trace[0]["summary"]
+    assert "matched" not in run.trace[0]["summary"]
+
+
+def test_the_trace_says_when_only_part_of_the_query_was_geocoded(stubs) -> None:
+    """D-090's sub-phrase fallback has to be visible, not silent."""
+    stubs["place"] = {
+        "query": "Chhatarpur ridge",
+        "found": True,
+        "lat": 28.5068,
+        "lon": 77.1752,
+        "display_name": "Chhatarpur (Delhi Metro)",
+        "matched": "chhatarpur",
+    }
+    run = AgentRun(StubIndex(CHUNKS))
+    run_tool(run, "locate_place", {"query": "Chhatarpur ridge"})
+    assert 'matched "chhatarpur"' in run.trace[0]["summary"]
 
 
 def test_search_clauses_passes_the_point_through_to_the_search(stubs) -> None:

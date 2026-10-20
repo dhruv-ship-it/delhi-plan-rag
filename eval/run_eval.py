@@ -14,15 +14,20 @@ explanation if there are none. That is deliberate: the 60 questions in
 searches, so a score against them measures how well the retriever agrees with its own
 author. Those numbers must never be reported as results. See eval/README.md.
 
-Four configurations are compared:
+Five configurations are compared:
 
-  dense            embeddings only
-  bm25             keywords only
-  hybrid           both, fused with reciprocal rank fusion
-  hybrid+location  hybrid plus the zone exclusion, boost and query expansion
+  dense               embeddings only
+  bm25                keywords only
+  hybrid              both, fused with reciprocal rank fusion
+  hybrid+location     hybrid plus the zone exclusion, boost and query expansion, with
+                      the scoped four-list fusion that ships since D-093
+  hybrid+location_v2  the same, with the four-list fusion turned off: two lists on one
+                      query, which is what shipped between D-086 and D-093
 
-The location configuration can only differ on questions that carry coordinates, so the
-report states how many of those there were.
+The two location configurations can only differ on questions that carry coordinates,
+and `hybrid+location_v2` can only differ from `hybrid+location` on a point in Zone O or
+on the Ridge, because those are the only two topics the four-list path is scoped to.
+The report states how many questions carried coordinates.
 """
 
 import argparse
@@ -54,8 +59,12 @@ from eval.metrics import (  # noqa: E402
     threshold_sweep,
 )
 
+#: The previous location behaviour, kept scoreable by name: two lists on one query,
+#: which is what shipped between D-086 and D-093. The four-list fusion that replaced it
+#: is now the default, so this is the configuration that has to be *disabled* into.
+LOCATION_V2_CONFIGURATION = "hybrid+location_v2"
 #: The configurations always scored.
-BASE_CONFIGURATIONS = ("dense", "bm25", "hybrid", "hybrid+location")
+BASE_CONFIGURATIONS = ("dense", "bm25", "hybrid", "hybrid+location", LOCATION_V2_CONFIGURATION)
 #: Scored as well when the installed fastembed has a cross-encoder (D-070).
 RERANK_CONFIGURATION = "hybrid+location+rerank"
 
@@ -91,6 +100,29 @@ DRY_RUN_BANNER = (
     "> **Do not put these numbers in a README, a resume or a conversation.** "
     "Verify the questions first: see `eval/README.md`."
 )
+
+
+@contextmanager
+def four_list_fusion(on: bool):
+    """Turn the scoped four-list fusion on or off for the body of the block.
+
+    `app.location.FUSES_FOUR_LISTS` is a module constant rather than a setting, for the
+    reason D-086 gave about `EXPANDS_QUERY`: it is a statement about the corpus, not a
+    knob. Emptying it for the length of one call is therefore how the previous behaviour
+    is scored, exactly as `scripts/day3_location_compare.py` widens `EXPANDS_QUERY` to
+    reproduce the behaviour before D-086.
+    """
+    import app.location as location_module
+
+    original = location_module.FUSES_FOUR_LISTS
+    if on == bool(original):
+        yield
+        return
+    location_module.FUSES_FOUR_LISTS = original if on else ()
+    try:
+        yield
+    finally:
+        location_module.FUSES_FOUR_LISTS = original
 
 
 @contextmanager
@@ -172,8 +204,9 @@ def retrieve(question: dict, configuration: str, index) -> tuple[list[str], dict
     has_point = question.get("lat") is not None and question.get("lon") is not None
     wants_location = configuration.startswith("hybrid+location")
     wants_rerank = configuration == RERANK_CONFIGURATION
+    wants_four_lists = configuration != LOCATION_V2_CONFIGURATION
 
-    with reranker(wants_rerank):
+    with reranker(wants_rerank), four_list_fusion(wants_four_lists):
         if wants_location and has_point:
             from app.spatial import get_zones
 

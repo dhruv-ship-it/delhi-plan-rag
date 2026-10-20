@@ -25,6 +25,23 @@ terms name a *place* rather than a policy, and appending them replaces the subje
 the question instead of qualifying it: at P_ZONEO the clause that answers "can a fuel
 station be built here?" fell from rank 1 to rank 14 because ~160 floodplain chunks rose
 past it. Those two topics still boost, and exclusion is unchanged.
+
+**Those two topics fuse four lists instead of two (D-093).** Dropping their expansion
+fixed the fuel-station miss and cost the questions whose subject *is* the place: at
+P_ZONEO "Can I construct a building here?" lost `3.1.2@p681` from rank 1 to outside a
+200-deep list. Fusing both wordings keeps both — `dense(plain)`, `bm25(plain)`,
+`dense(expanded)`, `bm25(expanded)`, all four into one RRF — because a clause only
+needs to be found by *one* of them to earn fusion points. It is **scoped** to `zone_o`
+and `ridge`: the other four topics never reach this path, so the published demo beats
+cannot move, by construction. Re-admitting the un-expanded dense list at *every* point
+was measured and rejected, because plain semantic search over this corpus prefers the
+FAQ's short conversational chunks and put authority rank 3 above rank 1
+(`reports/diagnosis_fuel_station.md`).
+
+So the three asymmetries all come from one fact about the corpus — MPD-2047 has no
+Zone O chapter and no Ridge chapter — and they line up: the four topics with a policy
+section exclude, expand and fuse two lists; the two without never exclude, and fuse
+four lists so that their place words are an *extra* vote rather than a replacement.
 """
 
 from app.config import settings
@@ -56,6 +73,12 @@ EXPANSION_TERMS: dict[str, str] = {
 #: the move is only safe when there is a chapter to move towards (D-086).
 EXPANDS_QUERY: tuple[str, ...] = ("tod", "hdc", "land_pooling", "lda")
 
+#: The topics whose terms go into a **second** query, fused alongside the first, rather
+#: than into the one query both indexes search: exactly the topics `EXPANDS_QUERY`
+#: leaves out, which is exactly the two with no policy section (D-093). A test asserts
+#: that relationship rather than trusting this comment.
+FUSES_FOUR_LISTS: tuple[str, ...] = ("zone_o", "ridge")
+
 #: How a point's zones are described back to a reader.
 ZONE_LABELS: dict[str, str] = {
     "tod": "TOD zone",
@@ -78,6 +101,28 @@ def expand_query(query: str, topics: list[str]) -> tuple[str, list[str]]:
         EXPANSION_TERMS[topic]
         for topic in topics
         if topic in EXPANDS_QUERY and topic in EXPANSION_TERMS
+    ]
+    if not terms:
+        return query, []
+    return f"{query} {' '.join(terms)}", terms
+
+
+def place_query(query: str, topics: list[str]) -> tuple[str, list[str]]:
+    """The second query: the first one plus the place words of the no-policy topics.
+
+    Returns (query, terms added), and the query unchanged with no terms when the point
+    is in neither `zone_o` nor `ridge` — which is how `location_aware_search` decides
+    whether there is a second pair of lists to fetch at all.
+
+    `query` is whatever `expand_query` produced, not the user's raw words, so a point
+    in both a TOD zone and Zone O searches "…TOD zone" and "…TOD zone Zone O Yamuna
+    floodplain". The TOD expansion is never thrown away; the place words are only ever
+    added on top of it (D-093).
+    """
+    terms = [
+        EXPANSION_TERMS[topic]
+        for topic in topics
+        if topic in FUSES_FOUR_LISTS and topic in EXPANSION_TERMS
     ]
     if not terms:
         return query, []
@@ -176,28 +221,54 @@ def location_aware_search(
         return results
 
     expanded, terms = expand_query(query, topics) if settings.zone_query_expansion else (query, [])
+    second, place_terms = (
+        place_query(expanded, topics) if settings.zone_query_expansion else (expanded, [])
+    )
     excluded = excluded_topics_for(topics) if settings.zone_exclusion else set()
     depth = settings.retrieval_pool
 
-    dense_pool = index.dense_pool(expanded, depth * 2)
-    keyword_pool = index.bm25_pool(expanded, depth * 2)
-    dense, dense_dropped = _filtered(dense_pool, index, excluded, depth)
-    keyword, keyword_dropped = _filtered(keyword_pool, index, excluded, depth)
+    # One pair of pools per query. The second pair only exists for a point in Zone O or
+    # on the Ridge, so every other point pays nothing for this (D-093).
+    queries = [expanded] + ([second] if place_terms else [])
+    pairs = []
+    dropped: set[str] = set()
+    for one in queries:
+        dense, dense_dropped = _filtered(
+            index.dense_pool(one, depth * 2), index, excluded, depth
+        )
+        keyword, keyword_dropped = _filtered(
+            index.bm25_pool(one, depth * 2), index, excluded, depth
+        )
+        pairs.append((dense, keyword))
+        dropped |= dense_dropped | keyword_dropped
 
-    dense_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(dense, start=1)}
-    bm25_rank = {chunk_id: position for position, (chunk_id, _) in enumerate(keyword, start=1)}
-    distance = dict(dense)
-    keyword_score = dict(keyword)
+    # The score breakdown is **first-pair-first**: a chunk the original pair already
+    # found keeps exactly the rank, cosine and BM25 score it had before this change, so
+    # the abstention pre-check reads the same number for it as it always did (D-071).
+    # A chunk only the second pair found reports that pair's numbers, because the
+    # alternative is reporting nothing about a result we are showing.
+    dense_rank: dict[str, int] = {}
+    bm25_rank: dict[str, int] = {}
+    distance: dict[str, float] = {}
+    keyword_score: dict[str, float] = {}
+    for one_dense, one_keyword in pairs:
+        for position, (chunk_id, value) in enumerate(one_dense, start=1):
+            dense_rank.setdefault(chunk_id, position)
+            if value is not None:
+                distance.setdefault(chunk_id, value)
+        for position, (chunk_id, value) in enumerate(one_keyword, start=1):
+            bm25_rank.setdefault(chunk_id, position)
+            keyword_score.setdefault(chunk_id, value)
 
     if mode == "dense":
-        rankings = [[chunk_id for chunk_id, _ in dense]]
+        rankings = [[chunk_id for chunk_id, _ in one_dense] for one_dense, _ in pairs]
     elif mode == "bm25":
-        rankings = [[chunk_id for chunk_id, _ in keyword]]
+        rankings = [[chunk_id for chunk_id, _ in one_keyword] for _, one_keyword in pairs]
     else:
-        rankings = [
-            [chunk_id for chunk_id, _ in dense],
-            [chunk_id for chunk_id, _ in keyword],
-        ]
+        rankings = []
+        for one_dense, one_keyword in pairs:
+            rankings.append([chunk_id for chunk_id, _ in one_dense])
+            rankings.append([chunk_id for chunk_id, _ in one_keyword])
     scores = reciprocal_rank_fusion(rankings)
 
     boosted_ids = set()
@@ -209,15 +280,20 @@ def location_aware_search(
 
     if report is not None:
         report.zones = zones
-        report.expanded_query = expanded
-        report.expansion_terms = terms
+        report.expanded_query = queries[-1]
+        report.expansion_terms = terms + place_terms
+        report.queries = list(queries)
+        report.place_terms = list(place_terms)
+        report.fused_lists = len(rankings)
         report.excluded_topics = sorted(excluded)
-        report.excluded = len(dense_dropped | keyword_dropped)
+        report.excluded = len(dropped)
         report.boosted = len(boosted_ids)
 
     ordered = sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
     # Deeper than k when the reranker is on, so it has a shortlist to reorder. The
-    # reranker reads the expanded query, the same text both indexes searched with.
+    # reranker reads the fullest query — the text the last pair of lists searched with.
+    # With four lists there is no single text every pool saw, and the reranker is off by
+    # default (D-070), so this keeps one rule rather than adding a branch nothing runs.
     depth = max(k, settings.rerank_pool) if settings.reranker_on else k
     results: list[Result] = []
     for chunk_id, score in ordered[:depth]:
@@ -244,4 +320,4 @@ def location_aware_search(
                 bm25_score=keyword_score.get(chunk_id),
             )
         )
-    return apply_reranker(expanded, results, k, report)
+    return apply_reranker(queries[-1], results, k, report)

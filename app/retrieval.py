@@ -126,6 +126,14 @@ class SearchReport:
     boosted: int = 0
     excluded_topics: list[str] = field(default_factory=list)
     expansion_terms: list[str] = field(default_factory=list)
+    #: Every query the search actually sent to the indexes, in order. One for a plain
+    #: or two-list search; two when four lists were fused (D-093).
+    queries: list[str] = field(default_factory=list)
+    #: How many ranked lists reciprocal rank fusion combined: 1 for a single-index
+    #: mode, 2 for hybrid, 4 for the scoped two-query fusion (D-093).
+    fused_lists: int = 0
+    #: The place terms that made the second query, when four lists were fused.
+    place_terms: list[str] = field(default_factory=list)
     #: How many results the cross-encoder rescored, 0 when it did not run.
     reranked: int = 0
     #: Why the cross-encoder did not run, when it was asked for and failed.
@@ -336,6 +344,8 @@ def rank(
 
     if report is not None:
         report.expanded_query = query
+        report.queries = [query]
+        report.fused_lists = 1 if mode in ("dense", "bm25") else 2
 
     ordered = sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
     # Deeper than k, so the reranker has a shortlist to reorder rather than k results

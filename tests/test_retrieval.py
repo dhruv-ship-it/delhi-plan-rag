@@ -12,13 +12,16 @@ from app.indexing import tokenize
 from app.location import (
     EXPANDS_QUERY,
     EXPANSION_TERMS,
+    FUSES_FOUR_LISTS,
     describe_zones,
     excluded_topics_for,
     expand_query,
+    location_aware_search,
     matches_point,
+    place_query,
     should_exclude,
 )
-from app.retrieval import reciprocal_rank_fusion
+from app.retrieval import SearchReport, reciprocal_rank_fusion
 from app.tagging import TOPICS
 
 K = settings.rrf_k
@@ -258,3 +261,177 @@ def test_a_point_in_no_policy_zone_says_that_too() -> None:
         }
     )
     assert "none of the six policy zones" in described
+
+
+# --- the second query, and the four lists it makes (D-093) ----------------------
+
+
+def test_the_place_query_appends_the_no_policy_terms() -> None:
+    """Zone O's words go into a second query rather than into the only one."""
+    assert place_query("Can I construct a building here?", ["zone_o"]) == (
+        "Can I construct a building here? Zone O Yamuna floodplain",
+        [EXPANSION_TERMS["zone_o"]],
+    )
+
+
+def test_the_place_query_is_empty_for_a_policy_only_point() -> None:
+    """A TOD plot has nothing to add here, so there is no second pair of lists."""
+    assert place_query("What FAR can I get here?", ["tod"]) == (
+        "What FAR can I get here?",
+        [],
+    )
+    assert place_query("What FAR can I get here?", []) == ("What FAR can I get here?", [])
+
+
+def test_the_place_query_is_built_on_top_of_the_policy_expansion() -> None:
+    """A TOD plot inside Zone O keeps its TOD expansion in **both** queries (D-093)."""
+    expanded, _ = expand_query("What FAR can I get here?", ["tod", "zone_o"])
+    second, terms = place_query(expanded, ["tod", "zone_o"])
+    assert second == (
+        "What FAR can I get here? transit oriented development TOD zone "
+        "Zone O Yamuna floodplain"
+    )
+    assert terms == [EXPANSION_TERMS["zone_o"]]
+
+
+def test_the_two_topics_that_fuse_four_lists_are_the_two_that_may_not_expand() -> None:
+    """The third asymmetry lines up with the other two, and is asserted not asserted at.
+
+    One fact about the corpus — MPD-2047 has no Zone O chapter and no Ridge chapter —
+    decides all three steps: those two topics never exclude, never expand the single
+    query, and instead fuse their place words in as a second pair of lists (D-093).
+    """
+    assert set(FUSES_FOUR_LISTS) == set(TOPICS) - set(EXPANDS_QUERY)
+    assert set(FUSES_FOUR_LISTS) == {"zone_o", "ridge"}
+    assert all(topic in EXPANSION_TERMS for topic in FUSES_FOUR_LISTS)
+
+
+# A toy corpus for the fusion itself. `floodplain` is reachable only by the place
+# query, which is the behaviour the four lists exist for.
+FUSION_CHUNKS = {
+    chunk_id: {
+        "chunk_id": chunk_id,
+        "doc_id": "MPD47_GAZETTE_EN",
+        "clause_id": chunk_id,
+        "heading_path": ["3.1 Green-Blue"],
+        "chapter": "3",
+        "page_start": 681,
+        "page_end": 681,
+        "zone_primary": "",
+        "zone_mentions": [],
+        "text": f"text of {chunk_id}",
+    }
+    for chunk_id in ("utilities", "slum_faq", "floodplain", "fuel_station")
+}
+
+ZONE_O_ZONES = {
+    "inside_delhi": True,
+    "planning_zone": "O",
+    "tod": False,
+    "hdc": False,
+    "land_pooling": False,
+    "land_pooling_zone": None,
+    "zone_o": True,
+    "regional_park": False,
+    "lda": False,
+}
+
+
+class PoolIndex:
+    """A SearchIndex stand-in whose two pools are fixed per query string."""
+
+    def __init__(self, chunks: dict, dense: dict, keyword: dict) -> None:
+        self.chunks = chunks
+        self._dense = dense
+        self._keyword = keyword
+
+    def dense_pool(self, query: str, n: int) -> list[tuple[str, float]]:
+        return list(self._dense.get(query, []))[:n]
+
+    def bm25_pool(self, query: str, n: int) -> list[tuple[str, float]]:
+        return list(self._keyword.get(query, []))[:n]
+
+
+def test_a_zone_o_point_fuses_four_lists_and_keeps_what_each_query_found() -> None:
+    """The measured fix: the plain wording's clause and the place wording's both survive.
+
+    This is D-086's cost table in miniature. The plain query finds `utilities` and
+    `slum_faq`; appending "Zone O Yamuna floodplain" finds `floodplain`, which the plain
+    query cannot see at all. Fusing both lists means a clause only needs **one** of the
+    two wordings to earn fusion points, so neither side is paid for by the other.
+    """
+    plain = "Can I construct a building here?"
+    placed = f"{plain} Zone O Yamuna floodplain"
+    index = PoolIndex(
+        FUSION_CHUNKS,
+        dense={
+            plain: [("utilities", 0.4), ("slum_faq", 0.5)],
+            placed: [("floodplain", 0.3), ("utilities", 0.45)],
+        },
+        keyword={
+            plain: [("utilities", 7.0)],
+            placed: [("floodplain", 9.0)],
+        },
+    )
+    report = SearchReport(query=plain, expanded_query=plain)
+    results = location_aware_search(
+        plain, k=5, mode="hybrid", zones=ZONE_O_ZONES, index=index, report=report
+    )
+
+    assert report.fused_lists == 4
+    assert report.queries == [plain, placed]
+    assert report.place_terms == [EXPANSION_TERMS["zone_o"]]
+    assert report.expanded_query == placed
+    found = [result.chunk_id for result in results]
+    assert "floodplain" in found, "the place query's own find has to survive fusion"
+    assert "utilities" in found and "slum_faq" in found
+    # `utilities` is in three of the four lists, so agreement puts it first (D-028)
+    assert found[0] == "utilities"
+
+
+def test_a_policy_zone_point_still_sends_one_query_and_fuses_two_lists() -> None:
+    """Scoping, asserted: a TOD plot cannot reach the second pair of pools at all.
+
+    This is what keeps the published demo beats bit-identical by construction rather
+    than by measurement (D-093).
+    """
+    plain = "What FAR can I get here?"
+    expanded = f"{plain} transit oriented development TOD zone"
+    index = PoolIndex(
+        FUSION_CHUNKS,
+        dense={expanded: [("utilities", 0.4)], plain: [("slum_faq", 0.1)]},
+        keyword={expanded: [("utilities", 7.0)], plain: [("slum_faq", 9.0)]},
+    )
+    zones = dict(ZONE_O_ZONES, planning_zone="D", zone_o=False, tod=True)
+    report = SearchReport(query=plain, expanded_query=plain)
+    results = location_aware_search(
+        plain, k=5, mode="hybrid", zones=zones, index=index, report=report
+    )
+
+    assert report.fused_lists == 2
+    assert report.queries == [expanded]
+    assert report.place_terms == []
+    assert [result.chunk_id for result in results] == ["utilities"]
+    assert "slum_faq" not in [result.chunk_id for result in results]
+
+
+def test_the_score_breakdown_is_first_pair_first() -> None:
+    """A chunk the original pair found keeps the numbers it had before D-093.
+
+    The abstention pre-check reads `dense_cosine` off result 1 (D-071), so which of the
+    two queries' cosines is reported is not a cosmetic choice: the first pair's is the
+    one that was there before four lists existed.
+    """
+    plain = "Can I construct a building here?"
+    placed = f"{plain} Zone O Yamuna floodplain"
+    index = PoolIndex(
+        FUSION_CHUNKS,
+        dense={plain: [("utilities", 0.4)], placed: [("utilities", 0.1)]},
+        keyword={plain: [], placed: []},
+    )
+    results = location_aware_search(
+        plain, k=5, mode="hybrid", zones=ZONE_O_ZONES, index=index
+    )
+    assert results[0].dense_distance == pytest.approx(0.4)
+    assert results[0].dense_cosine == pytest.approx(0.6)
+    assert results[0].dense_rank == 1

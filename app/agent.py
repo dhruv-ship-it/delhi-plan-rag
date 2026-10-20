@@ -15,7 +15,9 @@ sequence them:
 It loops: the model asks for a tool, the tool runs here, the result goes back, and so on
 until it writes an answer or runs out of rounds. The same citation discipline as
 `answer.py` applies at the end, with one extra rule that matters more here: a citation is
-only accepted if the retrieval that produced it actually happened in **this** run.
+only accepted if the retrieval that produced it actually happened in **this** run. The
+semantic claim check runs here too, through the same two functions map mode uses, so
+`SUPPORT_CHECK` means the same thing in both paths (D-096).
 
 **Each search result gets a short label — `S1`, `S2`, … — numbered across the whole run,
 and the agent cites the label (D-089).** A clause the model has already seen keeps the
@@ -52,13 +54,16 @@ from app.answer import (
     CITATION_CHECK_FAILED,
     JSON_CONTRACT,
     MODEL_ABSTAINED,
+    UNSUPPORTED_CLAIMS,
     AnswerResult,
     Citation,
     citations_from,
+    enforce_support,
     model_abstained,
     parse_answer_object,
     payload_abstained,
     render_markdown,
+    run_support_check,
     structural_problems,
 )
 from app.config import settings
@@ -457,6 +462,7 @@ def _result(
     calls: int,
     started: float,
     failures: list[list[str]] | None = None,
+    support: dict | None = None,
 ) -> AnswerResult:
     """Build the AnswerResult for an agent run, however it ended."""
     return AnswerResult(
@@ -473,6 +479,7 @@ def _result(
         latency_ms=int((time.perf_counter() - started) * 1000),
         tool_trace=list(run.trace),
         validation_failures=[list(attempt) for attempt in (failures or [])],
+        support_check=dict(support or {}),
         location_note=run.location_note,
     )
 
@@ -517,6 +524,7 @@ def run_agent(
                 calls + extra_calls,
                 started,
                 failures,
+                support=final[3],
             )
 
         messages = messages + [{"role": "assistant", "content": assistant_content(response)}]
@@ -560,25 +568,45 @@ def _read(run: AgentRun, reply: str) -> tuple[dict | None, str | None, list[str]
     return payload, None, problems
 
 
+def _accept(
+    run: AgentRun, payload: dict, client: LLM
+) -> tuple[tuple[str | None, list[Citation], str | None], dict]:
+    """An answer object that passed the structural check: claim-check it, then render.
+
+    The same sixth step map mode takes (D-096), through the same two functions, against
+    the labels **this run** issued. In `shadow` mode the record comes back and the
+    answer is untouched; in `enforce` mode the unsupported sentences are gone and an
+    answer whose first sentence went is thrown away.
+    """
+    sentences = list(payload["sentences"])
+    support = run_support_check(sentences, run.sources, run.index.chunks, client)
+    sentences, give_up = enforce_support(sentences, support)
+    if give_up:
+        return (None, [], UNSUPPORTED_CLAIMS), support
+    return (render_markdown(sentences), agent_citations(sentences, run), None), support
+
+
 def _finish(
     question: str,
     run: AgentRun,
     reply: str,
     client: LLM,
     messages: list[dict],
-) -> tuple[tuple[str | None, list[Citation], str | None], int, list[list[str]]]:
+) -> tuple[tuple[str | None, list[Citation], str | None, dict], int, list[list[str]]]:
     """Check the model's final answer, retry once if it fails, then decide.
 
-    Returns ((answer, citations, abstain_reason), extra LLM calls, rejected attempts).
+    Returns ((answer, citations, abstain_reason, claim-check record), extra LLM calls,
+    rejected attempts). The claim check's own call is counted inside its record and not
+    in the extra-calls figure, so the cost of checking stays separable from the cost of
+    answering (D-096).
     """
     failures: list[list[str]] = []
     payload, refusal, problems = _read(run, reply)
     if refusal is not None:
-        return (None, [], f"{MODEL_ABSTAINED}: {refusal}"), 0, failures
+        return (None, [], f"{MODEL_ABSTAINED}: {refusal}", {}), 0, failures
     if not problems:
-        sentences = list(payload["sentences"])
-        answer = render_markdown(sentences)
-        return (answer, agent_citations(sentences, run), None), 0, failures
+        (answer, citations, reason), support = _accept(run, payload, client)
+        return (answer, citations, reason, support), 0, failures
 
     failures.append(problems)
     retry_messages = messages + [
@@ -602,10 +630,9 @@ def _finish(
 
     payload, refusal, problems = _read(run, second)
     if refusal is not None:
-        return (None, [], f"{MODEL_ABSTAINED}: {refusal}"), 1, failures
+        return (None, [], f"{MODEL_ABSTAINED}: {refusal}", {}), 1, failures
     if not problems:
-        sentences = list(payload["sentences"])
-        answer = render_markdown(sentences)
-        return (answer, agent_citations(sentences, run), None), 1, failures
+        (answer, citations, reason), support = _accept(run, payload, client)
+        return (answer, citations, reason, support), 1, failures
     failures.append(problems)
-    return (None, [], CITATION_CHECK_FAILED), 1, failures
+    return (None, [], CITATION_CHECK_FAILED, {}), 1, failures

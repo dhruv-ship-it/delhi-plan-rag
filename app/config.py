@@ -11,6 +11,10 @@ deliberately stricter than a truthiness check: `.env.example` ships the placehol
 `your-key-here`, so a copied-but-unedited `.env` would otherwise read as a configured
 key and turn an honest "no key yet" into a confusing 401 (D-040).
 
+`SUPPORT_CHECK` picks what the semantic claim check does with its verdicts — `off`,
+`shadow` or `enforce` — and `shadow`, the default, is the one open setting left after the
+freeze (D-096).
+
 There are two providers. `LLM_PROVIDER` picks one — `anthropic` or `groq` — and the
 key check, the default model and `has_api_key` all follow it, so a Groq key with
 `LLM_PROVIDER=anthropic` reads as no key rather than as a key that will 401 (D-082).
@@ -70,6 +74,18 @@ def looks_like_groq_key(key: str | None) -> bool:
     """
     text = (key or "").strip()
     return text.startswith(GROQ_KEY_PREFIX) and len(text) >= GROQ_KEY_MIN_LENGTH
+
+
+def env_choice(name: str, default: str, allowed: tuple[str, ...]) -> str:
+    """An environment variable restricted to a fixed set of words, lower-cased.
+
+    Anything outside the set falls back to `default`, which is this file's house style
+    for a malformed value (D-065): `SUPPORT_CHECK=enfroce` is a typo, and booting with
+    the default beats refusing to boot. The fallback is visible, because
+    `/api/health` reports the mode actually in use.
+    """
+    text = env_str(name, default).lower()
+    return text if text in allowed else default
 
 
 def env_provider(name: str, default: str) -> str:
@@ -153,6 +169,20 @@ DENSE_COSINE = "dense_cosine"
 RERANK_SCORE = "rerank_score"
 ABSTAIN_SIGNALS = (DENSE_COSINE, RERANK_SCORE)
 DEFAULT_ABSTAIN_SIGNAL = DENSE_COSINE
+
+#: What the claim checker does with its verdicts (D-096).
+#:   off      no second call at all
+#:   shadow   the verdicts are recorded in the response and the log; the answer is
+#:            untouched, whatever they say
+#:   enforce  a sentence judged `unsupported` is dropped, and the whole answer is
+#:            thrown away when the first sentence goes or nothing is left
+SUPPORT_OFF = "off"
+SUPPORT_SHADOW = "shadow"
+SUPPORT_ENFORCE = "enforce"
+SUPPORT_CHECK_MODES = (SUPPORT_OFF, SUPPORT_SHADOW, SUPPORT_ENFORCE)
+#: `shadow` for now. The checker has never been read by a person, so it records and
+#: changes nothing until one has (D-096).
+DEFAULT_SUPPORT_CHECK = SUPPORT_SHADOW
 
 #: The **PROVISIONAL** cut-off for `DENSE_COSINE`, measured by
 #: `scripts/tune_abstention.py` over the 60 drafted questions: it is a hair below the
@@ -238,6 +268,10 @@ class Settings:
     answer_temperature: float = 0.0
     #: One retry with a stricter reminder when the citation check fails. See D-044.
     citation_retries: int = 1
+    #: What the semantic claim check does with its verdicts: "off", "shadow" or
+    #: "enforce". `shadow` by default, so it costs one call and changes nothing until
+    #: a person has read what it says. See D-096.
+    support_check: str = DEFAULT_SUPPORT_CHECK
     #: True forces the FakeLLM everywhere, even if a real key is present.
     use_fake_llm: bool = False
     #: The smallest gap between two LLM calls, in seconds. See D-082.
@@ -372,6 +406,7 @@ settings = Settings(
     use_reranker=env_bool("USE_RERANKER", False),
     abstain_signal=env_str("ABSTAIN_SIGNAL", DEFAULT_ABSTAIN_SIGNAL),
     abstain_threshold=env_float("ABSTAIN_THRESHOLD", DEFAULT_ABSTAIN_THRESHOLD),
+    support_check=env_choice("SUPPORT_CHECK", DEFAULT_SUPPORT_CHECK, SUPPORT_CHECK_MODES),
     dev_mode=env_bool("ZONEWISE_DEV", False),
     cors_origins=tuple(env_list("CORS_ORIGINS", ["http://localhost:5173"])),
     rate_limit_per_minute=env_int("RATE_LIMIT_PER_MINUTE", 10),

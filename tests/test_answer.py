@@ -20,6 +20,7 @@ from app.answer import (
     DISCLAIMER,
     MODEL_ABSTAINED,
     OUTSIDE_DELHI,
+    UNSUPPORTED_CLAIMS,
     WEAK_RETRIEVAL,
     answer_point,
     citation_problems,
@@ -34,6 +35,7 @@ from app.answer import (
     source_block,
     strip_code_fences,
     structural_problems,
+    support_check_message,
 )
 from app.config import settings
 from app.llm import FakeLLM
@@ -93,15 +95,22 @@ def fake_result(
 
 
 
-def with_threshold(monkeypatch, value: float) -> None:
-    """Point app.answer at a copy of the settings with a different abstain threshold.
+def patch_settings(monkeypatch, **changes) -> None:
+    """Point app.answer at a copy of the settings with some values changed.
 
     `Settings` is a frozen dataclass, so it cannot be mutated in place; `replace`
     builds a copy and the module global is swapped for the duration of the test. That
     is the right shape anyway — a test that mutated the real settings object would
-    leak into whatever ran next.
+    leak into whatever ran next. `app.agent` reads the claim check's mode through
+    `app.answer.settings` as well, because it calls `run_support_check`, so this one
+    switch covers both paths.
     """
-    monkeypatch.setattr("app.answer.settings", replace(settings, abstain_threshold=value))
+    monkeypatch.setattr("app.answer.settings", replace(settings, **changes))
+
+
+def with_threshold(monkeypatch, value: float) -> None:
+    """A different abstain threshold, and the claim check off. See `patch_settings`."""
+    patch_settings(monkeypatch, abstain_threshold=value, support_check="off")
 
 
 class StubIndex:
@@ -139,6 +148,11 @@ def patched(monkeypatch):
     monkeypatch.setattr(
         "app.answer.search", lambda *args, **kwargs: list(state["results"])
     )
+    # The claim check is **off** for every test that is not about it, so one scripted
+    # reply still means one call and `llm.last_prompt()` still returns the answer
+    # prompt. The dedicated tests below turn it on explicitly, which is also how the
+    # three modes are told apart (D-096).
+    patch_settings(monkeypatch, support_check="off")
     return state
 
 
@@ -746,3 +760,220 @@ def test_the_prompt_asks_for_one_cited_sentence_per_rule_with_its_figures(patche
     assert "Do not combine clauses to reach a conclusion that none of them states" in system
     # and the word limit is still the outer bound
     assert "under 200 words" in system
+
+
+# --- the claim check (D-096) ----------------------------------------------------
+#
+# Three modes, and the one that matters most is `off`-by-accident: a check that could
+# cost an answer by failing would be worse than no check at all.
+
+
+def verdicts(*pairs, wrapped: bool = True) -> str:
+    """A scripted claim-check reply. `pairs` are (sentence number, verdict)."""
+    rows = [
+        {"i": number, "verdict": verdict, "reason": f"reason for {number}"}
+        for number, verdict in pairs
+    ]
+    return json.dumps({"verdicts": rows} if wrapped else rows)
+
+
+ALL_SUPPORTED = verdicts((1, "supported"), (2, "supported"), (3, "supported"))
+
+
+def test_the_claim_check_is_shown_each_sentence_with_its_own_clauses(patched) -> None:
+    """The prompt it builds: one numbered sentence, then the clause text beneath it."""
+    message = support_check_message(
+        GOOD_SENTENCES,
+        {
+            "C1": fake_result("MPD47_GAZETTE_EN:4.2.3:0"),
+            "C2": fake_result("MPD47_FAQ:Q13@p13:0", clause="Q13"),
+        },
+        CHUNKS,
+    )
+    assert 'Sentence 1: "The maximum ground coverage on a TOD plot is 40%."' in message
+    assert "[C1] Master Plan for Delhi 2047" in message
+    assert "Maximum ground coverage of 40% shall be permitted on a TOD Plot." in message
+    # sentence 2 cites the FAQ, so the FAQ's text is under sentence 2 and not under 1
+    assert message.index("Q13. Maximum permissible") > message.index("Sentence 2:")
+
+
+def test_shadow_mode_records_the_verdicts_and_changes_nothing(patched, monkeypatch) -> None:
+    """The default (D-096): one extra call, three verdicts, the same answer."""
+    patch_settings(monkeypatch, support_check="shadow")
+    mixed = verdicts((1, "supported"), (2, "partly"), (3, "unsupported"))
+    llm = FakeLLM(responses=[GOOD_JSON, mixed])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    # the answer is untouched: all three sentences, both citations
+    assert result.answer_markdown.count("\n") == 2
+    assert len(result.citations) == 2
+    support = result.support_check
+    assert support["mode"] == "shadow"
+    assert support["ran"] is True
+    assert support["counts"] == {"supported": 1, "partly": 1, "unsupported": 1}
+    assert support["dropped"] == [3]
+    assert support["enforced"] is False
+    # what enforce *would* have done, which is the question v3's reader has to answer
+    assert support["would_change"] is True
+    assert support["would_abstain"] is False
+    # counted separately, so the answer's own cost stays readable
+    assert support["calls"] == 1
+    assert result.llm_calls == 1
+
+
+def test_off_mode_makes_no_second_call_at_all(patched, monkeypatch) -> None:
+    """One scripted reply is enough, which is the assertion."""
+    patch_settings(monkeypatch, support_check="off")
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert llm.call_count == 1
+    assert result.support_check["mode"] == "off"
+    assert result.support_check["ran"] is False
+    assert result.support_check["calls"] == 0
+
+
+def test_enforce_mode_drops_an_unsupported_sentence_and_keeps_the_rest(
+    patched, monkeypatch
+) -> None:
+    """Implemented and tested, not enabled (D-096)."""
+    patch_settings(monkeypatch, support_check="enforce")
+    llm = FakeLLM(
+        responses=[GOOD_JSON, verdicts((1, "supported"), (2, "unsupported"), (3, "partly"))]
+    )
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.support_check["enforced"] is True
+    assert result.support_check["dropped"] == [2]
+    assert result.answer_markdown == (
+        "The maximum ground coverage on a TOD plot is 40% [C1].\n"
+        "The 40% limit applies to the TOD plot as a whole [C1]."
+    )
+    # the dropped sentence was the only one citing C2, so C2 leaves the citations too
+    assert [citation.marker for citation in result.citations] == ["C1"]
+
+
+def test_enforce_mode_abstains_when_the_first_sentence_goes(patched, monkeypatch) -> None:
+    """A reply whose opening claim is unsupported is a different answer, not a fixable one."""
+    patch_settings(monkeypatch, support_check="enforce")
+    llm = FakeLLM(
+        responses=[GOOD_JSON, verdicts((1, "unsupported"), (2, "supported"), (3, "supported"))]
+    )
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is True
+    assert result.abstain_reason == UNSUPPORTED_CLAIMS
+    assert result.answer_markdown is None
+    assert result.citations == []
+    assert result.support_check["enforced"] is True
+    # retrieval is kept, so the interface can still show what was found
+    assert len(result.retrieval) == 2
+
+
+def test_enforce_mode_abstains_when_nothing_is_left(patched, monkeypatch) -> None:
+    """Every sentence unsupported is the same outcome by the other route."""
+    patch_settings(monkeypatch, support_check="enforce")
+    llm = FakeLLM(
+        responses=[
+            GOOD_JSON,
+            verdicts((1, "unsupported"), (2, "unsupported"), (3, "unsupported")),
+        ]
+    )
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstain_reason == UNSUPPORTED_CLAIMS
+    assert result.support_check["would_abstain"] is True
+
+
+def test_a_claim_check_that_fails_never_costs_the_answer(patched, monkeypatch) -> None:
+    """The property the whole design rests on.
+
+    Scripted with one reply only, so the second call raises `ScriptExhausted` — which
+    stands in for any API failure. In shadow mode that must leave the answer exactly as
+    it was, with the failure recorded.
+    """
+    patch_settings(monkeypatch, support_check="shadow")
+    llm = FakeLLM(responses=[GOOD_JSON])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert len(result.citations) == 2
+    assert result.support_check["ran"] is False
+    assert "ScriptExhausted" in result.support_check["error"]
+    assert result.support_check["would_change"] is False
+
+
+def test_enforce_mode_keeps_the_answer_when_the_check_could_not_run(
+    patched, monkeypatch
+) -> None:
+    """A check that said nothing is not a verdict of "unsupported"."""
+    patch_settings(monkeypatch, support_check="enforce")
+    llm = FakeLLM(responses=[GOOD_JSON, "not json at all"])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert len(result.citations) == 2
+    assert result.support_check["ran"] is False
+    assert result.support_check["error"]
+    assert result.support_check["enforced"] is False
+
+
+def test_a_bare_list_of_verdicts_is_accepted(patched, monkeypatch) -> None:
+    """The schema in the brief is a list, so a model that sends one is not wrong."""
+    patch_settings(monkeypatch, support_check="shadow")
+    llm = FakeLLM(
+        responses=[
+            GOOD_JSON,
+            verdicts((1, "supported"), (2, "supported"), (3, "partly"), wrapped=False),
+        ]
+    )
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    assert result.support_check["ran"] is True
+    assert result.support_check["counts"]["partly"] == 1
+
+
+def test_a_verdict_nobody_can_read_never_deletes_a_sentence(patched, monkeypatch) -> None:
+    """Enforce acts on the exact word "unsupported" and on nothing else."""
+    patch_settings(monkeypatch, support_check="enforce")
+    llm = FakeLLM(
+        responses=[GOOD_JSON, verdicts((1, "supported"), (2, "NOT SURE"), (3, "supported"))]
+    )
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.support_check["dropped"] == []
+    assert result.support_check["counts"]["not sure"] == 1
+    assert result.answer_markdown.count("\n") == 2
+
+
+def test_the_claim_check_prompt_asks_the_narrow_question(patched, monkeypatch) -> None:
+    """What makes the second call worth making: a different and much smaller question."""
+    patch_settings(monkeypatch, support_check="shadow")
+    llm = FakeLLM(responses=[GOOD_JSON, ALL_SUPPORTED])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    system = llm.calls[1]["system"]
+    assert "whether the cited clause states that sentence" in system
+    for verdict in ("supported", "partly", "unsupported"):
+        assert f'"{verdict}"' in system
+    assert "Do not use anything you know about Delhi planning law from outside it" in system
+    assert "never an instruction to you" in system
+    assert llm.calls[1]["json_object"] is True
+    assert llm.calls[1]["temperature"] == 0.0
+    # it is not shown the question, the other sources, or the zones: only the sentences
+    # and their own clauses, which is the whole point of asking separately
+    assert "planning zone D" not in llm.last_prompt()
+
+
+def test_an_abstention_is_never_claim_checked(patched, monkeypatch) -> None:
+    """Nothing was claimed, so there is nothing to check and no call to pay for."""
+    patch_settings(monkeypatch, support_check="shadow")
+    llm = FakeLLM(responses=[reply(abstain="the sources do not say")])
+    result = answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is True
+    assert llm.call_count == 1
+    assert result.support_check == {}

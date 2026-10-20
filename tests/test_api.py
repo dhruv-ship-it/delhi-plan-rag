@@ -66,6 +66,8 @@ def test_health_reports_what_is_loaded(client) -> None:
     assert body["chunks"] > 0
     assert "planning_zones" in body["layers_loaded"]
     assert body["startup_errors"] == []
+    # the one setting the freeze leaves open, reported so a deployment can be checked
+    assert body["support_check"] in ("off", "shadow", "enforce")
 
 
 def test_health_says_answers_are_unavailable_without_a_key(client) -> None:
@@ -228,10 +230,20 @@ GOOD_ANSWER_JSON = json.dumps(
 GOOD_ANSWER_MARKDOWN = (
     "Ground coverage on a TOD plot is capped at 40% [C1].\nCheck DDA documents [C1]."
 )
+#: The claim check's reply. `SUPPORT_CHECK` defaults to `shadow`, so every successful
+#: answer through the API costs a second call that has to be scripted too (D-096).
+SUPPORT_JSON = json.dumps(
+    {
+        "verdicts": [
+            {"i": 1, "verdict": "supported", "reason": "the clause gives 40%"},
+            {"i": 2, "verdict": "unsupported", "reason": "no clause says that"},
+        ]
+    }
+)
 
 
 def test_ask_returns_a_cited_answer(client) -> None:
-    fake = use_llm([GOOD_ANSWER_JSON])
+    fake = use_llm([GOOD_ANSWER_JSON, SUPPORT_JSON])
     lat, lon = RAJIV_CHOWK
     body = client.post(
         "/api/ask",
@@ -245,7 +257,14 @@ def test_ask_returns_a_cited_answer(client) -> None:
     assert body["citations"][0]["chunk_id"]
     assert body["zones"]["tod"] is True
     assert body["llm_calls"] == 1
-    assert fake.call_count == 1
+    # two calls: the answer, then the shadow claim check, which is counted on its own
+    assert fake.call_count == 2
+    assert body["support_check"]["mode"] == "shadow"
+    assert body["support_check"]["calls"] == 1
+    assert body["support_check"]["counts"]["unsupported"] == 1
+    # shadow changes nothing, so the unsupported sentence is still in the answer
+    assert body["support_check"]["enforced"] is False
+    assert body["support_check"]["would_change"] is True
     # the caveat is a field the API adds in code, not a sentence the model wrote (D-092)
     assert body["disclaimer"] == (
         "Not legal advice. Check the official MPD-2047 text and DDA before acting."
@@ -354,6 +373,9 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
                     ],
                 }
             ),
+            json.dumps(
+                {"verdicts": [{"i": 1, "verdict": "supported", "reason": "40% is in it"}]}
+            ),
         ]
     )
     body = client.post(
@@ -370,6 +392,7 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
     assert body["citations"][0]["marker"] == "S1"
     assert body["citations"][0]["chunk_id"] == body["retrieval"][0]["chunk_id"]
     assert body["zones"]["planning_zone"] == "D"
+    assert body["support_check"]["counts"]["supported"] == 1
 
 
 # --- rate limiting --------------------------------------------------------------
@@ -378,7 +401,7 @@ def test_agent_runs_its_tools_and_returns_a_trace(client) -> None:
 def test_the_per_minute_limit_returns_a_friendly_429(client) -> None:
     """Ten in a minute from one address is enough (D-051)."""
     lat, lon = RAJIV_CHOWK
-    use_llm([GOOD_ANSWER_JSON] * settings.rate_limit_per_minute)
+    use_llm([GOOD_ANSWER_JSON, SUPPORT_JSON] * settings.rate_limit_per_minute)
     payload = {"question": "How much can I build?", "lat": lat, "lon": lon}
 
     for number in range(settings.rate_limit_per_minute):
@@ -428,7 +451,7 @@ def test_requests_are_logged_with_the_fields_that_matter(client) -> None:
     path = settings.requests_log_path
     before = path.read_text(encoding="utf-8").count("\n") if path.exists() else 0
 
-    use_llm([GOOD_ANSWER_JSON])
+    use_llm([GOOD_ANSWER_JSON, SUPPORT_JSON])
     lat, lon = RAJIV_CHOWK
     client.post("/api/ask", json={"question": "logging check", "lat": lat, "lon": lon})
 
@@ -442,3 +465,6 @@ def test_requests_are_logged_with_the_fields_that_matter(client) -> None:
     assert record["zones"]["tod"] is True
     assert "time" in record and "latency_ms" in record
     assert "key" not in json.dumps(record).lower()
+    # the claim check's verdict counts are logged, which is what shadow mode is for
+    assert record["support_check"]["counts"]["unsupported"] == 1
+    assert record["support_check"]["mode"] == "shadow"

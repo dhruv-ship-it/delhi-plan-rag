@@ -10,6 +10,7 @@ in its new form: a label this run never issued cannot resolve to anything.
 """
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -24,7 +25,13 @@ from app.agent import (
     run_agent,
     run_tool,
 )
-from app.answer import CITATION_CHECK_FAILED, DISCLAIMER, MODEL_ABSTAINED
+from app.answer import (
+    CITATION_CHECK_FAILED,
+    DISCLAIMER,
+    MODEL_ABSTAINED,
+    UNSUPPORTED_CLAIMS,
+)
+from app.config import settings
 from app.llm import FakeLLM, text_response, tool_use_response
 from app.retrieval import Result
 
@@ -136,6 +143,10 @@ def stubs(monkeypatch):
         return list(state["results"])
 
     monkeypatch.setattr("app.agent.search", fake_search)
+    # The claim check reads its mode through `app.answer.settings`, because that is
+    # where `run_support_check` lives. Off for every test that is not about it, so one
+    # scripted final answer still means one call (D-096).
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="off"))
     return state
 
 
@@ -680,3 +691,109 @@ def test_the_agent_prompt_asks_for_the_same_fuller_answer(stubs) -> None:
     assert "give each relevant rule as its own cited sentence" in system
     assert "up to six sentences" in system
     assert "Do not combine clauses to reach a conclusion that none of them states" in system
+
+
+# --- the claim check, in agent mode (D-096) -------------------------------------
+
+
+def agent_verdicts(*pairs) -> str:
+    """A scripted claim-check reply for the agent's sentences."""
+    return json.dumps(
+        {
+            "verdicts": [
+                {"i": number, "verdict": verdict, "reason": "because"}
+                for number, verdict in pairs
+            ]
+        }
+    )
+
+
+def two_sentence_answer() -> str:
+    """A final answer with two sentences, so one can be dropped and one kept."""
+    return reply(
+        [
+            {"text": "Ground coverage on a TOD plot is 40%.", "citations": ["S1"]},
+            {"text": "Stilt parking is mandatory there.", "citations": ["S1"]},
+        ]
+    )
+
+
+def tool_then(final: str, *extra) -> FakeLLM:
+    """One search, then the final answer, then whatever the claim check gets."""
+    return FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "ground coverage TOD"}, "t1"),
+            final,
+            *extra,
+        ]
+    )
+
+
+def test_shadow_mode_records_verdicts_for_an_agent_answer(stubs, monkeypatch) -> None:
+    """The same record in both paths, through the same two functions."""
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="shadow"))
+    llm = tool_then(two_sentence_answer(), agent_verdicts((1, "supported"), (2, "partly")))
+    result = run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.answer_markdown.count("\n") == 1, "the answer is untouched in shadow"
+    assert result.support_check["mode"] == "shadow"
+    assert result.support_check["counts"] == {"supported": 1, "partly": 1, "unsupported": 0}
+    assert result.support_check["would_change"] is False
+    # the claim check's call is not an agent round
+    assert result.llm_calls == 2
+    assert result.support_check["calls"] == 1
+
+
+def test_enforce_mode_drops_an_agent_sentence(stubs, monkeypatch) -> None:
+    """The second sentence goes; the first, and its citation, stay."""
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="enforce"))
+    llm = tool_then(
+        two_sentence_answer(), agent_verdicts((1, "supported"), (2, "unsupported"))
+    )
+    result = run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.answer_markdown == "Ground coverage on a TOD plot is 40% [S1]."
+    assert result.support_check["enforced"] is True
+
+
+def test_enforce_mode_abstains_on_an_agent_answer_whose_first_sentence_goes(
+    stubs, monkeypatch
+) -> None:
+    """`unsupported_claims` is reachable from both paths."""
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="enforce"))
+    llm = tool_then(
+        two_sentence_answer(), agent_verdicts((1, "unsupported"), (2, "supported"))
+    )
+    result = run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is True
+    assert result.abstain_reason == UNSUPPORTED_CLAIMS
+    assert result.answer_markdown is None
+    assert result.citations == []
+    # the retrieval the agent did is still on the record
+    assert len(result.retrieval) == 1
+
+
+def test_an_agent_claim_check_that_fails_never_costs_the_answer(stubs, monkeypatch) -> None:
+    """Nothing scripted for the check, so it raises. The answer must survive."""
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="shadow"))
+    llm = tool_then(two_sentence_answer())
+    result = run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is False
+    assert result.answer_markdown.count("\n") == 1
+    assert result.support_check["ran"] is False
+    assert "ScriptExhausted" in result.support_check["error"]
+
+
+def test_the_claim_check_sees_the_agents_own_labels(stubs, monkeypatch) -> None:
+    """It is given `S1` and the clause `S1` resolved to, not a `C#` from map mode."""
+    monkeypatch.setattr("app.answer.settings", replace(settings, support_check="shadow"))
+    llm = tool_then(two_sentence_answer(), agent_verdicts((1, "supported"), (2, "supported")))
+    run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+
+    prompt = llm.last_prompt()
+    assert "[S1] Master Plan for Delhi 2047" in prompt
+    assert "Maximum ground coverage of 40% shall be permitted on a TOD Plot." in prompt

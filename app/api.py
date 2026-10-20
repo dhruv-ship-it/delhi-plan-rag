@@ -220,6 +220,9 @@ def answer_log_payload(question: str, result: Any) -> dict:
         # "" for most questions. Worth a line in the log when it is not, because it
         # says the answer is about a point the question did not quite describe (D-094).
         "location_note": result.location_note,
+        # The claim check's own record: the mode, the verdict counts and its cost. In
+        # shadow mode this log line is the only place its verdicts are kept (D-096).
+        "support_check": result.support_check,
     }
 
 
@@ -402,6 +405,9 @@ def health(request: Request) -> dict:
             "threshold": settings.abstain_threshold,
             "provisional": True,
         },
+        # The one setting the freeze leaves open, so /api/health is where you check
+        # which mode a deployment is actually running (D-096).
+        "support_check": settings.support_check,
     }
 
 

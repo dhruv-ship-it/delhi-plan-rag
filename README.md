@@ -133,12 +133,16 @@ uv run python scripts/09_draft_questions.py    # eval/questions_draft.jsonl
 2. **Exclusion** — drop chunks whose `zone_primary` is a policy the point is not in.
    Chunks with no primary zone are never dropped, so the general norms always stay.
 3. **Query expansion** — append the point's zone words, so a question containing no
-   zone words can still reach the right policy.
+   zone words can still reach the right policy. Only for the four zones that have a
+   policy section of their own; for Zone O and the Ridge the words would name a place
+   rather than a policy, and replace the question (D-086).
 4. **Hybrid retrieval** — dense and BM25 each return 30, fused with RRF at k = 60.
 5. **Boost** — multiply the fused score of chunks about the point's zones by 1.5.
-6. **Answer** — the top 6 go to Claude as numbered sources, with rules requiring a
-   citation on every sentence.
-7. **Validate** — check every marker and every sentence; retry once; then abstain.
+6. **Answer** — the top 6 go to the model as numbered sources, and it replies with one
+   JSON object: a list of sentences, each carrying the sources it came from (D-088).
+7. **Validate** — structurally: the object parses, every sentence has at least one
+   citation, every citation is a source that was supplied. Retry once with the faults
+   named; then abstain, with the clauses still returned.
 
 ---
 
@@ -430,14 +434,24 @@ one.
   point there returns no zone letter rather than a guessed one.
 - **Zone boundaries are approximate.** They come from a web GIS service, not from a
   survey, and should never be used to decide where a legal boundary runs.
-- **Zone O and the Ridge can boost but never exclude.** MPD-2047 has a policy section for
-  neither, so questions about them work through mentions only (D-024, D-037, D-069).
+- **Zone O and the Ridge can boost, but neither exclude nor expand the query.** MPD-2047
+  has a policy section for neither, so questions about them work through mentions only
+  (D-024, D-037, D-069). Since D-086 their zone words are not appended to the query
+  either: with no chapter to aim at they name a *place*, and a question about something
+  else gets half replaced by one about the floodplain. That fixed a measured miss and
+  cost something — a question whose subject *is* the place now does worse, which
+  `reports/diagnosis_fuel_station.md` § 5 measures.
 - **English only.** The gazette's Hindi half is skipped.
 - **The abstention threshold is provisional** (D-071), and the honest finding behind it
   is that no single retrieval score separates the unanswerable questions from the
   answerable ones cleanly. The configured value only catches a total retrieval failure;
   what stands between an unanswerable question and a confident wrong answer is still the
   model's own refusal rule and the citation check behind it.
+- **The citation check is structural, not semantic.** It proves every sentence names a
+  source that was really supplied; it cannot prove the clause *says* the sentence. The
+  live runs show what that costs: at P_RIDGE the model assembles a confident "most
+  construction is prohibited" out of clauses none of which says it, and passes every
+  check there is (D-085, D-088).
 - **Retrieval is evaluated, answers are not.** Whether a cited clause really supports
   the sentence citing it is not yet measured.
 - **The metro station gazetteer is not in this repository.** `scripts/build_gazetteer.py`

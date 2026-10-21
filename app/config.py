@@ -12,8 +12,8 @@ deliberately stricter than a truthiness check: `.env.example` ships the placehol
 key and turn an honest "no key yet" into a confusing 401 (D-040).
 
 `SUPPORT_CHECK` picks what the semantic claim check does with its verdicts — `off`,
-`shadow` or `enforce` — and `shadow`, the default, is the one open setting left after the
-freeze (D-096).
+`shadow` or `enforce`. `enforce` is the default since the human checks read a run of
+shadow verdicts and found no sentence wrongly dropped (D-096, D-103).
 
 There are two providers. `LLM_PROVIDER` picks one — `anthropic` or `groq` — and the
 key check, the default model and `has_api_key` all follow it, so a Groq key with
@@ -180,9 +180,10 @@ SUPPORT_OFF = "off"
 SUPPORT_SHADOW = "shadow"
 SUPPORT_ENFORCE = "enforce"
 SUPPORT_CHECK_MODES = (SUPPORT_OFF, SUPPORT_SHADOW, SUPPORT_ENFORCE)
-#: `shadow` for now. The checker has never been read by a person, so it records and
-#: changes nothing until one has (D-096).
-DEFAULT_SUPPORT_CHECK = SUPPORT_SHADOW
+#: `enforce`, since Phase C. The verdicts of a full shadow run have now been read by a
+#: person: 1 of 39 sentences was called `unsupported` and the call was correct, and no
+#: correct sentence was flagged (D-096, D-103).
+DEFAULT_SUPPORT_CHECK = SUPPORT_ENFORCE
 
 #: The **PROVISIONAL** cut-off for `DENSE_COSINE`, measured by
 #: `scripts/tune_abstention.py` over the 60 drafted questions: it is a hair below the
@@ -269,8 +270,8 @@ class Settings:
     #: One retry with a stricter reminder when the citation check fails. See D-044.
     citation_retries: int = 1
     #: What the semantic claim check does with its verdicts: "off", "shadow" or
-    #: "enforce". `shadow` by default, so it costs one call and changes nothing until
-    #: a person has read what it says. See D-096.
+    #: "enforce". `enforce` by default: it costs one call per answer and drops a
+    #: sentence its own clause does not state. See D-096 and D-103.
     support_check: str = DEFAULT_SUPPORT_CHECK
     #: True forces the FakeLLM everywhere, even if a real key is present.
     use_fake_llm: bool = False

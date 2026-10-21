@@ -20,7 +20,7 @@ proves nothing about the target. Three settings are deliberately left open, each
 
 | Setting | Current state | Decided by |
 | --- | --- | --- |
-| `SUPPORT_CHECK` | `shadow` (D-096) | a human reading Phase C's verdicts |
+| `SUPPORT_CHECK` | **`enforce`** (D-103) | settled: Phase C read the v3 verdicts |
 | `ABSTAIN_THRESHOLD` | provisional (D-071) | `scripts\tune_abstention.py` on verified questions only |
 | `USE_RERANKER` | off (D-070) | comparing `hybrid+location` against `hybrid+location+rerank` in the verified report |
 

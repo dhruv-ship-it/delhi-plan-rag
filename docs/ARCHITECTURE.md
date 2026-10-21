@@ -398,7 +398,7 @@ it names the gap for both the reader and the model. It is a statement about dist
 DDA's own layers, not about the Master Plan, so like the disclaimer it lives outside
 `sentences` and is never seen by `structural_problems()`.
 
-### The claim check: a second call, in shadow mode only
+### The claim check: a second call, enforced
 
 After an answer passes structural validation, one more call (D-096) is shown each
 sentence, numbered, beside **only the full text of the clauses that sentence cites** —
@@ -409,16 +409,19 @@ states the sentence. `SUPPORT_CHECK` decides what happens to the JSON verdicts
 | mode | effect |
 | --- | --- |
 | `off` | no second call |
-| **`shadow` (the default)** | verdicts recorded on the response and in the request log; the answer is untouched regardless of what they say |
-| `enforce` | a sentence judged `unsupported` is dropped; the whole answer is discarded with `abstain_reason=unsupported_claims` if the first sentence goes or nothing survives — implemented and tested, **not enabled** |
+| `shadow` | verdicts recorded on the response and in the request log; the answer is untouched regardless of what they say |
+| **`enforce` (the default)** | a sentence judged `unsupported` is dropped; the whole answer is discarded with `abstain_reason=unsupported_claims` if the first sentence goes or nothing survives |
 
 Its call and tokens are counted separately from the answering call's, and it never
 raises: a check that fails to run — a network error, an unparsable reply — leaves the
 answer exactly as it was, because silence must not be read as a verdict. This is the same
 measure-before-behaviour discipline as the reranker (D-070) and the abstention threshold
-(D-071): the check is live in every answered case in `reports/live_answers_v3.md`,
-including whether `enforce` **would** have changed it, and the decision to turn it on
-is one of the three left open by the freeze.
+(D-071): the check ran in shadow in every answered case of the v3 run, recording whether
+`enforce` **would** have changed it, and `enforce` was turned on only after a person read
+those verdicts in Phase C — 1 of 39 sentences called `unsupported`, correctly, and no
+correct sentence flagged (D-103). **What it does not catch:** a sentence rated `partly`
+is kept, so a wrong figure or a dropped condition survives it (`demo-14`, `demo-06`), and
+it cannot see that a correctly quoted clause is about the wrong zone (`demo-07`).
 
 ### What the abstention pre-check reads, and why it changed
 
@@ -684,7 +687,7 @@ ones worth reading first:
 | **D-088, D-089** | structured JSON answers and why the prose citation check went away; the agent's short labels |
 | **D-092** | the disclaimer moved from a prompted sentence to a field |
 | **D-094** | the deterministic location note for a question that names a zone the point is not in |
-| **D-096** | the semantic claim check, shipped in shadow mode |
+| **D-096**, **D-103** | the semantic claim check, shipped in shadow mode and enforced after Phase C read its verdicts |
 
 D-042 is superseded by D-071: the abstention threshold was a placeholder on a signal that
 could not work, and both the signal and the threshold changed.

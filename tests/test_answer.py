@@ -37,7 +37,7 @@ from app.answer import (
     structural_problems,
     support_check_message,
 )
-from app.config import settings
+from app.config import DEFAULT_SUPPORT_CHECK, settings
 from app.llm import FakeLLM
 from app.retrieval import Result
 
@@ -797,8 +797,18 @@ def test_the_claim_check_is_shown_each_sentence_with_its_own_clauses(patched) ->
     assert message.index("Q13. Maximum permissible") > message.index("Sentence 2:")
 
 
+def test_enforce_is_the_default_mode(patched) -> None:
+    """Phase C read a run of shadow verdicts, so the check now acts (D-103).
+
+    Asserted on the settings object rather than through an answer, because this is the
+    decision itself: the three modes already have a test each below.
+    """
+    assert settings.support_check == "enforce"
+    assert DEFAULT_SUPPORT_CHECK == "enforce"
+
+
 def test_shadow_mode_records_the_verdicts_and_changes_nothing(patched, monkeypatch) -> None:
-    """The default (D-096): one extra call, three verdicts, the same answer."""
+    """Shadow is still available (D-096): one extra call, three verdicts, same answer."""
     patch_settings(monkeypatch, support_check="shadow")
     mixed = verdicts((1, "supported"), (2, "partly"), (3, "unsupported"))
     llm = FakeLLM(responses=[GOOD_JSON, mixed])

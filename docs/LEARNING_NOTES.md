@@ -836,7 +836,7 @@ just stopped asking the model to do something it is bad at for no benefit."
 
 ---
 
-## 23. Claim verification and shadow mode
+## 23. Claim verification: shadow first, then enforced
 
 **What it is.** A second, narrower check that runs *after* an answer already passes
 every structural rule. The first check (§8) proves an answer's shape is trustworthy —
@@ -844,24 +844,29 @@ every sentence names a source that was really retrieved. It cannot prove the sou
 *says* the sentence: a model can combine three true clauses into a false conclusion,
 cite all three correctly, and sail through. A claim check asks a model a much smaller
 question — "does this one clause state this one sentence?" — with nothing else in view,
-and **shadow mode** means its verdict is recorded but never acts: nothing about the
-answer changes because of what it says, yet.
+It shipped in **shadow mode**, where its verdict was recorded but never acted — and
+after a person read a full run of those verdicts it was turned on (D-103), so an
+`unsupported` sentence is now dropped.
 
 **Where it lives here.** `run_support_check()` and `enforce_support()` in
-`app/answer.py`, shared by the agent. `SUPPORT_CHECK` in `.env` is `off`, `shadow`
-(the default) or `enforce`. The result rides on `AnswerResult.support_check`.
+`app/answer.py`, shared by the agent. `SUPPORT_CHECK` in `.env` is `off`, `shadow` or
+`enforce` (the default, since D-103). The result rides on `AnswerResult.support_check`.
 
 **Why we chose it this way.** `demo-07` is the case: at P_RIDGE the model answered that
 construction is prohibited, built out of a Regional Park definition, a park built-up
 ceiling and a drain-buffer rule — every sentence correctly cited, no clause saying what
 the answer said (D-085, D-091). Structural validation passed it twice, in two separate
 real-model runs, because "cited" and "supported" are different properties and only one
-of them had a check. The reason it ships in shadow and not enforced is the same reason
-the reranker and the abstention threshold are still provisional: nobody has read a
-single verdict from this checker yet, and a judge nobody has read must not be allowed to
-delete an answer that passed every other test. Shadow mode produces the evidence
+of them had a check. The reason it shipped in shadow rather than enforced is the same
+reason the reranker and the abstention threshold are still provisional: nobody had read
+a single verdict from this checker, and a judge nobody has read must not be allowed to
+delete an answer that passed every other test. Shadow mode produced the evidence
 (`reports/live_answers_v3.md` records every verdict and whether `enforce` would have
-changed the answer) that the decision to turn it on will be based on.
+changed the answer), a person read it in Phase C, and `enforce` is now the default: of
+39 sentences it called one `unsupported` — `demo-10`'s claim that Zone O *is* the active
+floodplain, which the clause does not say — and it flagged nothing that was right
+(D-103). The limitation it keeps: a sentence rated `partly` is kept, so `demo-14`'s
+wrong FAR tier survives it.
 
 **The part worth noticing.** It is still a model checking a model — evidence, not proof.
 What makes it a different, useful question rather than the same question twice is that
@@ -876,7 +881,9 @@ example of a model combining three true clauses into a conclusion none of them s
 I added a second call that's asked a much narrower question — just this sentence against
 just its own clause — and shipped it in shadow mode: it records a verdict on every
 answer and changes nothing, because I hadn't read a single verdict yet and a judge you
-haven't checked shouldn't get to delete answers that already passed."
+haven't checked shouldn't get to delete answers that already passed. Then I read a
+run's worth of verdicts: one sentence in 39 was called unsupported and it deserved to
+be, nothing correct was flagged, so I turned it on."
 
 ---
 

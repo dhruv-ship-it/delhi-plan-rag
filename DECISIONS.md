@@ -1272,3 +1272,29 @@ Both are fed by data the API already returns — `result.retrieval` is `Result.t
 **Why that is worth leaving alone.** The defect is in a copy of the page, not in the page, and the collapsed default is deliberate: the clause list and the tool trace are the workings, and a reader who has just asked a question should see the answer first. The alternative — opening both by default so a copy catches them — would change the interface for every reader to improve one paste, and it would push the answer and its citation list off a phone screen.
 
 Rejected: opening both `<details>` sections by default (fixes the clipboard by worsening the page); adding a "copy answer" button that assembles the text itself (a new feature, outside the one fix round); and adding the document title to each clause line (the panel does not need it — every clause in a single answer currently comes from the corpus the citation list already names, and this round is for defects a check found, not for improvements).
+
+---
+
+## D-103 · 2026-10-21 · `SUPPORT_CHECK=enforce` is the default: it never removed a correct sentence
+
+**Decision.** Fix round 1, task 4. `DEFAULT_SUPPORT_CHECK` becomes `SUPPORT_ENFORCE` in `app/config.py`, and `.env.example`, `docs/ARCHITECTURE.md`, `docs/LEARNING_NOTES.md` and `docs/PROJECT_STATUS.md` all now say so. **The checker itself is unchanged** — no prompt change, no threshold, no new verdict word. This is the first of the three settings the freeze left open (D-099) to be settled, and it is settled the way D-096 said it would be: by a person reading the shadow verdicts.
+
+**The evidence, from Phase C.** In the v3 shadow run, 1 of 39 sentences was rated `unsupported`: `demo-10` sentence 2, which equates Zone O with the active floodplain, where clause 3.1.2 says only that the active floodplain is a no-construction zone. That was a correct catch, and `enforce` would have dropped that sentence and kept the answer. No false positive was seen anywhere in the run.
+
+**What `enforce` would have done to the five answers the human checks called wrong — none of them.** Verdicts read from `reports/live_run_state_v3.json`:
+
+| case | per-sentence verdicts | `would_change` |
+| --- | --- | --- |
+| demo-03 | 1 `partly` ("no construction zone" with only recreational uses), 2 `supported` (the petition seeks demolition) | false |
+| demo-06 | 1 `supported` (FAR 10, GC 15%, height 10 m, min RoW 18 m all listed), 2 `supported` (low-density residential) | false |
+| demo-07 | 1, 2, 3 all `supported` (restricted uses; forest land; the 1.0% built-up ceiling) | false |
+| demo-13 | 1–4 `supported` (FAR tiers, ground coverage tiers, 32 sqm minimum, FAR 200 irrespective of size), 5 `partly` (rehab plot and FAR 500, no height or coverage) | false |
+| demo-14 | 1 `partly` — *"Clause lists Max FAR 350 only up to 100 sqm and 300 for 100-250 sqm, not 350 for all plots up to 250 sqm"* | false |
+
+**demo-14 is the limitation, stated exactly.** The checker **read the table correctly and said so in its reason**, and the sentence was kept anyway, because `partly` keeps the sentence (D-096). A wrong figure is therefore not caught by this check: it is caught, if at all, by the prompt instruction in task 5 (D-104) and by a reader. The same is true of `demo-06`'s "rear setback", which the checker rated `supported` because the clause does list an 18 m minimum RoW — the clause states the number, and the sentence's error is the label it put on it, which this check does not ask about. And `demo-07` shows the third limitation: three sentences correctly quoted from clauses that are about the wrong place.
+
+**Why turn it on anyway.** It has never removed a correct sentence, its one deletion was right, and one wrong claim in 39 removed is worth having. It costs one call per answered question: the lead's figure is about **1,377 tokens per answer**, and a recount of `reports/live_run_state_v3.json` gives a mean of **1,765** (1,495 in, 270 out) across the 17 checked answers — either way it fits the demo budget, and an abstention is never checked, so the cost falls only on answers. Its limits are documented here, in `docs/ARCHITECTURE.md`, in `docs/LEARNING_NOTES.md` and in README's known limitations.
+
+**Two tests changed and one added.** `tests/test_api.py` asserted the live default was `shadow` and that an `unsupported` sentence survived; it now asserts the sentence is dropped, `mode == "enforce"` and `dropped == [2]`, which is the shipped behaviour rather than a mode a test chose. A new test in `tests/test_answer.py` pins the default itself, so a change back to `shadow` cannot happen quietly. The three per-mode tests are untouched.
+
+Rejected: enforcing on `partly` as well (it is the verdict for a missing figure or a dropped condition, both of which are real information for a reader, and D-096's argument against deleting on it has not changed — the only evidence that exists is 4 `partly` ratings, none of which a reader would want deleted wholesale); keeping `shadow` until the verified-question evaluation (the evaluation is about retrieval and abstention, this is a check on answers, and the demo runs on the default); and raising `SUPPORT_CHECK` to a per-request parameter (a setting a caller can turn off is not a safeguard, and nothing in the product needs it).

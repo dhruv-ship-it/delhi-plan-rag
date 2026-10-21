@@ -230,8 +230,9 @@ GOOD_ANSWER_JSON = json.dumps(
 GOOD_ANSWER_MARKDOWN = (
     "Ground coverage on a TOD plot is capped at 40% [C1].\nCheck DDA documents [C1]."
 )
-#: The claim check's reply. `SUPPORT_CHECK` defaults to `shadow`, so every successful
-#: answer through the API costs a second call that has to be scripted too (D-096).
+#: The claim check's reply. `SUPPORT_CHECK` defaults to `enforce` (D-103), so every
+#: successful answer through the API costs a second call that has to be scripted too,
+#: and a sentence this reply calls `unsupported` is really dropped from the answer.
 SUPPORT_JSON = json.dumps(
     {
         "verdicts": [
@@ -251,20 +252,21 @@ def test_ask_returns_a_cited_answer(client) -> None:
     ).json()
 
     assert body["abstained"] is False
-    assert body["answer_markdown"] == GOOD_ANSWER_MARKDOWN
+    # The second sentence is gone: the default is `enforce`, and the scripted check
+    # calls it unsupported (D-103). The first sentence, and the answer, survive.
+    assert body["answer_markdown"] == GOOD_ANSWER_MARKDOWN.splitlines()[0]
     assert body["validation_failures"] == []
     assert body["citations"][0]["marker"] == "C1"
     assert body["citations"][0]["chunk_id"]
     assert body["zones"]["tod"] is True
     assert body["llm_calls"] == 1
-    # two calls: the answer, then the shadow claim check, which is counted on its own
+    # two calls: the answer, then the claim check, which is counted on its own
     assert fake.call_count == 2
-    assert body["support_check"]["mode"] == "shadow"
+    assert body["support_check"]["mode"] == "enforce"
     assert body["support_check"]["calls"] == 1
     assert body["support_check"]["counts"]["unsupported"] == 1
-    # shadow changes nothing, so the unsupported sentence is still in the answer
-    assert body["support_check"]["enforced"] is False
-    assert body["support_check"]["would_change"] is True
+    assert body["support_check"]["enforced"] is True
+    assert body["support_check"]["dropped"] == [2]
     # the caveat is a field the API adds in code, not a sentence the model wrote (D-092)
     assert body["disclaimer"] == (
         "Not legal advice. Check the official MPD-2047 text and DDA before acting."
@@ -562,6 +564,6 @@ def test_requests_are_logged_with_the_fields_that_matter(client) -> None:
     assert record["zones"]["tod"] is True
     assert "time" in record and "latency_ms" in record
     assert "key" not in json.dumps(record).lower()
-    # the claim check's verdict counts are logged, which is what shadow mode is for
+    # the claim check's verdict counts are logged, in whichever mode it ran
     assert record["support_check"]["counts"]["unsupported"] == 1
-    assert record["support_check"]["mode"] == "shadow"
+    assert record["support_check"]["mode"] == "enforce"

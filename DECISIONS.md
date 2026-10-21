@@ -1430,3 +1430,51 @@ Rejected: raising `agent_max_rounds` from 4 to 5 (it moves the wall rather than 
 Rejected: dropping the reranker's weights from the image (already true of the new image, which carries no data at all — D-112); making `available()` return `False` when `USE_RERANKER=0` (it would make `/api/health` lie about what is installed, and the two fields exist precisely to tell "not installed" from "installed and off" apart); removing `EXTRA_LAYERS` and `in_water` outright (a pipeline script needs them, and a test-point script that cannot tell land from river would put the zone O test point in the Yamuna); reporting current RSS instead of peak (the number that matters for a container limit is the high-water mark); and adding `psutil` to get a portable figure on Windows too (a new dependency for a number only the Linux deployment needs, against CLAUDE.md's dependency rule).
 
 **Nine new tests, 565 pass** (one skipped on Windows: the health-body check for `peak_rss_mb`, which needs POSIX).
+
+---
+
+## D-111 · 2026-10-22 · The host: one Azure App Service container, Basic B1
+
+**Decision.** ZoneWise is deployed as **one Docker container on Azure App Service for Containers** (Linux, Basic B1: 1 core, 1.75 GB RAM, Always On), paid from the Azure for Students credit. The image is the same one any Docker host would run, so the fallbacks need no second build: **Azure Container Apps** (same image, a monthly free grant, scale-to-zero and therefore cold starts) or any machine with Docker. This is the project lead's decision; the report that preceded it is `reports/deploy_audit.md`.
+
+**Why not the Render free web service the audit sized.** Its 512 MB is below what this app needs. The audit's section (e) said so from the code — the project's own earlier sizing put the embedding model, Chroma, BM25 and the map layers at about 400 MB and chose 2 GB over 1 GB for headroom — and the measurement Dhruv took separately agreed: **782 MB private bytes, 251 MB working set** on Windows. 512 MB is half the instance size this project had already rejected as uncomfortable. B1's 1.75 GB is the first paid tier with room, and `/api/health` now reports `peak_rss_mb` (D-110) so the real figure on Linux is visible rather than inferred.
+
+**Why Always On matters here.** Startup loads the embedding model, the Chroma collection, the BM25 corpus and seven GeoJSON layers — seconds, not milliseconds. A platform that idles the container pays that on every wake. Always On is a checkbox on B1 and is not available on the free tier.
+
+**Cost.** About 13 USD a month against the student credit's 100 USD, with no card on file, so the worst case is the credit running out rather than a bill. Deleting the resource group removes everything.
+
+Rejected: the Render free tier (512 MB, above); Azure Container Apps as the first choice (scale-to-zero would make the first question of every session wait for the model to load, and this is a portfolio project someone opens once); a VM with Docker (the old `docs/DEPLOY.md` plan — it means managing a machine, a TLS certificate and a reverse proxy for no gain over App Service's included HTTPS); and App Service's free F1 tier (1 GB but no Always On and a 60-minute CPU quota a day).
+
+---
+
+## D-112 · 2026-10-22 · The data goes in neither the repo nor the image: a bundle in private blob storage
+
+**Decision.** The runtime data — `data/processed/chunks.jsonl`, `data/index/bm25.pkl`, `data/index/chroma/`, `data/layers/dda/*.geojson` and the metro gazetteer — is packed into a zip by `scripts/make_data_bundle.py`, uploaded by hand to a **private Azure Blob container**, and downloaded by the container at startup through a **read-only SAS URL** held in the `DATA_BUNDLE_URL` app setting. The image is built by GitHub Actions from a clean checkout and **contains code only**; the embedding model is baked in at build time so startup needs no Hugging Face access.
+
+**Why not in the repo.** `data/raw` (109 MB of PDFs), `data/processed`, `data/index` and `data/layers/dda` are gitignored by CLAUDE.md's rule 3, and the DDA layers have no stated licence at all (D-014, D-030) — "we do not know we may redistribute them". The repository is about to become public, which makes that the operative fact rather than a theoretical one.
+
+**Why not in the image either.** The old Dockerfile copied all four directories in, which meant `docker build` only worked on a machine where the pipeline had already run (D-079). GitHub Actions is not that machine, and the audit's risk 1 is exactly this: a build from a clean clone succeeds and produces a container that reports `"status": "degraded"` and 503s every question. Re-running the pipeline inside the build is not available either — the raw PDFs are not in the clone, and the audit's section (g) flags `dda.gov.in` and `gis.dda.org.in` as Indian government services with no SLA that a build runner overseas may well fail to reach.
+
+**Why a SAS URL and not a GitHub Release asset.** A release asset on a public repository is a public download, which is the one thing the DDA layers' unknown licence rules out. A SAS URL on a private container is a secret, so it lives in an App Service setting, never in the repo, and `app/data_bootstrap.py` logs **only its host** — a log line carrying the query string would publish the token to anyone who can read the log stream.
+
+**What stays in the image.** Code, the built frontend, the dependency environment and the fastembed weights (65 MB, downloaded at build time into `data/index/models`). The weights are a public Hugging Face model with no redistribution question, they are what makes startup offline, and they are the one part of `data/` that is not derived from the sources.
+
+Rejected: committing the data (CLAUDE.md rule 3, and the licence); a GitHub Release asset (public); building the pipeline in the image (needs the PDFs and two Indian government hosts); an Azure Files share mounted into App Service (a second thing to configure and pay for, where a one-off download of 20 MB at startup costs seconds); and baking the data into the image on a laptop and pushing that (it would work, and it puts unlicenced layers in a public container registry).
+
+---
+
+## D-113 · 2026-10-22 · $PORT, and the client address behind one trusted proxy
+
+**Decision.** Two changes, both about the fact that the server is no longer the thing the browser talks to.
+
+**The port.** `scripts/serve.py` defaults to `$PORT` when it is set and 8000 otherwise, and the image's own command does the same. Container platforms say which port to listen on by setting `PORT`; a container that ignores it fails the platform's health probe whatever the Dockerfile's `EXPOSE` and `HEALTHCHECK` say, which is the audit's risk 3.
+
+**The client address.** A new setting, `TRUSTED_PROXY_HOPS`, default **0** — which is exactly today's behaviour, the socket peer. Above 0, the address is read from `X-Forwarded-For` by **counting that many entries from the right**. Each proxy appends the address it received the request from, so with one trusted proxy the last entry is what that proxy saw: the visitor. Everything to the left of it was supplied by the caller and can say anything at all, which is why the left-most entry — the value most code reaches for — is never trusted: a rate limiter reading it could be defeated by rotating a forged header. A port suffix is stripped, because Azure App Service appends the client's port (`203.0.113.5:51234`); IPv6 is read both bracketed (`[2001:db8::1]:443`) and bare; the address comes back in `ipaddress`'s normal form so one visitor is one bucket; and a missing header, a header with fewer entries than hops, or an entry that is not an address at all falls back to the socket peer.
+
+**Why it matters.** The per-IP rate limit is the guard against one browser tab in a loop. Behind a proxy without this, every visitor shares the proxy's single address, so ten requests a minute from anyone throttles the whole service — the audit's risk 4. The daily cap is global already and is unaffected.
+
+**Why not uvicorn's `--proxy-headers`.** It was the audit's own first suggestion and it reads the **left-most** entry, which is the untrusted one, and its `--forwarded-allow-ips` gate asks a question about the platform's edge addresses that Azure does not publish for App Service. A hop count needs no list of addresses: it says how many entries at the right-hand end were written by something in front of us, which is a fact about our own deployment and not about Microsoft's network. It is also testable without a server, which the uvicorn flag is not.
+
+Rejected: trusting the left-most entry (forgeable); `--proxy-headers` with `--forwarded-allow-ips=*` (trusts the header from any peer); keying the limiter on something other than an address (a cookie or a session is for a product with accounts); and defaulting `TRUSTED_PROXY_HOPS` to 1 (it would make the laptop trust a header anyone can send, and a setting that is unsafe by default is a setting that will be unsafe somewhere).
+
+**20 new tests**, every case of the parser and one end-to-end check that two visitors through one proxy get their own per-minute budgets.

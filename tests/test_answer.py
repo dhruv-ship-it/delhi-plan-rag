@@ -18,6 +18,7 @@ import pytest
 from app.answer import (
     CITATION_CHECK_FAILED,
     DISCLAIMER,
+    LOCATION_NOTE_TEMPLATE,
     MODEL_ABSTAINED,
     OUTSIDE_DELHI,
     UNSUPPORTED_CLAIMS,
@@ -760,6 +761,42 @@ def test_the_prompt_asks_for_one_cited_sentence_per_rule_with_its_figures(patche
     assert "Do not combine clauses to reach a conclusion that none of them states" in system
     # and the word limit is still the outer bound
     assert "under 200 words" in system
+
+
+def test_the_prompt_says_a_zone_mismatch_is_not_a_reason_to_decline(patched) -> None:
+    """Rule 10 (D-104). agent-02 declined with the clause in front of it."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "that alone is not a reason to decline" in system
+    assert "states the rule for the zone the question named" in system
+    # and the note's own instruction is untouched beside it
+    assert "Answer for the point the question was asked at" in LOCATION_NOTE_TEMPLATE
+
+
+def test_the_prompt_asks_for_each_figures_own_row_and_condition(patched) -> None:
+    """Rule 11 (D-104). demo-14 merged two FAR rows; demo-13 generalised one."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "the exact label and condition the clause gives it" in system
+    assert "the plot-size row it sits in" in system
+    assert "Never merge two rows of a table into one figure" in system
+    assert "never present a special case as a general rule" in system
+
+
+def test_the_prompt_says_who_said_it_in_a_court_document(patched) -> None:
+    """Rule 12 (D-104). demo-03 said the High Court ordered what a party sought."""
+    llm = FakeLLM(responses=[GOOD_JSON])
+    answer_point("How much can I build?", 28.63, 77.22, llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "say who made each statement" in system
+    for party in ("petitioner", "counsel", "respondent", "the court"):
+        assert party in system
+    assert "unless the text you cite says the court did" in system
 
 
 # --- the claim check (D-096) ----------------------------------------------------

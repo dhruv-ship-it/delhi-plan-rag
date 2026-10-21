@@ -693,6 +693,30 @@ def test_the_agent_prompt_asks_for_the_same_fuller_answer(stubs) -> None:
     assert "Do not combine clauses to reach a conclusion that none of them states" in system
 
 
+def test_the_agent_prompt_carries_the_same_three_instructions(stubs) -> None:
+    """Rules 11, 12 and 13 are map mode's 10, 11 and 12: the prompts stay in step.
+
+    One test for all three, because what is being asserted is that the agent prompt
+    was not left behind — the three faults they are for (agent-02's decline, demo-14's
+    merged table rows, demo-03's attribution) can each happen in either mode (D-104).
+    """
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "ground coverage TOD"}, "t1"),
+            said("Ground coverage on a TOD plot is 40%.", "S1"),
+        ]
+    )
+    run_agent("What can I build in a TOD zone?", llm=llm, index=StubIndex(CHUNKS))
+    system = llm.calls[0]["system"]
+
+    assert "that alone is not a reason to abstain" in system
+    assert "states the rule for the zone the question named" in system
+    assert "the exact label and condition the clause gives it" in system
+    assert "Never merge two rows of a table into one figure" in system
+    assert "say who made each statement" in system
+    assert "unless the clause text you cite says the court did" in system
+
+
 # --- the claim check, in agent mode (D-096) -------------------------------------
 
 

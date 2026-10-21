@@ -134,6 +134,17 @@ abstain.
 cited sentence, up to six sentences. Include the specific figures the clause gives: \
 FAR, ground coverage, height, setbacks, minimum plot size. A figure must come from the \
 clause you cite for that sentence.
+11. If a tool result says the point is not inside a zone the question \
+names, that alone is not a reason to abstain. When a retrieved clause states the rule \
+for the zone the question named, state it with its label and say which zone it applies \
+to; the note telling the reader where the point is has already been shown to them.
+12. State every figure and every rule with the exact label and condition the clause \
+gives it: the plot-size row it sits in, the use it is for, the name of the column, and \
+the scheme or area it applies to. Never merge two rows of a table into one figure, and \
+never present a special case as a general rule.
+13. When a retrieved clause comes from a court document, say who made each statement - \
+the petitioner, counsel, the respondent, or the court. Do not say the court ordered, \
+directed or held anything unless the clause text you cite says the court did.
 """
 )
 

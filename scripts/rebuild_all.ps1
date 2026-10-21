@@ -147,7 +147,7 @@ function Invoke-Step {
     Write-Host ('=' * 72) -ForegroundColor DarkGray
 
     $stepStart = Get-Date
-    & uv run python $Script
+    & uv run python $Script | Out-Host
     $code = $LASTEXITCODE
     $elapsed = (Get-Date) - $stepStart
     Write-Host ("  -> exit {0} in {1:n1}s" -f $code, $elapsed.TotalSeconds) -ForegroundColor DarkGray

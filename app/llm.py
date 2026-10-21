@@ -71,6 +71,12 @@ MISSING_GROQ_KEY_MESSAGE = (
 )
 
 
+#: The one `tool_choice` value ZoneWise ever sends. Both providers spell it the same
+#: word, in different shapes: Anthropic takes `{"type": "none"}` and Groq the bare
+#: string, and each `chat` below translates it. See D-109.
+TOOL_CHOICE_NONE = "none"
+
+
 class LLM(Protocol):
     """What `app/answer.py` and `app/agent.py` need from a client.
 
@@ -83,6 +89,7 @@ class LLM(Protocol):
         messages: list[dict],
         system: str | None = None,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
         json_object: bool = False,
@@ -92,6 +99,12 @@ class LLM(Protocol):
         `json_object` asks the provider to guarantee that the reply parses as one JSON
         object. It is a **request, not a contract**: a provider that cannot do it
         ignores the flag, and the caller must still parse defensively (D-088).
+
+        `tool_choice` is `"none"` or unset. `"none"` sends the tool definitions and
+        forbids calling them, which is how the agent's last round makes the model write
+        its answer instead of asking for a seventh search (D-109). The definitions still
+        travel, because a conversation that already contains tool calls cannot be sent
+        without them.
         """
         ...
 
@@ -200,6 +213,7 @@ class AnthropicLLM:
         messages: list[dict],
         system: str | None = None,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
         json_object: bool = False,
@@ -218,6 +232,8 @@ class AnthropicLLM:
             extra["system"] = system
         if tools:
             extra["tools"] = tools
+            if tool_choice == TOOL_CHOICE_NONE:
+                extra["tool_choice"] = {"type": TOOL_CHOICE_NONE}
         self.calls += 1
         PACER.wait()
         return client.messages.create(
@@ -752,6 +768,7 @@ class GroqLLM:
         messages: list[dict],
         system: str | None = None,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
         json_object: bool = False,
@@ -777,7 +794,9 @@ class GroqLLM:
         }
         if tools:
             payload["tools"] = to_openai_tools(tools)
-            payload["tool_choice"] = "auto"
+            payload["tool_choice"] = (
+                TOOL_CHOICE_NONE if tool_choice == TOOL_CHOICE_NONE else "auto"
+            )
         elif json_object and self.json_mode_supported:
             payload["response_format"] = {"type": "json_object"}
         if self.reasoning_effort:
@@ -937,6 +956,7 @@ class FakeLLM:
         messages: list[dict],
         system: str | None = None,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
         json_object: bool = False,
@@ -946,6 +966,7 @@ class FakeLLM:
             "messages": messages,
             "system": system,
             "tools": tools,
+            "tool_choice": tool_choice,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "json_object": json_object,

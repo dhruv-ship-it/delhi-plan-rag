@@ -526,6 +526,32 @@ def test_a_tool_call_comes_back_as_a_tool_use_block() -> None:
     assert sent["tool_choice"] == "auto"
 
 
+def test_tool_choice_none_is_sent_with_the_tools_still_defined() -> None:
+    """D-109. The agent's forced last round, as Groq receives it.
+
+    The definitions have to stay in the payload - a conversation that already carries
+    `tool_calls` and `tool` messages is rejected without them - so "no tools" is said
+    with `tool_choice`, not by dropping them.
+    """
+    client = groq([said("{\"abstain\": null, \"sentences\": []}")])
+    client.chat(
+        messages=[{"role": "user", "content": "What can I build near Hauz Khas?"}],
+        tools=[
+            {
+                "name": "locate_place",
+                "description": "Find a place.",
+                "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}},
+            }
+        ],
+        tool_choice="none",
+        max_tokens=900,
+    )
+
+    sent = client.client.chat.completions.payloads[0]
+    assert sent["tool_choice"] == "none"
+    assert sent["tools"][0]["function"]["name"] == "locate_place"
+
+
 def test_the_full_tool_round_trip_through_the_agents_own_history_builder() -> None:
     """Call, result, answer — with the middle turn built by `app/agent.py` itself.
 

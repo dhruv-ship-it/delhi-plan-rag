@@ -509,18 +509,75 @@ def test_the_model_declining_is_passed_through(stubs) -> None:
     assert "not in Delhi" in result.abstain_reason
 
 
-def test_max_rounds_is_enforced(stubs) -> None:
-    """A model that only ever calls tools has to be stopped, not humoured forever."""
+def test_the_last_allowed_round_is_asked_for_an_answer(stubs) -> None:
+    """D-109. The round the cap ends on is called with the tools forbidden.
+
+    What this replaces: "What can be built near Hauz Khas metro?" searched twice, hit
+    the cap, and returned `max_rounds_reached` while holding six retrieved clauses it
+    had never been asked to use. The last round now sends `tool_choice="none"`, so the
+    model has to write the answer or decline from what it already gathered.
+    """
     llm = FakeLLM(
-        responses=[tool_use_response("search_clauses", {"query": f"attempt {n}"}, f"t{n}") for n in range(3)]
+        responses=[
+            tool_use_response("locate_place", {"query": "Hauz Khas metro"}, "t1"),
+            tool_use_response("search_clauses", {"query": "ground coverage"}, "t2"),
+            said("Ground coverage of 40% is permitted on a TOD plot.", "S1"),
+        ]
+    )
+    result = run_agent(
+        "What can be built near Hauz Khas metro?",
+        max_rounds=3,
+        llm=llm,
+        index=StubIndex(CHUNKS),
+    )
+
+    assert result.abstained is False
+    assert result.abstain_reason is None
+    assert "40%" in result.answer_markdown
+    assert [citation.chunk_id for citation in result.citations] == [CHUNK_ID]
+    assert result.llm_calls == 3
+
+    # The tools still travel on the forced round - a conversation carrying tool
+    # results cannot be sent without them - but calling one is forbidden.
+    assert [call["tool_choice"] for call in llm.calls] == [None, None, "none"]
+    assert llm.calls[2]["tools"] == TOOLS
+
+
+def test_a_model_that_keeps_calling_tools_still_gets_the_forced_round(stubs) -> None:
+    """The forced round is not a fourth round: the cap is still three calls.
+
+    A model that asks for a tool even with `tool_choice="none"` has its request
+    ignored rather than run, and its reply is checked like any other final answer -
+    here it has no JSON in it, so the one retry D-044 allows asks again and the model
+    declines.
+    """
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": f"attempt {n}"}, f"t{n}")
+            for n in range(3)
+        ]
+        + [reply(abstain="the clauses do not say what applies here")]
     )
     result = run_agent("what applies here?", max_rounds=3, llm=llm, index=StubIndex(CHUNKS))
 
+    # Three rounds, two of which ran a tool: the third was the forced answer.
+    assert len(result.tool_trace) == 2
+    assert len(stubs["searches"]) == 2
+    # Three loop calls plus the one retry _finish is allowed, and no more.
+    assert llm.call_count == 4
     assert result.abstained is True
-    assert result.abstain_reason == MAX_ROUNDS_REACHED
-    assert result.llm_calls == 3
-    assert len(result.tool_trace) == 3
+    assert result.abstain_reason.startswith(MODEL_ABSTAINED)
+    assert result.abstain_reason != MAX_ROUNDS_REACHED
     assert result.answer_markdown is None
+
+
+def test_max_rounds_reached_survives_only_for_a_zero_round_cap(stubs) -> None:
+    """The constant is still live, for the one case the loop cannot answer in."""
+    llm = FakeLLM(responses=[])
+    result = run_agent("what applies here?", max_rounds=0, llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstain_reason == MAX_ROUNDS_REACHED
+    assert llm.call_count == 0
 
 
 def test_a_place_that_cannot_be_found_is_reported_to_the_model(stubs) -> None:

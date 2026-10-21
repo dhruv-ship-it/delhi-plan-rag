@@ -13,7 +13,9 @@ sequence them:
   search_clauses   a query (and optionally a point) -> the clauses that match
 
 It loops: the model asks for a tool, the tool runs here, the result goes back, and so on
-until it writes an answer or runs out of rounds. The same citation discipline as
+until it writes an answer. **On the last round the cap allows, the tools are forbidden**
+(`tool_choice="none"`), so a model that would otherwise have searched a seventh time has
+to answer or decline from the clauses it already holds (D-109). The same citation discipline as
 `answer.py` applies at the end, with one extra rule that matters more here: a citation is
 only accepted if the retrieval that produced it actually happened in **this** run. The
 semantic claim check runs here too, through the same two functions map mode uses, so
@@ -68,12 +70,14 @@ from app.answer import (
 )
 from app.config import settings
 from app.geocode import locate_place
-from app.llm import LLM, get_llm, text_of, tool_calls_of
+from app.llm import LLM, TOOL_CHOICE_NONE, get_llm, text_of, tool_calls_of
 from app.location import describe_zones, location_note
 from app.retrieval import Result, SearchIndex, get_index, search
 from app.spatial import get_zones
 
-#: The model used every round it was allowed and never wrote an answer.
+#: The model used every round it was allowed and never wrote an answer. Reachable only
+#: with `max_rounds` set to zero, since D-109 made the last allowed round a forced
+#: answer: a run that spends its cap now produces an answer or a decline, not this.
 MAX_ROUNDS_REACHED = "max_rounds_reached"
 
 #: The letter every search-result label starts with. `S1`, `S2`, … across one run.
@@ -512,20 +516,34 @@ def run_agent(
     messages: list[dict] = [{"role": "user", "content": question}]
     calls = 0
 
-    for _ in range(max_rounds):
+    for round_number in range(1, max_rounds + 1):
+        # The last round the cap allows is asked for an answer, not for another tool
+        # call: the tools are still defined, because a conversation carrying tool
+        # results cannot be sent without them, but calling one is forbidden (D-109).
+        last_round = round_number == max_rounds
         response = client.chat(
             messages=messages,
             system=AGENT_SYSTEM_PROMPT,
             tools=TOOLS,
+            tool_choice=TOOL_CHOICE_NONE if last_round else None,
             max_tokens=settings.answer_max_tokens,
             temperature=settings.answer_temperature,
         )
         calls += 1
-        requested = tool_calls_of(response)
+        # A tool call in the forced round is ignored rather than run: the round was
+        # spent, and whatever text came back is checked exactly like any final answer.
+        requested = [] if last_round else tool_calls_of(response)
 
         if not requested:
             reply = text_of(response).strip()
-            final, extra_calls, failures = _finish(question, run, reply, client, messages)
+            final, extra_calls, failures = _finish(
+                question,
+                run,
+                reply,
+                client,
+                messages,
+                tool_choice=TOOL_CHOICE_NONE if last_round else None,
+            )
             return _result(
                 question,
                 run,
@@ -603,6 +621,7 @@ def _finish(
     reply: str,
     client: LLM,
     messages: list[dict],
+    tool_choice: str | None = None,
 ) -> tuple[tuple[str | None, list[Citation], str | None, dict], int, list[list[str]]]:
     """Check the model's final answer, retry once if it fails, then decide.
 
@@ -634,6 +653,7 @@ def _finish(
         messages=retry_messages,
         system=AGENT_SYSTEM_PROMPT,
         tools=TOOLS,
+        tool_choice=tool_choice,
         max_tokens=settings.answer_max_tokens,
         temperature=settings.answer_temperature,
     )

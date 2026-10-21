@@ -682,6 +682,8 @@ ones worth reading first:
 | **D-073, D-074** | four-step geocoding, and the gazetteer that could not be built |
 | **D-075, D-076** | the dev flag, and the verification screen |
 | **D-077, D-078, D-079** | hardening; the `needs_data` marker; the image and the deploy kit |
+| **D-109, D-110** | the agent's forced last round; what the server loaded and never used |
+| **D-111 to D-115** | the deployment: one Azure App Service container, the data as a bundle in private storage, `$PORT` and the proxy hop count, and the code-only image |
 | **D-082** | two providers behind one door, and what the Groq adapter has to translate |
 | **D-086, D-093** | query expansion scoped to the four policy topics; the scoped four-list fusion for Zone O and the Ridge |
 | **D-088, D-089** | structured JSON answers and why the prose citation check went away; the agent's short labels |

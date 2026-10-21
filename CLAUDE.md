@@ -32,11 +32,16 @@ The developer is learning AI engineering. Architecture decisions are made by the
 - Frontend: React (Vite) + react-leaflet in web/, plain JavaScript, built files served
   by FastAPI at /. Frontend dependencies are also subject to the rule below.
 - Deployment: one Dockerfile, two stages (node builds web/, python serves). The image
-  carries the built data rather than building at startup, so `docker build` needs a
-  machine where the pipeline has run (D-079). docs/DEPLOY.md is the runbook.
+  carries **code only** and is built by .github/workflows/image.yml from a clean
+  checkout, then pushed to ghcr.io/<owner>/zonewise; the embedding model is baked in at
+  build time. The runtime data travels as a zip built by scripts/make_data_bundle.py,
+  kept in a private Azure Blob container and fetched at startup by app/data_bootstrap.py
+  through a read-only SAS URL, which is never logged (D-112, D-114, D-115). The host is
+  Azure App Service for Containers, Linux Basic B1 (D-111). docs/DEPLOY.md is the
+  runbook.
 - CI: .github/workflows/ci.yml. Two jobs: ruff + `uv run pytest -m "not needs_data"`,
-  and the web build. The 31 tests needing built data are marked `needs_data` (D-078);
-  446 of the 477 run on a clean clone.
+  and the web build. The 38 tests needing built data are marked `needs_data` (D-078);
+  591 of the 629 run on a clean clone.
 - Lint: ruff, a dev dependency, configured in pyproject.toml with F, E9 and I only.
   `uv run ruff check .` must be clean. We do **not** run `ruff format` (D-080).
 - Not allowed: LangChain, LlamaIndex, Haystack or any other RAG/agent framework; MongoDB; Express; any new dependency without asking first. `openai` is allowed, and only as the client for Groq's OpenAI-compatible API.
@@ -44,11 +49,11 @@ The developer is learning AI engineering. Architecture decisions are made by the
 ## Repo layout
 - app/        Python package: config, llm, extract, cleaning, chunking, tagging,
               indexing, retrieval, rerank, location, spatial, geocode, answer, agent,
-              api, audit, dev_eval
+              api, audit, dev_eval, data_bootstrap
 - scripts/    numbered pipeline scripts, run in order (00_ .. 09_), plus build_chapter_map,
               build_gazetteer, search, show_chunk, show_page, serve, audit_chunks,
               tune_abstention, check_geocoding, summarize_logs, remap_eval_ids,
-              diagnose_fuel_station, live_run,
+              diagnose_fuel_station, live_run, make_data_bundle,
               compare_plan_versions, day2_queries, day3_location_compare,
               and the Windows helpers rebuild_all.ps1, dev.ps1, check.ps1
 - data/sources.csv   every document: id, title, type, issuer, date, url, download date, authority rank

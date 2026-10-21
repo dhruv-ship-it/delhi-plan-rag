@@ -63,8 +63,9 @@ says so instead of guessing.
 - **A verification screen** for doing that checking: a dev-only tab that shows one
   question with its clause text, its point and the current top 5, with a live leakage
   warning and keyboard shortcuts.
-- **A deploy kit**: a two-stage Dockerfile with the indexes baked in, and
-  [docs/DEPLOY.md](docs/DEPLOY.md) for EC2 with automatic HTTPS.
+- **A deploy kit**: a two-stage Dockerfile carrying code only, a GitHub Actions workflow
+  that pushes it to ghcr.io, a data bundle the container fetches and verifies at startup,
+  and [docs/DEPLOY.md](docs/DEPLOY.md) for Azure App Service, click by click.
 
 ---
 
@@ -233,8 +234,8 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 **Tests:**
 
 ```powershell
-uv run pytest                      # 554
-uv run pytest -m "not needs_data"  # 518, the ones needing no built data
+uv run pytest                      # 629
+uv run pytest -m "not needs_data"  # 591, the ones needing no built data
 ```
 
 **Lint:**
@@ -459,9 +460,11 @@ one.
 - **The metro station gazetteer is not in this repository.** `scripts/build_gazetteer.py`
   builds it in one Overpass request; until it is run, geocoding uses Nominatim for every
   query, which works (D-074).
-- **The Docker image has not been built.** The Dockerfile's paths, its `.dockerignore`
-  and the exact command it runs were all verified, but the build itself needs a registry
-  this was not able to reach (D-079).
+- **The Docker image has not been built.** Still true of the rewritten, code-only one:
+  its paths, its `.dockerignore`, the two python snippets it embeds and the dozen facts
+  the deployment turns on were each verified another way, including by tests, but the
+  build itself needs a container registry this was not able to reach (D-079, D-115).
+  The first real build is the GitHub Actions run in `docs/DEPLOY.md` step C.
 
 ### Known limitations of the answers
 
@@ -513,24 +516,34 @@ not fixed; they are known.
 
 ## Deploying it
 
-One container: FastAPI serves the API and the built frontend on one port, with the search
-indexes, the model weights and the map layers baked into the image. No database, no
-second service.
+One container: FastAPI serves the API and the built frontend on one port, with the
+embedding model's weights baked into the image. No database, no second service.
+
+**The data is not in the image and not in the repository.** The source PDFs are
+gitignored and the DDA map layers have no stated licence, so the chunks, the indexes and
+the layers travel as a zip: you build it on your laptop, put it in private storage, and
+the container downloads and verifies it at startup (D-112, D-114).
 
 ```powershell
-# build the data first -- the container does not build it
-uv run python scripts\05_build_index.py
-uv run python scripts\06_fetch_layers.py
-docker build -t zonewise:latest .
-docker run --rm -p 8000:8000 --env-file zonewise.env zonewise:latest
+# 1. on the laptop: pack the runtime data and note its SHA-256
+uv run python scripts\make_data_bundle.py
+
+# 2. on GitHub: Actions -> Image -> Run workflow
+#    pushes ghcr.io/<owner>/zonewise:latest and :<short sha>
+
+# 3. anywhere with Docker, including an Azure Web App:
+docker run -p 8000:8000 -e GROQ_API_KEY=gsk_... `
+  -e DATA_BUNDLE_URL='https://...?sig=...' -e DATA_BUNDLE_SHA256=81e9... `
+  ghcr.io/<owner>/zonewise:latest
 ```
 
 [**docs/DEPLOY.md**](docs/DEPLOY.md) is the full walkthrough for someone who has not done
-this before: an EC2 `t3.small` with Docker and Caddy for automatic HTTPS, Lightsail
-Containers as the alternative with its trade-offs, where the logs live, what the rate
-limits protect, and a **cost-safety checklist** whose first item is setting a hard spend
-limit in the Anthropic console — the only control that cannot be defeated by a bug in
-this repository.
+this before: **Azure App Service for Containers** (Linux, Basic B1, about 13 USD a month
+from the student credit) with the exact portal clicks, the storage account and the
+read-only SAS link, the GitHub Actions run, every app setting and what it is for, what to
+look for in the log stream, Azure Container Apps and a plain Docker host as the
+alternatives, where the logs live, what the rate limits protect, and a **cost-safety
+checklist**.
 
 The app is useful with no API key at all: five of the seven endpoints need none, so a
 deployment without one is a working map, zone lookup and clause search.
@@ -541,15 +554,15 @@ deployment without one is a working map, zone lookup and clause search.
 --frozen`, then the Python tests, then `npm ci` and the frontend build.
 
 A runner has no `data/` — the PDFs are 109 MB, the indexes are generated, and the DDA
-layers have no stated licence — so the 31 tests that need them are marked `needs_data`
-and CI runs `pytest -m "not needs_data"`. **518 of the 554 tests run with no data at
+layers have no stated licence — so the 38 tests that need them are marked `needs_data`
+and CI runs `pytest -m "not needs_data"`. **591 of the 629 tests run with no data at
 all**, which was proved by moving the data aside and running them, not by reasoning about
 it. A second CI step asserts the marked set is non-empty, so a marker going missing is a
 named failure rather than a surprise.
 
 ```powershell
-uv run pytest                      # all 554, needs the built data
-uv run pytest -m "not needs_data"  # the 518 CI runs
+uv run pytest                      # all 629, needs the built data
+uv run pytest -m "not needs_data"  # the 591 CI runs
 ```
 
 ## Project structure
@@ -578,7 +591,7 @@ reports/        run reports and generated reports; README.md says which are curr
 docs/           PROJECT_STATUS.md, ARCHITECTURE.md, DATA.md, LEARNING_NOTES.md,
                 DEMO.md, DEPLOY.md
 web/            the React + Vite frontend
-tests/          477 pytest tests (446 of them need no data)
+tests/          629 pytest tests (591 of them need no data)
 Dockerfile      two stages: node builds the frontend, python serves everything
 DECISIONS.md    every design choice, numbered, with the alternatives rejected
 ```
@@ -598,7 +611,7 @@ DECISIONS.md    every design choice, numbered, with the alternatives rejected
 | API | FastAPI | typed request bodies and generated docs |
 | Frontend | React + Vite + react-leaflet | plain JavaScript, six dependencies, no UI framework |
 | Lint | ruff, with F, E9 and I only | catches real errors and import order; no reformatting |
-| Tests | pytest | 477, all with fixtures written in the test; no key, no network |
+| Tests | pytest | 629, all with fixtures written in the test; no key, no network |
 
 No RAG or agent framework is used. The chunking, the hybrid search, the fusion, the
 citation validation and the agent loop are all written here, so every step is visible

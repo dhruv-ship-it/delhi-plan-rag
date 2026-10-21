@@ -1,295 +1,419 @@
 # Deploying ZoneWise
 
-For someone putting this on a server for the first time. It assumes a laptop with the
-repository on it, and an AWS account with nothing set up yet.
+For someone deploying this for the first time. It assumes a laptop with the repository
+on it, a GitHub account, and an Azure account with nothing set up yet.
 
-**The one thing to get right before anything else:** the data and the indexes are built
-**on your laptop** and copied into the image. The container does not build them. See
-[Build the data first](#1-build-the-data-first) — skipping it produces an image that
-starts, reports `"status": "degraded"`, and returns 503 for every question.
+**What you are building:** one Docker container on **Azure App Service for Containers**
+(Linux, Basic B1). GitHub Actions builds the image and pushes it to the GitHub Container
+Registry. The runtime data — the chunks, the indexes and the map layers — is **not** in
+the image and **not** in the repository: you build a zip of it on your laptop, upload it
+to a private Azure Blob container, and the container downloads it at startup through a
+read-only link. See D-111, D-112 and D-114 in `DECISIONS.md` for why.
 
-**Cost.** An EC2 `t3.small` with an Elastic IP is roughly **$20 a month**. The Anthropic
-API is the variable part and the one that can surprise you; the
-[cost safety checklist](#cost-safety-checklist) is not optional.
+```
+   browser ──HTTPS──▶  App Service (Linux, B1)  ──HTTPS──▶  api.groq.com
+                       ghcr.io/<owner>/zonewise              (only when answering)
+                       one uvicorn worker on $PORT
+                              │
+                              └── at startup ──▶ Azure Blob Storage (private)
+                                                 zonewise-data-<date>.zip
+```
+
+**Cost.** B1 is about **13 USD a month**, from the 100 USD Azure for Students credit,
+with no card on file. Blob storage for an 8 MB zip is a few cents. The Groq free tier is
+free. The [cost safety checklist](#cost-safety-checklist) is still not optional.
+
+**Time.** About 90 minutes the first time, most of it waiting for the image build.
 
 ---
 
-## What you are deploying
+## The order of things
 
-One container. Inside it: a FastAPI server on port 8000 that serves the API and the built
-React frontend from the same port, with the search indexes, the embedding model weights
-and the map layers baked in. No database, no second service, no object storage.
+| | step | where |
+| --- | --- | --- |
+| A | Activate Azure for Students and find your allowed regions | portal |
+| B | Build the data bundle, upload it, make a read-only link | laptop + portal |
+| C | Build the image in GitHub Actions and make the package public | GitHub |
+| D | Create the Web App and set the app settings | portal |
+| E | Check it works | browser |
+| F | Update it later | laptop + GitHub |
 
-```
-                                    EC2 t3.small
-   browser ──HTTPS──▶  Caddy  ──HTTP──▶  zonewise container  ──HTTPS──▶ api.anthropic.com
-                      :443              :8000                            (only when
-                   (gets the cert)   (one uvicorn worker)              answering)
-```
-
-Caddy is there for one reason: it gets and renews a TLS certificate from Let's Encrypt
-without being configured to. Two lines in a Caddyfile and HTTPS works.
+Do them in order. B before D, because two of the app settings come out of B.
 
 ---
 
-## 1. Build the data first
+## A. Azure for Students, and which regions you may use
 
-On your laptop, with the source PDFs in `data/raw/`:
+1. Go to <https://azure.microsoft.com/free/students> and sign in with your university
+   email. You get **100 USD of credit for 12 months** and no card is asked for.
+2. In the portal, search for **Subscriptions** and confirm you see one called
+   *Azure for Students*.
+
+**Now find the regions you are allowed to deploy in.** A student subscription restricts
+them, and picking a region that is not allowed fails at the very last click with a
+policy error that does not name the allowed list.
+
+1. In the portal search bar, type **Policy** and open it.
+2. In the left menu, **Assignments**.
+3. Find the assignment named **"Allowed resource deployment regions"** (it may be listed
+   under your subscription's scope). Click it.
+4. Click **Parameters**. The list of region names there is the list you may use.
+5. **Write down one region** from that list and use the same one for everything below.
+   Something like `Central India`, `East US` or `West Europe`, depending on what yours
+   says. A region near you makes the site feel faster; a region near nothing is fine too.
+
+> Everything below says "your allowed region". Use the one you wrote down.
+
+---
+
+## B. The data bundle
+
+The container starts with no data at all. This is the step that gives it some.
+
+### B1. Build the zip, on your laptop
 
 ```powershell
-uv sync
-uv run python scripts\02_extract.py
-uv run python scripts\03_chunk.py
-uv run python scripts\04_tag_zones.py
-uv run python scripts\05_build_index.py      # about 3 minutes, downloads the model
+# with the pipeline already run, so data/ has the indexes and the layers
+uv run python scripts\make_data_bundle.py
+```
+
+It prints something like:
+
+```
+Wrote D:\projects\delhi-plan-rag\dist\zonewise-data-20261022.zip
+  files     40 gazetteer 1, index 30, layers 8, processed 1
+  chunks    653
+  commit    409c310
+  unpacked  20.9 MB
+  zip       8.4 MB (8756153 bytes)
+  sha256    81e900de5b67221f11769a40a6be27cce6df6747ae944712a80cd0ccbcefee12
+```
+
+**Copy that `sha256` line somewhere.** You will paste it into an app setting in step D,
+and it is what stops the container starting on a bundle that is not the one you built.
+
+If it says *"Nothing to pack"* or warns that the data is incomplete, run the pipeline
+first:
+
+```powershell
+uv run python scripts\05_build_index.py      # about 3 minutes
 uv run python scripts\06_fetch_layers.py     # about 1 minute, talks to DDA's server
-uv run python scripts\07_test_points.py
-uv run python scripts\build_gazetteer.py     # one Overpass request
+uv run python scripts\build_gazetteer.py     # one Overpass request, optional
 ```
 
-Check that all four exist and are not empty:
+### B2. A storage account with a private container
+
+1. Portal → **Create a resource** → search **Storage account** → **Create**.
+2. Fill in:
+   - **Subscription**: Azure for Students
+   - **Resource group**: **Create new** → `zonewise-rg`. Use this group for everything,
+     so deleting it later deletes the whole deployment.
+   - **Storage account name**: something globally unique and lower case, e.g.
+     `zonewisedata<your initials>`
+   - **Region**: your allowed region
+   - **Primary service**: *Azure Blob Storage*
+   - **Performance**: Standard
+   - **Redundancy**: **Locally-redundant storage (LRS)** — the cheapest, and this file
+     is rebuildable in ten minutes from your laptop
+3. **Review + create** → **Create**. Wait, then **Go to resource**.
+4. Left menu → **Containers** → **+ Container**.
+   - **Name**: `bundles`
+   - **Anonymous access level**: **Private (no anonymous access)** ← this is the point
+   - **Create**
+
+### B3. Upload the zip
+
+1. Open the `bundles` container → **Upload**.
+2. Browse to `dist\zonewise-data-<date>.zip` → **Upload**.
+
+### B4. A read-only link that expires in a year
+
+1. In the container, click the blob you just uploaded.
+2. Top menu → **Generate SAS** (the tab beside *Overview*).
+3. Set:
+   - **Signing method**: Account key
+   - **Permissions**: **Read** only. Untick everything else — no Write, no Delete, no
+     List.
+   - **Start**: now. **Expiry**: **12 months from today** (type the date).
+   - **Allowed protocols**: HTTPS only
+4. Click **Generate SAS token and URL**.
+5. Copy the **Blob SAS URL** — the long one ending in `&sig=...`.
+
+> **That URL is a secret.** Anyone who has it can download the bundle. It goes in an App
+> Service setting in step D and **nowhere else**: not in the repository, not in a commit,
+> not in a screenshot. ZoneWise never logs it — only its host name appears in the log
+> (D-114).
+
+---
+
+## C. The image
+
+### C1. Push the code, then run the workflow
 
 ```powershell
-Get-ChildItem data\processed\chunks.jsonl, data\index\chroma, data\layers\dda, data\gazetteer
+git push            # the workflow lives in the repository, so it has to be there
 ```
 
-If `data/gazetteer` is empty the app still works — geocoding falls back to Nominatim
-(D-073) — but the Dockerfile `COPY` needs the directory to exist, so run
-`New-Item -ItemType Directory -Force data\gazetteer` if the script could not reach
-Overpass.
+1. GitHub → your repository → **Actions**.
+2. In the left list, click **Image**.
+3. Click **Run workflow** → **Run workflow** (the branch is `main`).
+4. Wait. The first run takes **5 to 15 minutes**: it installs the whole dependency
+   environment and downloads the embedding model. Later runs reuse the layer cache.
+5. When it is green, open the run. Its summary prints the two image names:
 
-Then run the tests and build the frontend, because the image build will not tell you
-that your code is broken:
+   ```
+   ghcr.io/<owner>/zonewise:latest
+   ghcr.io/<owner>/zonewise:<short sha>
+   ```
 
-```powershell
-uv run pytest
-cd web; npm install; npm run build; cd ..
-```
+**If the build fails**, this is the first time the Dockerfile has ever been built — it
+was written without access to a container registry and verified by reading
+(`reports/deploy_prep.md` says exactly what that means). Read the failing step's log; it
+will be a `COPY` path, a dependency wheel or the model download.
+
+### C2. Make the package public
+
+The package is private until you say otherwise, and App Service cannot pull a private
+GHCR package without credentials.
+
+1. GitHub → your **profile** (not the repository) → **Packages**.
+2. Click **zonewise** → **Package settings** (right side, or the gear).
+3. Scroll to **Danger Zone** → **Change visibility** → **Public** → type the package
+   name to confirm.
+
+The image contains code only — no data, no keys — so making it public publishes nothing
+that the repository does not already publish.
+
+**If you would rather keep it private:** leave it private, create a GitHub personal
+access token (classic) with the single scope **`read:packages`**, and in step D fill in
+App Service's *Registry* fields — server `ghcr.io`, username your GitHub name, password
+that token — instead of leaving them blank.
 
 ---
 
-## 2. Build the image
+## D. The Web App
 
-```powershell
-docker build -t zonewise:latest .
+### D1. Create it
+
+1. Portal → **Create a resource** → **Web App** (under *Web*, or search for it).
+2. **Basics** tab:
+   - **Resource group**: `zonewise-rg` (the one from step B2)
+   - **Name**: `zonewise-<something>` — this becomes
+     `https://zonewise-<something>.azurewebsites.net`, so it has to be globally unique
+   - **Publish**: **Container** ← not Code
+   - **Operating System**: **Linux**
+   - **Region**: your allowed region
+   - **Linux Plan** → **Create new** → `zonewise-plan`
+   - **Pricing plan**: click **Change size** → **Basic B1** (1 core, 1.75 GB). Not Free
+     F1: 1 GB with no Always On, and this app loads the embedding model at startup.
+3. **Container** tab:
+   - **Image Source**: **Other container registries**
+   - **Access Type**: **Public** (or **Private** with the token from C2)
+   - **Registry server URL**: `https://ghcr.io`
+   - **Image and tag**: `<owner>/zonewise:latest` — all lower case
+4. **Review + create** → **Create**. Wait for *Your deployment is complete*, then
+   **Go to resource**.
+
+It will not work yet. It has no data and no key.
+
+### D2. The app settings
+
+Left menu → **Settings** → **Environment variables** → **App settings** tab. Add each of
+these with **+ Add**, then click **Apply** at the bottom and confirm the restart.
+
+| name | value | why |
+| --- | --- | --- |
+| `GROQ_API_KEY` | `gsk_...` | your key from <https://console.groq.com/keys> |
+| `LLM_PROVIDER` | `groq` | which service answers (D-082) |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | the small open model this project runs on |
+| `SUPPORT_CHECK` | `enforce` | drop a sentence its own clause does not state (D-103) |
+| `ZONEWISE_DEV` | `0` | keeps the verification endpoints 404 (D-075) |
+| `DATA_BUNDLE_URL` | the SAS URL from B4 | **secret.** Paste the whole thing, `?sig=` and all |
+| `DATA_BUNDLE_SHA256` | the sha256 from B1 | refuses to start on the wrong bundle |
+| `TRUSTED_PROXY_HOPS` | `1` | App Service is one proxy, so the rate limit means one visitor (D-113) |
+| `WEBSITES_PORT` | `8000` | tells App Service which port to route to |
+| `CORS_ORIGINS` | `https://<your app>.azurewebsites.net` | your own site and nothing else (D-076) |
+| `RATE_LIMIT_PER_MINUTE` | `10` | one browser tab in a loop |
+| `RATE_LIMIT_PER_DAY` | `300` | the cap that bounds the API usage |
+
+Nothing else. In particular **do not add `ZONEWISE_DEV=1`** — it would expose the
+endpoints that read and write the evaluation files.
+
+### D3. Always On, and the health check
+
+Two switches that matter on this app:
+
+1. Left menu → **Settings** → **Configuration** → **General settings** tab →
+   **Always on**: **On** → **Save**.
+   Without it the container is idled and every visitor after a quiet hour waits for the
+   embedding model to load again.
+2. Left menu → **Monitoring** → **Health check** → **Enable** →
+   **Path**: `/api/health` → **Save**.
+   App Service then restarts the container if that path stops answering. It is a
+   different mechanism from the Dockerfile's own `HEALTHCHECK`, which a plain Docker
+   daemon reads and App Service does not.
+
+### D4. Watch the first start
+
+Left menu → **Monitoring** → **Log stream**. Leave it open. You should see, in order:
+
+```
+INFO zonewise.data: runtime data missing (processed/chunks.jsonl, index/bm25.pkl, ...);
+                    fetching the bundle from <account>.blob.core.windows.net
+INFO zonewise.data: data bundle in place: 40 files, 653 chunks, built from commit ...
+INFO zonewise.api:  startup complete: peak RSS 480.0 MB, 653 chunks
+INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
-The build is two stages: node builds `web/dist`, then a `python:3.12-slim` stage runs
-`uv sync --frozen` and copies `app/`, `scripts/`, the built frontend, `data/processed`,
-`data/index` (including the cached model weights), `data/layers` and `data/gazetteer`.
+The whole of that takes a minute or two on one B1 core. **The first line names only the
+storage host, never the SAS token** — that is deliberate (D-114).
 
-`data/raw` and `.env` are **never** copied — `.dockerignore` excludes both, and the
-Dockerfile copies data directories by name rather than copying everything. A key baked
-into an image layer stays in that layer forever, even if a later layer deletes it.
-
-Check it locally before sending it anywhere:
-
-```powershell
-docker run --rm -p 8000:8000 --name zonewise-test zonewise:latest
-# in another terminal:
-curl http://localhost:8000/api/health
-```
-
-Expect `"status": "ok"` and a non-zero `chunks`. `"degraded"` means step 1 was skipped or
-incomplete, and `startup_errors` names the script to run.
+If instead you see *"No runtime data and no DATA_BUNDLE_URL set"*, the setting did not
+save. If you see *"does not match DATA_BUNDLE_SHA256"*, you uploaded one bundle and
+pasted another bundle's hash: re-run `make_data_bundle.py`, re-upload, and paste the new
+hash.
 
 ---
 
-## 3. The EC2 instance
+## E. Check it works
 
-**Why `t3.small` and not `t3.micro`.** The server loads the embedding model, the Chroma
-collection, the BM25 corpus and eight GeoJSON layers into memory at startup — about
-400 MB with the ONNX runtime. `t3.micro` has 1 GB and will survive right up until it
-does not. `t3.small` has 2 GB.
+In this order, because each one tells you a different thing.
 
-1. **Launch**: Ubuntu 24.04 LTS, `t3.small`, 20 GB gp3 disk, a new key pair. Save the
-   `.pem` file somewhere you will find it.
-2. **Security group** — three inbound rules and no more:
-   | port | source | why |
-   | --- | --- | --- |
-   | 22 | **your IP only** | SSH. Never `0.0.0.0/0`. |
-   | 80 | `0.0.0.0/0` | Let's Encrypt's HTTP challenge, and the redirect to HTTPS |
-   | 443 | `0.0.0.0/0` | the site |
+1. **`https://<your app>.azurewebsites.net/api/health`**
 
-   Port 8000 is **not** open. Caddy reaches the container over the Docker network.
-3. **Elastic IP**: allocate one and associate it, or the address changes on every stop
-   and your DNS record goes stale.
-4. **DNS**: an A record from your domain to that IP. Caddy cannot get a certificate
-   without a name that resolves.
+   ```json
+   {
+     "status": "ok",
+     "chunks": 653,
+     "layers_loaded": ["high_density_corridor", "land_pooling_area", "low_density_area",
+                       "nctd_boundary", "planning_zones", "regional_park", "tod_zone"],
+     "llm_available": true,
+     "provider": "groq",
+     "model": "openai/gpt-oss-120b",
+     "startup_errors": [],
+     "dev_mode": false,
+     "support_check": "enforce",
+     "peak_rss_mb": 486.2
+   }
+   ```
 
-Install Docker:
+   - `"status": "degraded"` means the data did not arrive — read `startup_errors`.
+   - `"llm_available": false` means the Groq key is missing or malformed. The site still
+     works as a clause search; questions return the clauses instead of an answer.
+   - **`peak_rss_mb` is the number to watch.** It is the highest the process has
+     reached. B1 gives 1.75 GB, so anything under about 900 MB is comfortable. If it
+     creeps towards 1.4 GB, that is the signal to look at it rather than wait for a
+     restart.
 
-```bash
-ssh -i zonewise.pem ubuntu@YOUR_IP
-sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2
-sudo usermod -aG docker ubuntu
-exit   # and reconnect, so the group membership applies
-```
+2. **The site itself.** Open `https://<your app>.azurewebsites.net`. The map of Delhi
+   should draw with its zone overlays. If the page loads but the map is blank, the
+   **tiles** are failing — they come from OpenStreetMap directly to the browser, not
+   through the server, so check the browser console rather than the log stream.
 
----
+3. **One map question.** Click a point in central Delhi, type *"How much can I build
+   here?"*, ask. Expect an answer of a few sentences with clause chips you can click, or
+   an honest abstention. Either is a pass; a 500 is not.
 
-## 4. Move the image across
+4. **One agent question.** Switch to the question-only box and ask *"What can be built
+   near Hauz Khas metro?"*. Watch the tool trace appear: `locate_place`, `get_zones`,
+   `search_clauses`. This is the path that needs Nominatim, so it is also the slowest.
 
-No registry needed for one server. The image is about 1.2 GB, mostly model weights, and
-compresses to roughly 600 MB.
-
-```powershell
-docker save zonewise:latest | gzip > zonewise.tar.gz
-scp -i zonewise.pem zonewise.tar.gz ubuntu@YOUR_IP:~
-```
-
-```bash
-gunzip -c zonewise.tar.gz | docker load
-rm zonewise.tar.gz
-```
-
-If you would rather use a registry — which you will, the second time — push to ECR or
-GHCR and `docker pull` on the instance instead. The only reason this guide does not is
-that `docker save` needs no account.
+5. **`/api/dev/eval/questions` must be a 404.** If it is not, `ZONEWISE_DEV` is set.
 
 ---
 
-## 5. Run it
+## F. Updating it
 
-Put the key in a file on the instance, not in the run command. A key in the command line
-is in your shell history and in `docker inspect` output.
+**Code changed:**
 
-```bash
-mkdir -p ~/zonewise
-cat > ~/zonewise/zonewise.env <<'EOF'
-ANTHROPIC_API_KEY=sk-ant-...
-LLM_MODEL=claude-haiku-5-5
-RATE_LIMIT_PER_MINUTE=10
-RATE_LIMIT_PER_DAY=300
-CORS_ORIGINS=https://zonewise.example.com
-ABSTAIN_SIGNAL=dense_cosine
-ABSTAIN_THRESHOLD=0.5804
-USE_RERANKER=0
-EOF
-chmod 600 ~/zonewise/zonewise.env
-```
+1. `git push` (and run `scripts\check.ps1` first — the image build does not run the
+   tests).
+2. GitHub → Actions → **Image** → **Run workflow**.
+3. When it is green: portal → your web app → **Restart** (top bar). App Service pulls
+   `:latest` on restart.
 
-**`ZONEWISE_DEV` is not in that file and must not be.** It enables the question
-verification endpoints, which read and write the evaluation files (D-075).
+**Data changed** (you re-ran the pipeline, or the corpus changed):
 
-```bash
-docker run -d --name zonewise --restart unless-stopped \
-  --env-file ~/zonewise/zonewise.env \
-  -p 127.0.0.1:8000:8000 \
-  -v ~/zonewise/logs:/app/data/logs \
-  --memory 1500m \
-  zonewise:latest
-```
+1. `uv run python scripts\make_data_bundle.py` → note the new sha256.
+2. Upload the new zip to the `bundles` container.
+3. Generate a SAS URL for the **new blob** (B4 again).
+4. Update **both** `DATA_BUNDLE_URL` and `DATA_BUNDLE_SHA256` → **Apply**.
+5. **Restart**.
 
-Four things in that command earn their place:
+The old bundle can stay in the container; a few megabytes cost nothing, and it is what a
+rollback uses.
 
-- **`-p 127.0.0.1:8000:8000`** binds to localhost, so the container is reachable from
-  Caddy and not from the internet. Without the `127.0.0.1`, Docker opens the port in the
-  host firewall and your security group rules will not save you.
-- **`-v ~/zonewise/logs:/app/data/logs`** keeps the request log across restarts, which is
-  what `scripts/summarize_logs.py` reads.
-- **`--restart unless-stopped`** survives a reboot.
-- **`--memory 1500m`** means a leak kills the container, which then restarts, instead of
-  the kernel killing sshd.
-
-Check it:
-
-```bash
-curl -s localhost:8000/api/health
-docker logs zonewise --tail 20
-```
+**Rolling back the code:** set *Image and tag* to `<owner>/zonewise:<short sha>` of the
+earlier build and restart. That is what the short-SHA tag is for.
 
 ---
 
-## 6. HTTPS with Caddy
+## G. Cost, and how to stop paying
 
-```bash
-cat > ~/zonewise/Caddyfile <<'EOF'
-zonewise.example.com {
-	encode gzip
-	reverse_proxy localhost:8000
-}
-EOF
+| what | cost |
+| --- | --- |
+| App Service Basic B1, Linux | ~13 USD a month |
+| Blob storage, 8 MB + a few requests | a few cents a month |
+| Groq free tier | 0 |
+| GitHub Actions on a public repository | 0 |
 
-sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt-get update && sudo apt-get install -y caddy
+All of it comes out of the **100 USD student credit**, and **there is no card on file**,
+so the worst case is that the credit runs out and the app stops — not a bill.
 
-sudo cp ~/zonewise/Caddyfile /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
+**To take everything down:** portal → **Resource groups** → `zonewise-rg` → **Delete
+resource group** → type the name. That removes the web app, the plan and the storage
+account in one go. Nothing else was created anywhere.
 
-That is all of it. Caddy obtains the certificate on first request, redirects HTTP to
-HTTPS, and renews automatically. Open `https://zonewise.example.com`.
+To pause instead: web app → **Stop**. A stopped app still costs the plan's hourly rate,
+so to stop paying you delete it.
 
-If the certificate does not arrive: `sudo journalctl -u caddy -n 50`. It is almost always
-DNS not pointing at the instance yet, or port 80 closed.
+### Cost safety checklist
 
----
-
-## Alternative: Lightsail containers
-
-If you would rather not manage an instance, **Amazon Lightsail Containers** runs the
-same image with HTTPS and a domain included, from about **$10 a month** for the `micro`
-size (512 MB) or **$20** for `small` (1 GB). Push the image with
-`aws lightsail push-container-image`, set the environment variables in the console or in
-a deployment JSON, and point the public endpoint at port 8000.
-
-The trade-off is worth knowing: Lightsail gives you HTTPS, a load balancer and
-deployment history for roughly the price of the EC2 setup above, and takes away shell
-access and the persistent volume — so **the request log does not survive a deployment**.
-For a portfolio project that is usually the right trade. If you want the logs, use EC2.
-
-Do not use the `nano` size: 512 MB is below what the embedding model and the layers need.
+- [ ] **Confirm `RATE_LIMIT_PER_DAY` is set** and is a number you would be happy to
+      serve every day. This is the counter that bounds how many LLM calls the service
+      can make.
+- [ ] **Check `LLM_MODEL`.** `openai/gpt-oss-120b` on Groq's free tier is what this
+      project was measured on. A larger model on a paid provider is where a surprise
+      would come from.
+- [ ] **Set a budget alert**: portal → **Cost Management** → **Budgets** → **+ Add**,
+      25 USD a month with an email alert. So an app you forgot about tells you about
+      itself.
+- [ ] **Watch the request log for a week.** `scripts/summarize_logs.py` reads it. A
+      rising `weak_retrieval` share means people are asking things the corpus does not
+      cover; a rising `citation_check_failed` share means the model cannot ground
+      answers from what retrieval returns. Those want opposite responses.
+- [ ] **Remember the app works with no key at all.** Five of the seven endpoints need
+      none (D-050), so if you want the map, the zone lookup and clause search in public
+      with no API usage at all, leave `GROQ_API_KEY` unset. Questions return the clauses
+      to read, and the interface says so.
 
 ---
 
-## Updating
-
-```powershell
-# on the laptop, after changing code or rebuilding the data
-uv run pytest
-cd web; npm run build; cd ..
-docker build -t zonewise:latest .
-docker save zonewise:latest | gzip > zonewise.tar.gz
-scp -i zonewise.pem zonewise.tar.gz ubuntu@YOUR_IP:~
-```
-
-```bash
-gunzip -c zonewise.tar.gz | docker load
-docker stop zonewise && docker rm zonewise
-# then the same docker run command as above
-```
-
-There is a few seconds of downtime. For a project with one reader that is fine; the fix
-is two containers and a Caddy upstream switch, and it is not worth it yet.
-
----
-
-## Where things are on the server
+## Where things are, once it is running
 
 | what | where |
 | --- | --- |
-| the request log | `~/zonewise/logs/requests.jsonl` on the host |
-| the environment file | `~/zonewise/zonewise.env`, mode 600 |
-| container logs | `docker logs zonewise` |
-| Caddy's logs and certificates | `journalctl -u caddy`, `/var/lib/caddy` |
-| the indexes and model weights | inside the image, at `/app/data` |
+| the site | `https://<your app>.azurewebsites.net` |
+| what loaded, and peak memory | `/api/health` |
+| the live log | portal → web app → **Log stream** |
+| a shell in the container | portal → web app → **Development Tools** → **SSH** |
+| the request log | `/app/data/logs/requests.jsonl` **inside the container** |
+| the indexes and the layers | `/app/data`, extracted at startup |
+| the model weights | `/app/data/index/models`, baked into the image |
+| the image | `ghcr.io/<owner>/zonewise` |
+| the data bundle | the `bundles` container in your storage account |
 
-To read the request log:
+**The request log does not survive a restart.** App Service's container filesystem is
+ephemeral, and the log is written inside it. To read it before it goes, use the SSH
+console:
 
 ```bash
-docker exec zonewise python scripts/summarize_logs.py
+python scripts/summarize_logs.py
 ```
 
-It prints requests per endpoint, p50 and p95 latency, the abstention rate by reason and
-the most asked questions. **Watch the abstention breakdown**: a rising `weak_retrieval`
-share means people are asking things the corpus does not cover, and a rising
-`citation_check_failed` share means the model cannot ground answers from what retrieval
-returns. Those want opposite responses.
+Keeping it permanently would mean mounting an Azure Files share at `/app/data/logs`
+(web app → **Configuration** → **Path mappings**), which is a separate decision and is
+not part of this plan.
 
 ---
 
@@ -300,39 +424,55 @@ Two, both in memory, both from the environment:
 | variable | default | what it protects |
 | --- | --- | --- |
 | `RATE_LIMIT_PER_MINUTE` | 10 | one browser tab in a loop |
-| `RATE_LIMIT_PER_DAY` | 300 | **the API bill** |
+| `RATE_LIMIT_PER_DAY` | 300 | the API usage |
 
-The daily cap is the one that matters. It is a single counter for the whole service, it
-resets at midnight server time, and a request over it gets a 429 with a plain-English
-message rather than an error.
+The daily cap is one counter for the whole service, it resets at midnight in the
+container's timezone, and a request over it gets a 429 with a plain-English message.
 
-Both counters live in the process, so **they reset when the container restarts** and a
-second worker would have its own copy. That is why the Dockerfile runs one worker. If you
-ever need two, the counters have to move to Redis first, or the cap stops being a cap.
+Both counters live in the process, so **they reset when the container restarts**, and a
+second worker would have its own copy. That is why the image runs one worker. If you ever
+need two, the counters have to move to something shared first, or the cap stops being a
+cap.
+
+**The per-minute limit needs `TRUSTED_PROXY_HOPS=1` to mean anything here.** Behind App
+Service's proxy, the address the server sees is the proxy's for every request, so without
+that setting ten requests a minute from anyone would throttle every visitor at once
+(D-113).
 
 ---
 
-## Cost safety checklist
+## Alternatives, with the same image
 
-Work through all five. The first two are the ones that matter.
+**Azure Container Apps.** Same image, same app settings, and it has a monthly free grant
+that can make it cost nothing. The trade-off is **scale-to-zero**: after a quiet period
+the container is stopped, and the next visitor waits for the data download and the model
+load — a minute or so. For a portfolio project someone opens once, that first impression
+is the reason App Service with Always On was chosen instead (D-111). Create it with
+*Container Apps* → *Create*, point it at `ghcr.io/<owner>/zonewise:latest`, set the same
+environment variables, and set the ingress target port to 8000.
 
-- [ ] **Set a spend limit in the Anthropic console.** Not a budget alert — a hard limit.
-      This is the only control that cannot be defeated by a bug in this repository.
-- [ ] **Confirm `RATE_LIMIT_PER_DAY` is set** and that it is a number you would be happy
-      to pay for every day. 300 Haiku answers with six retrieved clauses each is a few
-      tens of cents; 300 Opus answers is not.
-- [ ] **Check `LLM_MODEL`.** The default is `claude-haiku-5-5` because the answering job
-      is short and extractive (D-063). An accidental Opus is roughly 50 times the cost
-      per answer.
-- [ ] **Set an AWS Budget** with an email alert at $25 a month, so an instance you forgot
-      about tells you about itself.
-- [ ] **Watch the log for a week.** `summarize_logs.py` shows requests per day against
-      the cap. A day at the cap means someone was refused.
+**Any Docker host** — a VM, a home server, a Raspberry Pi with enough RAM. Two commands,
+once Docker is installed:
 
-One more, less obvious: **the app is useful with no key at all.** Five of the seven
-endpoints need none (D-050), so if you want the map, the zone lookup and clause search in
-public without any spend, deploy with `ANTHROPIC_API_KEY` unset. Questions return the
-clauses to read rather than a written answer, and the interface says so.
+```bash
+docker pull ghcr.io/<owner>/zonewise:latest
+docker run -d --name zonewise --restart unless-stopped \
+  -p 8000:8000 \
+  -e GROQ_API_KEY=gsk_... \
+  -e DATA_BUNDLE_URL='https://...?sig=...' \
+  -e DATA_BUNDLE_SHA256=81e9... \
+  -e CORS_ORIGINS=https://your.domain \
+  -e TRUSTED_PROXY_HOPS=1 \
+  -v zonewise-logs:/app/data/logs \
+  ghcr.io/<owner>/zonewise:latest
+```
+
+Put a reverse proxy in front of it for HTTPS — [Caddy](https://caddyserver.com) gets a
+Let's Encrypt certificate from two lines of configuration (`your.domain { reverse_proxy
+localhost:8000 }`) and renews it without being asked. Bind the container to
+`127.0.0.1:8000` rather than `0.0.0.0` so only the proxy can reach it, and set
+`TRUSTED_PROXY_HOPS=1` because the proxy is the hop. Unlike App Service, a volume for
+`/app/data/logs` keeps the request log across restarts.
 
 ---
 
@@ -355,8 +495,9 @@ its own Nominatim or use a paid provider.
 **DDA GIS portal** — the zone boundaries. DDA states no licence or terms of use anywhere
 on the service, so ZoneWise **displays** the layers and does not redistribute them: the
 layer endpoints serve simplified geometry for drawing, and there is no bulk download
-endpoint. The map credits "Boundaries: DDA GIS portal" beside the OSM credit. Do not add a
-download route (D-030).
+endpoint. This is also why the layers travel in a **private** blob container rather than
+inside a public image or a public release asset (D-112). The map credits "Boundaries: DDA
+GIS portal" beside the OSM credit. Do not add a download route (D-030).
 
 **MPD-2047 and the court documents** — public records of the Government of India and the
 courts, quoted with document, clause and page number on every answer.

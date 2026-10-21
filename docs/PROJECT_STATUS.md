@@ -41,12 +41,16 @@ free-tier token limit reset). 17 answered, 6 declined, 0 failed, 123,276 tokens 
 `reports/manual_checks.md` judges them case by case, and fix round 1 (D-100 to D-107)
 is what came out of that reading.
 
-**Current test count: 554 pass** (fix round 1; it was 527 when `v1.0-rc1` was tagged).
+**Current test count: 628 pass, 1 skipped on Windows** (deployment preparation; 554 after fix round 1, 527 when `v1.0-rc1` was tagged).
 
 **Open items, in order.** Phase D — trying to break it, to run on the deployed app
 (`reports/manual_checks.md`, not done yet) — then Phase E — decide the reranker, Phase F
-— build and smoke-test the Docker image, and Phase G — deploy, record the demo GIF and
-make the repository public (all three as `reports/freeze_v1.0-rc1.md` lists them).
+— build the image, which is now a GitHub Actions run rather than a laptop `docker build`
+(D-115), and Phase G — deploy, record the demo GIF and make the repository public.
+**The deployment plumbing itself is done** (D-109 to D-115, `reports/deploy_prep.md`):
+the host is chosen, the image is code-only, the data travels as a bundle, and
+`docs/DEPLOY.md` is the click-by-click runbook. What has not happened is anyone running
+it.
 
 ---
 
@@ -88,7 +92,8 @@ Everything in this table exists, is tested, and runs.
 | **Dev eval screen** | [app/dev_eval.py](../app/dev_eval.py), [web/src/components/VerifyPanel.jsx](../web/src/components/VerifyPanel.jsx) | Four endpoints, **404 unless `ZONEWISE_DEV=1`** (D-075); writes `eval/questions_verified.jsonl` and never touches the draft |
 | **Frontend** | [web/](../web/) | React + Vite + react-leaflet; map, zone chips, answer panel, clause drawer, tool trace, legend, verify panel |
 | **Evaluation** | [eval/](../eval/README.md) | `metrics.py` (recall@k, MRR, bootstrap CIs), `run_eval.py` scoring four configurations |
-| **Deploy** | [Dockerfile](../Dockerfile), [docs/DEPLOY.md](DEPLOY.md) | Two-stage build carrying the built data; EC2 + Caddy runbook with a cost-safety checklist |
+| **Deploy** | [Dockerfile](../Dockerfile), [app/data_bootstrap.py](../app/data_bootstrap.py), [scripts/make_data_bundle.py](../scripts/make_data_bundle.py), [docs/DEPLOY.md](DEPLOY.md) | Two-stage build carrying **code only**; the runtime data is a zip in private blob storage, fetched and checksummed at startup (D-112, D-114); Azure App Service B1 runbook with a cost-safety checklist |
+| **Image CI** | [.github/workflows/image.yml](../.github/workflows/image.yml) | Builds and pushes `ghcr.io/<owner>/zonewise:latest` and `:<short sha>` on demand and on a `v*` tag (D-115) |
 | **CI** | [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Tests without data + frontend build, on every push |
 | **Windows helpers** | [scripts/rebuild_all.ps1](../scripts/rebuild_all.ps1), [dev.ps1](../scripts/dev.ps1), [check.ps1](../scripts/check.ps1) | Rebuild the pipeline, start both servers, run all three checks |
 
@@ -145,7 +150,7 @@ This is the section that decides what you are allowed to say about this project.
 | **No live answer has been read by a person.** 37 in `reports/live_answers_v1.md` and 18 more in `reports/live_answers_v2.md` (D-085, D-091). Every mechanical rule in both files is syntax, not judgement. **Two things make this the top of the list now.** v2's answers are *much* shorter — median 116 words → 42, median citations 2 → 1 — and whether that is prompt rule 8 removing unsupported padding or the model dropping detail a user wanted is a question only a reader can answer. And `demo-07` still answers a should-abstain question: 60 confident words at P_RIDGE, down from 134, citing clauses that do not say it. | Any claim about answer quality or citation accuracy. The answers exist, the structure is sound, and their correctness is unassessed |
 | **The sub-phrase geocoding fallback has never run live.** D-090 is covered by nine unit tests and nothing triggered it in v2: the agent asked `locate_place("Chhatarpur")` on its own, which is D-089's prompt fix, so the fallback was never reached. | Any claim that the fallback works outside its tests |
 | **The evaluation questions are unverified.** All 60 in `eval/questions_draft.jsonl` are `drafted_by: claude_code` and `verified: false`. They were written by Claude *from the chunks*, which is the one setup that flatters retrieval metrics. | Every retrieval number. This is the single biggest blocker |
-| **The Docker image has never been built.** The registry was unreachable; the `COPY` paths, `.dockerignore`, lockfile and the exact `CMD` were each verified another way (D-079). | Any claim that it deploys |
+| **The Docker image has never been built.** True of the rewritten one too (D-115): the sandbox that wrote it cannot reach a container registry. It was verified by reading it against the audit, by parsing its instructions, by running both python snippets it embeds, and by `tests/test_deploy_files.py`, which pins the dozen facts the deployment turns on. The first real build is the GitHub Actions run in step C of `docs/DEPLOY.md`. | Any claim that it deploys |
 
 
 ### So: there are no resume-quotable numbers yet
@@ -172,7 +177,7 @@ n, and saying the questions were human-verified.
 | Map layers | **8**, from DDA's GIS portal |
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
-| Tests | **554 pass**; 518 run with no data at all, 36 marked `needs_data` |
+| Tests | **628 pass, 1 skipped on Windows**; 591 run with no data at all, 38 marked `needs_data` |
 | Provider / model | **Groq**, `openai/gpt-oss-120b` (D-082). `LLM_PROVIDER=anthropic` still works unchanged |
 | Live answers recorded | **37** in v1 and **21** in v2, **none human-reviewed** (D-085, D-091) |
 | First-attempt citation pass rate | **100%** in v2 (18 of 18 answers), against 14% over the same cases in v1 |
@@ -327,9 +332,12 @@ dependency order:
 8. **Run the real evaluation** — the first quotable numbers.
 9. **Set the final abstention threshold** — and remove "provisional".
 10. **Decide on the reranker.**
-11. **Build and smoke-test the Docker image** — after step 1.
+11. **Build the image** — GitHub → Actions → Image → Run workflow. The first build of
+    a Dockerfile nobody has ever built (D-115).
 12. **Record a GIF** — [docs/DEMO.md](DEMO.md) is the script to follow.
-13. **Deploy** — `docs/DEPLOY.md`, including the cost-safety checklist.
+13. **Deploy** — `docs/DEPLOY.md`, steps A to E, including the cost-safety checklist.
+    The two values to carry from the laptop to the portal are the bundle's SAS URL and
+    its SHA-256.
 14. **Make the repo public and fix the CI badge** — `OWNER/REPO` is still a placeholder.
 15. **Write the resume numbers** — only from step 8, with n and the interval.
 
@@ -342,7 +350,7 @@ dependency order:
 | How it works, with diagrams | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | The documents, chunks, tags, layers | [docs/DATA.md](DATA.md) |
 | Every AI-engineering concept used, explained | [docs/LEARNING_NOTES.md](LEARNING_NOTES.md) |
-| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 85 entries |
+| Why any given choice was made | [DECISIONS.md](../DECISIONS.md) — 113 entries |
 | To demo it in 3 minutes | [docs/DEMO.md](DEMO.md) |
 | To deploy it | [docs/DEPLOY.md](DEPLOY.md) |
 | To verify evaluation questions | [eval/README.md](../eval/README.md) |

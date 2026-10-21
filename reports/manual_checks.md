@@ -54,8 +54,71 @@ The app ran locally with dev.ps1 at http://localhost:5173. The background map lo
 1. Referrer-Policy "no-referrer" will block the OpenStreetMap background in the deployed app (found in Phase B).
 2. Agent requests fail with HTTP 500 in the app (found in Phase A).
 
-## Phase C: judging the v3 answers
-(not done yet)
+### Phase A, added after the run
+- Agent 500, root cause: gpt-oss sometimes sends its final answer as a call to a tool named "JSON" that the request does not offer. Groq rejects it (400, tool_use_failed), and the app did not catch the error. It happens at random, which is why a later try worked. Fixed in fix round 1, task 1.
+- The same question ("How much of my plot can I build on?") used the TOD norms (4.2.3) at a TOD point and the general residential norms (7.2.1) at a zone G point. The location decides which rule answers.
+- In the zone G answer, the claim checker rated one sentence "partly" (a ground-coverage size tier). The answer text is not logged, so this was not verified.
+- In the Old Delhi test, 3.1.2 was retrieved at rank 1 and the location note was shown, but the model declined. Addressed in fix round 1, task 5.
+- At the Zone O point, 3 of the 6 retrieved clauses came from the NGT report. Removed in fix round 1, task 6.
+- Failed requests were not written to the request log. Fixed in fix round 1, task 1.
+
+## Phase C: judging the v3 answers (2026-10-21)
+First pass by Claude (the AI project lead) from reports/live_answers_v3.md. I then checked the four doubtful clauses myself with show_chunk.py: 3.1.2@p681, 7.2.1@p813, 4.4.3, and DHC_YAMUNA_20240708 chunks 1 and 2.
+
+Summary: of 17 answers, 8 right, 4 thin, 5 wrong. Of 6 declines, 5 right, 1 wrongly declined. Enforce mode would have changed none of the 5 wrong answers; its one "unsupported" call (demo-10, sentence 2) was correct.
+
+| case | verdict | why |
+| --- | --- | --- |
+| demo-01 | thin | 40% ground coverage on a TOD plot is right (4.2.3); no FAR |
+| demo-02 | right | HDC plot norms (4.3.3) |
+| demo-03 | wrong | says the High Court ordered demolition; the petitioner sought it (DHC chunk 1) |
+| demo-04 | right | 3.1.2 floodplain rules |
+| demo-05 | thin, misleading | 70% is the godowns figure (the highest across uses); residential is 15% (4.4.3) |
+| demo-06 | wrong (one detail) | FAR 10, 15% and 10 m are right, but it calls the 18 m minimum road width a "rear setback"; setbacks are 15 m front and 5 m on the other sides |
+| demo-07 | wrong, should have declined | applies 3.1.2's floodplain list of allowed uses to the Ridge; 3.1.2's only Ridge mention is the Ridge-Yamuna cycling connector |
+| demo-08 | right | outside Delhi |
+| demo-09 | right | declined; not in the documents |
+| demo-10 | right, one overreach | sentence 2 equates Zone O with the active floodplain; the checker flagged it, and enforce would drop it |
+| demo-11 | right | 11.1.1 |
+| demo-12 | right | declined (should-decline case) |
+| demo-13 | wrong, misleading | tiers are right, but sentence 4 presents a regeneration-section FAR (4.6.5) as general, and sentence 5 (ISR) is irrelevant |
+| demo-14 | wrong | gives FAR 350 up to 250 sqm; 7.2.1 has 350 up to 100 and 300 for 100-250. The table is readable, so this is a model error |
+| demo-15 | right | 4.2.1 definitions |
+| demo-16 | right | land pooling participation |
+| agent-01 | thin | describes TOD policy mechanics, not what can be built |
+| agent-02 | wrongly declined | 3.1.2 was retrieved (S3) and the location note shown; it should have stated the rule |
+| agent-03 | thin | 40% only |
+| agent-04 | right | 40% for a TOD plot |
+| agent-05 | right to decline | no retrieved clause states a construction rule for the Ridge (the case was mislabelled "answerable") |
+| probe-01 | right | states 3.1.2 at a TOD point |
+| probe-02 | right to decline | same as agent-05 |
+
+Patterns:
+1. Misreading tables: a skipped row (demo-14), a misread column label (demo-06).
+2. Court orders: a party's request presented as the court's order (demo-03).
+3. A clause that only names a zone gets boosted there, and its rules are applied to the wrong zone (demo-07).
+4. Padding and misleading generalisation (demo-13, demo-05).
+5. Declining when the point is outside the named zone, despite having the clause (agent-02).
+Patterns 1, 2 and 5 are addressed by prompt instructions in fix round 1, task 5; pattern 3 is documented as a known limitation. The NGT report's retrieval noise is removed in task 6.
 
 ## Phase D: trying to break it
 (not done yet)
+
+---
+
+## Fix round 1 (2026-10-21)
+
+One round of minimal fixes, one commit per task, each for a defect a check above found.
+The full write-up is [fix_round_1.md](fix_round_1.md); the reasoning for each decision is
+in `DECISIONS.md` D-100 to D-107.
+
+| task | commit | what changed |
+| --- | --- | --- |
+| 1. Agent and provider errors | `b4b830d` | A final answer Groq rejected as a call to a tool named `JSON` is read back out of the error and validated normally, with no extra call (`app/llm.py`). `/api/ask` and `/api/agent` answer a provider failure with 503 and a short message the interface shows instead of "Request failed (500)". Every failed request is now logged with a one-line `error` field. 15 tests. |
+| 2. Referrer-Policy | `4844bfa` | The page keeps `no-referrer`; the OSM tile layer carries `referrerPolicy="strict-origin-when-cross-origin"`, which Leaflet 1.9 puts on each tile `<img>`. Needs a browser check on the deployed build. 2 tests. |
+| 3. Empty lists in the answer panel | `0afd2de` | **No code change.** Both lists already render text (clause label, pages and a snippet; tool name, input and summary). The empty bullets came from copying a collapsed `<details>`, which takes the summary and the list structure without the hidden children. |
+| 4. `SUPPORT_CHECK=enforce` | `10cd454` | Now the default, in `app/config.py`, `.env.example` and four docs. The checker itself is unchanged. Its limits are written down: `partly` is kept, so demo-14's wrong FAR tier and demo-06's mislabelled RoW both survive it. |
+| 5. Three prompt instructions | `9dd072d` | A zone mismatch alone is no longer a reason to decline (agent-02); every figure must carry the row and condition the clause gives it (demo-14, demo-06, demo-13); a court document's statements must be attributed to whoever made them (demo-03). Appended as rules 10-12 (map) and 11-13 (agent); nothing else in either prompt changed. 4 tests. |
+| 6. The NGT report leaves the index | `f060fd5` | `NGT_OA572_GNCTD_REPORT` marked `include=no` with its reason and the pipeline re-run: **653 chunks**, with the 47 removed ids verified as exactly the NGT ones and every other id unchanged. Counts updated in README, `docs/DATA.md`, `docs/PROJECT_STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, the Dockerfile, the footer and the `search_clauses` description. **0 of 60 draft eval questions** referenced an NGT chunk, so none was removed. |
+| 7. Records and docs | `TASK7` | The v3 run marked complete (23 of 23) in `docs/PROJECT_STATUS.md`, `reports/freeze_v1.0-rc1.md` and `reports/README.md`; agent-05 and probe-02 now expect "either"; this Phase C section and the Phase A addendum; README's known limitations. |
+| 8. Verification run | `TASK8` | See [fix_round_1.md](fix_round_1.md) for the case-by-case result against the pass criteria. |

@@ -441,7 +441,9 @@ one.
   else gets half replaced by one about the floodplain. That fixed a measured miss and
   cost something — a question whose subject *is* the place now does worse, which
   `reports/diagnosis_fuel_station.md` § 5 measures.
-- **English only.** The gazette's Hindi half is skipped.
+- **English only.** The gazette's Hindi half is skipped at extraction, so the whole
+  corpus is English and **a question asked in Hindi is not supported**: nothing in the
+  index can match it, and the honest outcome is a refusal.
 - **The abstention threshold is provisional** (D-071), and the honest finding behind it
   is that no single retrieval score separates the unanswerable questions from the
   answerable ones cleanly. The configured value only catches a total retrieval failure;
@@ -460,6 +462,44 @@ one.
 - **The Docker image has not been built.** The Dockerfile's paths, its `.dockerignore`
   and the exact command it runs were all verified, but the build itself needs a registry
   this was not able to reach (D-079).
+
+### Known limitations of the answers
+
+The 23 answers of the third live run were read one by one on 21 October 2026
+([reports/manual_checks.md](reports/manual_checks.md), Phase C): of 17 answers, 8 were
+right, 4 thin, 5 wrong. These are the faults that read found, in plain terms. Most are
+not fixed; they are known.
+
+- **A table that runs across a page break can lose its header row**, and a merged cell
+  shows its value only in the row it starts in. The chunk still has the numbers; what it
+  can lack is the label above them.
+- **The model can misread a table.** It has skipped a row — giving FAR 350 for plots up
+  to 250 sqm where clause 7.2.1 gives 350 up to 100 sqm and 300 above that (demo-14) —
+  and misread a column label, calling an 18 m minimum road width a "rear setback"
+  (demo-06).
+- **In a court order, the model can credit a party's request to the court.** One answer
+  said the Delhi High Court had ordered demolition where the cited text says the
+  petitioner asked for it (demo-03).
+- **A clause that only mentions a zone is boosted at that zone's points, and its rules
+  can then be applied to the wrong zone.** Clause 3.1.2 is tagged `ridge` because it
+  mentions a Ridge-Yamuna cycling connector, so at a Ridge point the floodplain's rules
+  were applied to the Ridge (demo-07). The claim check does not catch this: every
+  sentence really is stated by the clause it cites, and the clause is simply about
+  somewhere else.
+- **Answers can carry side facts, or quote the highest figure across uses.** One answer
+  gave 70% ground coverage, which is the figure for godowns, where the question was
+  about housing at 15% (demo-05); another presented a FAR from the regeneration section
+  as a general rule (demo-13).
+- **The claim check is a guard, not a proof.** It drops a sentence its own clause does
+  not state (`SUPPORT_CHECK=enforce`, D-103), but a sentence it rates "partly" is kept,
+  so a wrong figure or a dropped condition survives it. It is also a model checking a
+  model.
+- **Free-tier rate limits make answers slow.** On Groq's free tier the tokens-a-minute
+  bucket, not the model, sets the pace: a run's first question answers in a few seconds
+  and later ones can take much longer.
+- **Not legal advice.** ZoneWise reports what the published documents say, with the
+  clause and page behind every sentence. Read the clause, and check with DDA before
+  acting on any of it.
 
 ---
 

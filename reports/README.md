@@ -23,7 +23,7 @@ Read these. They describe the system as it stands.
 
 | Report | What it is |
 | --- | --- |
-| [live_answers_v3.md](live_answers_v3.md) | **The current real-model answers — partial** (20 Oct 2026, frozen at `v1.0-rc1`): the 16 DEMO and agent cases plus 2 new location-note probes, re-run after D-092 to D-096, through Groq's `openai/gpt-oss-120b`. **16 of 23 cases**; the run stopped on Groq's free-tier limit, not by hand. Opens with a case-by-case **v1-against-v2-against-v3 table and the totals**, including the claim check's shadow-mode verdicts and which cases `enforce` mode would have changed. Resume with `uv run python scripts\live_run.py --resume`; this file and its state file are rewritten when that finishes and stop being partial. **Still nobody has read these answers.** |
+| [live_answers_v3.md](live_answers_v3.md) | **The current real-model answers — complete** (20-21 Oct 2026, at `v1.0-rc1`): the 21 DEMO and agent cases plus 2 new location-note probes, re-run after D-092 to D-096, through Groq's `openai/gpt-oss-120b`. **23 of 23 cases** in 2 sittings: 17 answered, 6 declined, 0 failed, 123,276 tokens over 57 calls. Opens with a case-by-case **v1-against-v2-against-v3 table and the totals**, including the claim check's shadow-mode verdicts and which cases `enforce` mode would have changed. **These answers have now been read**, case by case, in Phase C of [manual_checks.md](manual_checks.md) — 8 right, 4 thin, 5 wrong of 17 answers, and 5 of 6 declines right — which is what fix round 1 acts on. |
 | [live_run_state_v3.json](live_run_state_v3.json) | The machine state behind the file above. Carries `location_note` and `support_check` per case, and splits each case's tokens into the answering call's and the claim check's (D-097). |
 | [citation_failures_v1.md](citation_failures_v1.md) | **Why the v1 citation retries happened** (20 Oct 2026). Opens by saying what v1 **cannot** answer and why, then gives the part that is exact: 22 map-mode answers reached the citation check, **4 passed and 18 failed**. Its most useful finding was not the one it was looking for — **prompt rules 2 and 6 contradict each other**. Regenerate with `uv run python scripts\classify_citation_failures.py`. |
 | [diagnosis_fuel_station.md](diagnosis_fuel_station.md) | **Why clause 11.1.1 did not come back at P_ZONEO** (20 Oct 2026). Names the step responsible — query expansion — explains the mechanism, and records the fix that was then **applied** as D-086, including **what it cost**: a question whose subject *is* the place now does worse. Regenerate the tables with `uv run python scripts\diagnose_fuel_station.py`. |
@@ -81,7 +81,7 @@ uv run python scripts\live_run.py --state reports\live_run_state_v3.json `
 ```
 
 `--resume` continues one that stopped on its budget — **v3 needs exactly this**, at 16 of
-23 cases, frozen partial at `v1.0-rc1` (L1). `--groups abd` is the 16 DEMO and agent cases
+23 cases, complete at `v1.0-rc1`. `--groups abd` is the 21 DEMO and agent cases
 plus the 2 location-note probes D-094 and D-097 added; `--compare` takes a
 comma-separated list, so v3's report can show v1, v2 and v3 side by side.
 

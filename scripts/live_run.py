@@ -113,6 +113,15 @@ SAMPLE_PER_CATEGORY = 10
 #: Prompt rule 7 asks for under 200 words. Longer than this is worth a human look.
 LONG_ANSWER_WORDS = 200
 
+#: Why the two Ridge cases, agent-05 and probe-02, expect "either" rather than an
+#: answer: there is nothing in the index for an answer to be built out of, so an
+#: abstention is right and so is an answer from a clause that really does state a Ridge
+#: rule, if one is ever found (D-106).
+RIDGE_REASON = (
+    "no indexed clause states a construction rule for the Ridge, and 3.1.2's only "
+    "Ridge mention is the Ridge-Yamuna cycling connector"
+)
+
 # --- group a: every question docs/DEMO.md lists ---------------------------------
 #
 # `expect` is what docs/DEMO.md says *should* happen, and it is the only opinion in
@@ -149,14 +158,25 @@ DEMO_CASES = (
 # the agent land in the right part of Delhi", not a precision test. Two of the five go
 # through the gazetteer and one of those is an interchange, which is the live test of
 # D-084.
+#
+# `expect` is per case, as it is for the DEMO cases, because agent-05 is not an
+# answerable question: RIDGE_REASON says why (D-106).
 
 AGENT_CASES = (
-    ("What can be built near Hauz Khas metro?", 28.5438, 77.2059, 2000, "interchange, D-084"),
+    (
+        "What can be built near Hauz Khas metro?",
+        28.5438,
+        77.2059,
+        2000,
+        "answer",
+        "interchange, D-084",
+    ),
     (
         "Can I build a house on the Yamuna floodplain near ITO?",
         28.6283,
         77.2410,
         3000,
+        "answer",
         "the floodplain, named in words",
     ),
     (
@@ -164,6 +184,7 @@ AGENT_CASES = (
         28.6327,
         77.2193,
         2000,
+        "answer",
         "gazetteer, a plain station",
     ),
     (
@@ -171,6 +192,7 @@ AGENT_CASES = (
         28.5519,
         77.0586,
         2000,
+        "answer",
         "gazetteer, the D-049 query",
     ),
     (
@@ -178,7 +200,8 @@ AGENT_CASES = (
         28.5067,
         77.1750,
         4000,
-        "a Ridge question with no pin",
+        "either",
+        f"a Ridge question with no pin; {RIDGE_REASON} (D-106)",
     ),
 )
 
@@ -205,9 +228,32 @@ PROBE_AGENT_CASES = (
         28.5067,
         77.1750,
         4000,
-        "probe: the same question as agent-05, re-asked with the note in place (D-094)",
+        f"probe: the same question as agent-05, re-asked with the note in place "
+        f"(D-094); {RIDGE_REASON} (D-106)",
     ),
 )
+
+
+def select_cases(
+    cases: list[dict], only: str = "", wanted: str = ""
+) -> tuple[list[dict], list[str]]:
+    """The cases to run, and any id in `wanted` that is not a case id at all.
+
+    `wanted` is `--cases`: an explicit comma-separated list of ids, in the order the
+    cases are defined rather than the order they were typed, so a run's numbering is
+    always the case set's own. `only` is the older `--only` substring filter and is
+    ignored when `wanted` is given. An unknown id is returned rather than dropped: a
+    verification run told to check `demo-O3` must say so, not silently check nothing.
+    """
+    ids = [part.strip() for part in wanted.split(",") if part.strip()]
+    if not ids:
+        if only:
+            return [case for case in cases if only in case["id"]], []
+        return list(cases), []
+    known = {case["id"] for case in cases}
+    unknown = [case_id for case_id in ids if case_id not in known]
+    chosen = set(ids)
+    return [case for case in cases if case["id"] in chosen], unknown
 
 
 def now() -> str:
@@ -261,7 +307,9 @@ def build_cases() -> list[dict]:
             }
         )
 
-    for number, (question, lat, lon, radius, note) in enumerate(AGENT_CASES, start=1):
+    for number, (question, lat, lon, radius, expect, note) in enumerate(
+        AGENT_CASES, start=1
+    ):
         cases.append(
             {
                 "id": f"agent-{number:02d}",
@@ -273,7 +321,7 @@ def build_cases() -> list[dict]:
                 "lon": None,
                 "near": [lat, lon],
                 "radius_m": radius,
-                "expect": "answer",
+                "expect": expect,
                 "note": note,
             }
         )
@@ -1261,6 +1309,14 @@ def main() -> int:
     )
     parser.add_argument("--only", default="", help="run only cases whose id contains this")
     parser.add_argument(
+        "--cases",
+        default="",
+        help=(
+            "run only these case ids, comma separated, e.g. demo-03,agent-02. Wins "
+            "over --only. The case must be in --groups to be found"
+        ),
+    )
+    parser.add_argument(
         "--state", default=str(STATE_PATH), help=f"state file (default {STATE_PATH.as_posix()})"
     )
     parser.add_argument(
@@ -1317,8 +1373,11 @@ def main() -> int:
     if args.groups != "abcd":
         wanted = {letter for letter in args.groups.lower()}
         cases = [case for case in cases if case["group"][0] in wanted]
-    if args.only:
-        cases = [case for case in cases if args.only in case["id"]]
+    cases, unknown = select_cases(cases, args.only, args.cases)
+    if unknown:
+        print(f"--cases named {', '.join(unknown)}, which is not a case id in --groups "
+              f"{args.groups}. Nothing was called.")
+        return 1
     total = len(cases)
 
     state = load_state()

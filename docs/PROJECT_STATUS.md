@@ -29,13 +29,12 @@ in one round, and is followed by its own tag, `v1.0-rc2` — not folded into fur
 work. Documentation, `DECISIONS.md` and reports are not frozen; this entry and the parts
 of this page below it are an example of the kind of change that still happens.
 
-**The v3 live run is partial: 16 of 23 cases.** It stopped on Groq's free-tier token
-limit, not by hand and not on an error (`reports/live_run_state_v3.json`,
-`reports/live_answers_v3.md`). Resume it with:
-
-```powershell
-uv run python scripts\live_run.py --resume
-```
+**The v3 live run is complete: 23 of 23 cases** (resumed on 21 October after the
+free-tier token limit reset). 17 answered, 6 declined, 0 failed, 123,276 tokens over
+57 LLM calls in 2 sittings (`reports/live_run_state_v3.json`,
+`reports/live_answers_v3.md`). Its answers have now been read: Phase C of
+`reports/manual_checks.md` judges them case by case, and fix round 1 (D-100 to D-107)
+is what came out of that reading.
 
 **Current test count: 527 pass** (D-096; confirmed again when `v1.0-rc1` was tagged).
 

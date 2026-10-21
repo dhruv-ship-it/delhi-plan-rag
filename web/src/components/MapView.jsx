@@ -59,6 +59,12 @@ export default function MapView({ marker, onPick, visible, onLayerError }) {
             ' contributors &middot; Boundaries: <a href="https://gis.dda.org.in/">DDA GIS portal</a>'
           }
           maxZoom={18}
+          // The page sends no referrer at all (app/api.py), and OpenStreetMap blocks
+          // tile requests that arrive without one. Leaflet 1.9's per-layer option puts
+          // referrerpolicy on each tile <img>, which overrides the document policy for
+          // these requests only: OSM gets the site's origin, and nothing else on the
+          // page leaks anything (D-101).
+          referrerPolicy="strict-origin-when-cross-origin"
         />
         <ClickHandler onPick={onPick} />
 

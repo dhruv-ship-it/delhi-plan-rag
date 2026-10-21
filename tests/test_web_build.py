@@ -45,6 +45,27 @@ def test_the_dev_server_proxies_the_api_to_the_backend() -> None:
 
 
 @needs_build
+def test_the_osm_tile_layer_sends_the_origin_as_its_referrer() -> None:
+    """OpenStreetMap blocks tiles requested with no Referer, and the page sends none.
+
+    Leaflet 1.9 takes `referrerPolicy` per tile layer, so the fix is one attribute on
+    the tile images rather than a weaker policy for the whole page (D-101). The pinned
+    leaflet version is checked here too, because the option exists only from 1.7.
+    """
+    source = (WEB / "src" / "components" / "MapView.jsx").read_text(encoding="utf-8")
+    assert 'referrerPolicy="strict-origin-when-cross-origin"' in source
+    assert "tile.openstreetmap.org" in source
+    package = json.loads((WEB / "package.json").read_text(encoding="utf-8"))
+    assert package["dependencies"]["leaflet"] == "^1.9.4"
+
+
+def test_the_page_itself_still_sends_no_referrer() -> None:
+    """The header is the page default and is not weakened by the tile fix (D-101)."""
+    from app.api import SECURITY_HEADERS
+
+    assert SECURITY_HEADERS["Referrer-Policy"] == "no-referrer"
+
+
 def test_the_built_page_is_served_at_the_root() -> None:
     """`npm run build` then uvicorn should give a working app on one port."""
     with TestClient(__import__("app.api", fromlist=["app"]).app) as client:

@@ -303,7 +303,10 @@ SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     # nothing here should ever be framed by another site
     "X-Frame-Options": "DENY",
-    # a question is in the URL of nothing, but a referrer still leaks the origin
+    # a question is in the URL of nothing, but a referrer still leaks the origin.
+    # The page default stays no-referrer; the map's tile <img> elements carry their own
+    # referrerpolicy, because OpenStreetMap blocks tiles requested without a Referer
+    # (web/src/components/MapView.jsx, D-101).
     "Referrer-Policy": "no-referrer",
     # no part of this app needs a camera, a microphone or a location permission
     "Permissions-Policy": "geolocation=(), camera=(), microphone=()",

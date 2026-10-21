@@ -10,9 +10,14 @@ If you read one section, read [What a human has checked](#3-what-a-human-has-che
 
 ---
 
-## Frozen for evaluation (v1.0-rc1)
+## Frozen for evaluation (v1.0-rc2)
 
-**The repository is tagged `v1.0-rc1`.** From this point, no change to retrieval,
+**The repository is tagged `v1.0-rc2`.** Fix round 1 (D-100 to D-107) is complete, and
+D-108 closes it: no further prompt or retrieval change before the evaluation runs,
+because demo-12 flipped between declining and answering under byte-identical retrieval
+and prompt (D-107), so a single run cannot tell a fix from noise, and repeated runs
+exceed the free Groq budget. Remaining answer failures are documented as known
+limitations rather than chased further. From this point, no change to retrieval,
 chunking, prompts, the model or any threshold until the evaluation on
 `eval/questions_verified.jsonl` has run — a score against a target that keeps moving
 proves nothing about the target. Three settings are deliberately left open, each decided
@@ -37,6 +42,11 @@ free-tier token limit reset). 17 answered, 6 declined, 0 failed, 123,276 tokens 
 is what came out of that reading.
 
 **Current test count: 554 pass** (fix round 1; it was 527 when `v1.0-rc1` was tagged).
+
+**Open items, in order.** Phase D — trying to break it, to run on the deployed app
+(`reports/manual_checks.md`, not done yet) — then Phase E — decide the reranker, Phase F
+— build and smoke-test the Docker image, and Phase G — deploy, record the demo GIF and
+make the repository public (all three as `reports/freeze_v1.0-rc1.md` lists them).
 
 ---
 

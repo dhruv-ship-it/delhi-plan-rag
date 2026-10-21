@@ -1386,3 +1386,11 @@ The input to that third call was identical to v3's: same six clauses in the same
 **demo-07 remains the known limitation, as expected.** It answered, and its first sentence applies 3.1.2's restricted-development list to the Ridge. It did move: v3 built its answer from a Regional Park definition, a park built-up ceiling and a drain-buffer rule, and this run cites 3.1.2 and 10.2.1, which is at least the Regional Park's own section. `enforce` would not have changed it, in v3 or now. Documented in README.
 
 Rejected: reverting all of task 5 on the demo-12 trigger alone (the rule says to revert the instruction *responsible*, and two controlled re-runs show none of them is — reverting would have thrown away demo-14's and demo-03's measured fixes to fix nothing); re-running the whole 12 after the revert (the budget would not cover it and only three cases could be affected by the instruction removed); re-running demo-12 five more times to measure how often it declines (that is a study of the model's variance, which is worth doing and is not a fix round's job); chasing 3.1.2's lost rank by changing retrieval (frozen by D-099, and this is exactly the kind of finding the verified-question evaluation exists to settle); and deleting `fix1b` and `fix1c` now that they changed nothing (they are the evidence for not reverting, and a decision whose evidence is thrown away is an assertion).
+
+---
+
+## D-108 · 2026-10-21 · No further prompt or retrieval changes before the evaluation
+
+**Decision.** No further prompt or retrieval changes before the evaluation.
+
+**Why.** demo-12 flipped between declining and answering under byte-identical retrieval and prompt (D-107), so a single run cannot tell a fix from noise, and repeated runs exceed the free Groq budget. Remaining answer failures are documented as known limitations.

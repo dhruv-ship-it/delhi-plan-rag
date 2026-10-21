@@ -122,3 +122,30 @@ in `DECISIONS.md` D-100 to D-107.
 | 6. The NGT report leaves the index | `f060fd5` | `NGT_OA572_GNCTD_REPORT` marked `include=no` with its reason and the pipeline re-run: **653 chunks**, with the 47 removed ids verified as exactly the NGT ones and every other id unchanged. Counts updated in README, `docs/DATA.md`, `docs/PROJECT_STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, the Dockerfile, the footer and the `search_clauses` description. **0 of 60 draft eval questions** referenced an NGT chunk, so none was removed. |
 | 7. Records and docs | `0731c53` | The v3 run marked complete (23 of 23) in `docs/PROJECT_STATUS.md`, `reports/freeze_v1.0-rc1.md` and `reports/README.md`; agent-05 and probe-02 now expect "either"; this Phase C section and the Phase A addendum; README's known limitations. |
 | 8. Verification run | `4f2b291` | See [fix_round_1.md](fix_round_1.md) for the case-by-case result against the pass criteria. |
+
+---
+
+## Fix round 1 results (2026-10-21)
+
+Twelve cases re-asked against the rebuilt 653-chunk index, `SUPPORT_CHECK=enforce`,
+Groq `openai/gpt-oss-120b`: 8 answered, 4 declined, 0 failed. Full detail in
+[fix_round_1.md](fix_round_1.md) and `reports/live_answers_fix1.md`; reasoning in
+`DECISIONS.md` D-107.
+
+| pass criterion | result | what happened |
+| --- | --- | --- |
+| demo-14's FAR tiers match 7.2.1, or leave tiers out | PASS | Every tier given row by row, matching the table. |
+| demo-03 does not say the court ordered demolition | PASS | Now cites the court's own direction, not the petitioner's prayer. |
+| demo-04 and demo-10 still state 3.1.2 and 11.1.1 correctly | PASS | Both correct; `enforce` dropped demo-10's one incorrect sentence. |
+| agent-05 and probe-02 decline, or answer only from a clause that states a Ridge rule | PASS | Both declined. |
+| demo-12 still declines | FAIL | Answered; not caused by any instruction (D-107). |
+| demo-06 does not call the 18 m RoW a setback | FAIL | Still calls it a "rear-of-site (RoW) setback". |
+| agent-02 answers with 3.1.2's no-construction rule, and the note is shown | FAIL | The note was shown, but 3.1.2 was not retrieved at all. |
+| demo-07 — record the outcome | as expected | Still answers, applying 3.1.2's restricted-development list to the Ridge. |
+
+**README's known limitations gained four points**, found by this verification run:
+the model's own inconsistency (demo-12 answered and declined on byte-identical input
+across runs), Ridge questions being the least reliable, a named zone's rules not
+always being retrieved for a point outside it (3.1.2 at ITO and `P_TOD`, since the
+corpus shrank), and the figures instruction reducing misread figures without
+eliminating them (demo-06).

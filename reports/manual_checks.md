@@ -40,8 +40,19 @@ Sample: tag_sample.md (30 tagged chunks, seed 7).
 - ANSWERED, DEFECT: app/api.py sets "Referrer-Policy: no-referrer" on every response. When FastAPI serves the built app (deployment), browsers send no Referer, so OpenStreetMap will block the background map. Dev mode (Vite on :5173) is not affected. To fix in the fix round.
 - The NGT file is named OA 572, but its garbled text mentions No. 537/2023. Check the first page of that PDF.
 
-## Phase A: using the app
-(not done yet)
+## Phase A: using the app (2026-10-21)
+The app ran locally with dev.ps1 at http://localhost:5173. The background map loads in dev mode.
+
+- TOD question ("How much of my plot can I build on?"): pin at 28.6217, 77.1405, about 8 km west of Connaught Place. Chips: Planning zone B, Inside TOD zone. The answer has 5 cited sentences: 40% maximum ground coverage on a TOD plot, setbacks, 10% green space, parking norms, and the 2,000 sqm minimum TOD plot. Its citations open clause 4.2.3 (pages 751-754). I checked them, and the sentences match. 1 model call, 4.0 s.
+- Floodplain inside Zone O ("Can I build on the Yamuna floodplain here?"): the answer says the active floodplain is a no-construction zone, citing clause 3.1.2 [1] and the Delhi High Court order [2]. I checked both citations, and both match.
+- The same question away from the river (Old Delhi, about 2 km from Zone O): the yellow location note appears ("not inside Zone O ... nearest boundary about 2.0 km away").
+- Outside Delhi: no answer, as expected.
+- Agent ("What can be built near Hauz Khas metro?"): FAILED twice with "Request failed (500)". The same question was answered in the v3 live run, so the failure is in the app's request path. Cause pending; see the defects list.
+- Map checks carried over from B3, now with a background map: the TOD strips follow the metro corridors, and the high density corridor runs along the west and north edges (UER-II).
+
+### Defects found so far (for the fix round)
+1. Referrer-Policy "no-referrer" will block the OpenStreetMap background in the deployed app (found in Phase B).
+2. Agent requests fail with HTTP 500 in the app (found in Phase A).
 
 ## Phase C: judging the v3 answers
 (not done yet)

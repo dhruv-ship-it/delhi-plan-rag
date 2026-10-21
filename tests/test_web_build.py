@@ -66,6 +66,7 @@ def test_the_page_itself_still_sends_no_referrer() -> None:
     assert SECURITY_HEADERS["Referrer-Policy"] == "no-referrer"
 
 
+@needs_build
 def test_the_built_page_is_served_at_the_root() -> None:
     """`npm run build` then uvicorn should give a working app on one port."""
     with TestClient(__import__("app.api", fromlist=["app"]).app) as client:

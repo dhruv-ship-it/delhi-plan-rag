@@ -64,9 +64,9 @@ Everything in this table exists, is tested, and runs.
 | **Config** | [app/config.py](../app/config.py) | One frozen `Settings`, every value readable from `.env`; a malformed value falls back rather than stopping the server (D-065) |
 | **LLM wrapper** | [app/llm.py](../app/llm.py) | The only module that imports `anthropic` or `openai`. `LLM_PROVIDER` picks Anthropic or **Groq** (D-082); `GroqLLM` translates both ways so nothing else knows which; `FakeLLM` is the scripted stand-in every test uses. `json_object` asks for Groq's JSON mode, confirmed live on `gpt-oss-120b` (D-088) |
 | **PDF extraction** | [app/extract.py](../app/extract.py), [app/cleaning.py](../app/cleaning.py) | 560 pages extracted from 4 indexed documents, 1-based page numbers throughout |
-| **Chunking** | [app/chunking.py](../app/chunking.py) | 700 chunks, cut on the documents' own headings. Five systematic defects found and fixed by audit (D-066) |
+| **Chunking** | [app/chunking.py](../app/chunking.py) | 653 chunks, cut on the documents' own headings. Five systematic defects found and fixed by audit (D-066) |
 | **Audit** | [app/audit.py](../app/audit.py), [scripts/audit_chunks.py](../scripts/audit_chunks.py) | Eight mechanical quality checks with examples; before/after reports in `reports/` |
-| **Zone tagging** | [app/tagging.py](../app/tagging.py) | Six topics; 227 of 700 chunks tagged. Four may exclude, two may only boost |
+| **Zone tagging** | [app/tagging.py](../app/tagging.py) | Six topics; 207 of 653 chunks tagged. Four may exclude, two may only boost |
 | **Indexes** | [app/indexing.py](../app/indexing.py) | Chroma (700 × 384-dim vectors) + BM25 pickle, both local and persistent |
 | **Retrieval** | [app/retrieval.py](../app/retrieval.py) | Hybrid search, RRF at k=60, raw per-index scores carried on every result |
 | **Query expansion scope** | [app/location.py](../app/location.py) | Only the **four** topics with a policy section expand the query — the same four that may exclude (D-086) |
@@ -156,7 +156,7 @@ n, and saying the questions were human-verified.
 
 | | |
 | --- | --- |
-| Documents indexed | **4** of 13 in `data/sources.csv` (gazette, FAQ, 1 court order, 1 NGT report) |
+| Documents indexed | **3** of 13 in `data/sources.csv` (gazette, FAQ, 1 court order). The GNCTD report to the NGT was removed on 21 Oct 2026: unreadable OCR (D-105) |
 | Pages extracted | **560** |
 | Chunks | **700** (162,436 words, 232 words a chunk average) |
 | Chunks carrying a zone tag | **227** (32.4%) |

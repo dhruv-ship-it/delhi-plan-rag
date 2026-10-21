@@ -298,7 +298,7 @@ export default function App() {
             {health?.chunks ? (
               <span>
                 {health.chunks} clauses indexed from the MPD-2047 gazette, the DDA FAQs, a
-                Delhi High Court order and a GNCTD report to the NGT.
+                Delhi High Court order.
               </span>
             ) : null}
           </footer>

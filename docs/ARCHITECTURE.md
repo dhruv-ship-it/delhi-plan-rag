@@ -26,7 +26,7 @@ flowchart TB
     CMAP --> CHUNK
     CLEAN --> CHUNK["app/chunking.py<br/>chunk_gazette()<br/>chunk_faq()<br/>chunk_paragraph_document()"]
     CHUNK --> SPLIT["merge_small_sections()<br/>fold_heading_only_sections()<br/>split_section()"]
-    SPLIT --> CHUNKS["data/processed/chunks.jsonl<br/>700 chunks"]
+    SPLIT --> CHUNKS["data/processed/chunks.jsonl<br/>653 chunks"]
 
     CHUNKS --> AUDIT["scripts/audit_chunks.py<br/>app/audit.py, 8 checks"]
     AUDIT --> REP["reports/chunk_audit_*.md"]
@@ -37,7 +37,7 @@ flowchart TB
 
     CHUNKS2 --> DENSE["indexing.build_dense_index()<br/>fastembed passage_embed"]
     CHUNKS2 --> SPARSE["indexing.build_bm25_index()<br/>indexing.tokenize()"]
-    DENSE --> CHROMA[("data/index/chroma<br/>700 vectors, cosine")]
+    DENSE --> CHROMA[("data/index/chroma<br/>653 vectors, cosine")]
     SPARSE --> PKL[("data/index/bm25.pkl<br/>11,126 tokens")]
 ```
 

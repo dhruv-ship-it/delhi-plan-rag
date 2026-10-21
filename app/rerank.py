@@ -2,14 +2,14 @@
 
 The two indexes in `app/retrieval.py` are both **bi-encoders** in the loose sense: the
 query and the chunk are turned into numbers separately and then compared. That is what
-makes them fast enough to search 700 chunks — the chunk vectors are computed once, at
+makes them fast enough to search the whole corpus — the chunk vectors are computed once, at
 index time — and it is also their limit, because the chunk's vector was computed without
 knowing the question. "What is the maximum ground coverage?" and "What is the minimum
 ground coverage?" have nearly the same embedding, and BM25 sees the same tokens.
 
 A **cross-encoder** reads the query and the chunk together, as one input, and returns one
-relevance score. It cannot be precomputed, so it cannot search a corpus — 700 chunks
-would be 700 forward passes per query. It can rescore a shortlist, which is what this
+relevance score. It cannot be precomputed, so it cannot search a corpus — 653 chunks
+would be 653 forward passes per query. It can rescore a shortlist, which is what this
 module does: fusion picks the top 20, the cross-encoder reorders them, and the top k of
 that is returned.
 

@@ -76,10 +76,10 @@ flowchart TB
         PDF["Source PDFs<br/>data/raw/"] --> EX["02_extract<br/>app/extract.py"]
         EX --> PAGES["pages.jsonl<br/>560 pages"]
         PAGES --> CH["03_chunk<br/>app/cleaning.py<br/>app/chunking.py"]
-        CH --> CHUNKS["chunks.jsonl<br/>700 chunks"]
+        CH --> CHUNKS["chunks.jsonl<br/>653 chunks"]
         CHUNKS --> TAG["04_tag_zones<br/>app/tagging.py"]
         TAG --> IDX["05_build_index<br/>app/indexing.py"]
-        IDX --> CHROMA[("Chroma<br/>700 vectors")]
+        IDX --> CHROMA[("Chroma<br/>653 vectors")]
         IDX --> BM25[("BM25<br/>11,126 tokens")]
         GIS["DDA GIS<br/>gis.dda.org.in"] --> FETCH["06_fetch_layers"]
         FETCH --> LAYERS[("8 GeoJSON layers")]
@@ -153,10 +153,10 @@ full list with download dates lives in `data/sources.csv`.
 
 | Source | Publisher | Use |
 | --- | --- | --- |
-| [Master Plan for Delhi 2047, gazette notification](https://dda.gov.in/sites/default/files/notice/275618.pdf) | MoHUA / DDA, 20 Aug 2026 | The plan itself. English pages 640-1144 of the bilingual gazette. 548 of the 700 chunks. |
+| [Master Plan for Delhi 2047, gazette notification](https://dda.gov.in/sites/default/files/notice/275618.pdf) | MoHUA / DDA, 20 Aug 2026 | The plan itself. English pages 640-1144 of the bilingual gazette. 546 of the 653 chunks. |
 | [FAQs on MPD-2047](https://dda.gov.in/sites/default/files/notice/faqs_on_mpd-2047.pdf) | DDA | 99 question-and-answer chunks. |
 | [Delhi High Court order, 8 July 2024](https://indiankanoon.org/doc/28108780/) | Delhi High Court | Yamuna floodplain encroachments. 8 chunks. |
-| [GNCTD report to the NGT, OA 572/2024](https://www.greentribunal.gov.in/) | GNCTD | Floodplain demarcation. 47 chunks. |
+| [GNCTD report to the NGT, OA 572/2024](https://www.greentribunal.gov.in/) | GNCTD | Floodplain demarcation. **Not indexed** since 21 Oct 2026: its text layer is unreadable OCR and it crowded out usable clauses (D-105). |
 | [DDA GIS portal](https://gis.dda.org.in/) | DDA | The zone polygons: NCT boundary, planning zones, TOD, HDC, land pooling, regional parks, low density areas. |
 | [OpenStreetMap](https://www.openstreetmap.org/copyright) via the Overpass API | OSM contributors | The Delhi Metro station gazetteer, used to resolve a place name without a geocoding request. |
 
@@ -268,7 +268,7 @@ powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1 -DryRun
 | `check.ps1` | Runs ruff, pytest and the frontend build, then prints one pass/fail summary. All three run even if an earlier one fails. Exit code 0 only if everything passed. |
 
 ```powershell
-# rebuild everything from the PDFs (5-10 minutes; most of it is embedding 700 chunks)
+# rebuild everything from the PDFs (5-10 minutes; most of it is embedding 653 chunks)
 powershell -ExecutionPolicy Bypass -File scripts\rebuild_all.ps1
 
 # print the steps without running any of them

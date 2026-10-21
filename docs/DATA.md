@@ -18,8 +18,7 @@ hand, and eight are deliberately out.
 | `MPD47_GAZETTE_EN` | Master Plan for Delhi 2047, gazette notification, 20 Aug 2026 | 1 — the law | 505 (640-1144) | 546 | 147,469 |
 | `MPD47_FAQ` | DDA's FAQs on MPD-2047 | 3 — FAQ | 20 | 99 | 5,485 |
 | `DHC_YAMUNA_20240708` | Delhi High Court order on Yamuna floodplain encroachments | 2 — court order | 3 | 8 | 730 |
-| `NGT_OA572_GNCTD_REPORT` | GNCTD report to the NGT on floodplain demarcation, OA 572/2024 | 3 — report | 32 | 47 | 8,752 |
-| | | | **560** | **700** | **162,436** |
+| | | | **528** | **653** | **153,684** |
 
 `authority_rank` is used by the answering prompt: when two sources disagree, the model
 is told to follow the lower rank and to say that they differ. 1 is the gazette, which is
@@ -32,6 +31,7 @@ the law; 2 a court order; 3 an FAQ or report that paraphrases.
 | `MPD47_PUBLICATION_EN` | The same plan text as the gazette. `scripts/compare_plan_versions.py` found 98% of sampled sentences word for word in the gazette, 100% ignoring punctuation, and every chapter heading matching. Indexing both would double-count every clause. The gazette also carries 152 extra pages of service plans and loses no pages to images, where the publication loses 31 (D-012). |
 | 6 × `MPD47_*_EXPLAINER` | Two-page image pamphlets with no text layer. The `likely_scanned` check found all six to be fully scanned (D-008). OCR is a separate decision that has not been taken. |
 | `NGT_YAMUNA_20250206` | The source URL returns 404. Listed with `include=no` so the gap is visible rather than forgotten. |
+| `NGT_OA572_GNCTD_REPORT` | **Removed from the index on 21 October 2026** (D-105). Its PDF text layer is low-quality OCR: both of the chunks that landed in Phase B's 20-chunk sample were unreadable, and in the v3 live run it filled 2 to 4 of the 6 retrieval slots in every case at the Zone O point. 47 chunks and 8,752 words left the corpus with it. |
 | `MPD47_LANDUSE_PLAN` | A map, not text. Kept in `data/reference/` for reading by hand. |
 
 ### The gazette's page range
@@ -158,7 +158,7 @@ the breadcrumb a question about TOD cannot reach it (D-022).
 **Chunk ids are deterministic and unique.** Clause numbers are not: the FAQ restarts at
 Q1 in each of its nine sections, and the nine service plans each number from 1.1 inside
 the same `doc_id`. An id that would repeat gets its page appended — `MPD47_FAQ:Q12@p16:0`
-— so all 700 are distinct (D-021). Re-running the pipeline on the same input produces a
+— so all 653 are distinct (D-021). Re-running the pipeline on the same input produces a
 byte-identical `chunks.jsonl`.
 
 ---
@@ -167,13 +167,13 @@ byte-identical `chunks.jsonl`.
 
 `app/tagging.py`. **Six topics**: `tod`, `hdc`, `zone_o`, `land_pooling`, `ridge`, `lda`.
 
-**227 of 700 chunks (32.4%) carry at least one zone tag.**
+**207 of 653 chunks (31.7%) carry at least one zone tag.**
 
 | Topic | Name | `zone_primary` | mentioned in text | either |
 | --- | --- | --- | --- | --- |
 | tod | Transit Oriented Development | 29 | 64 | 64 |
 | hdc | High Density Corridor | 36 | 47 | 53 |
-| zone_o | Zone O (Yamuna floodplain) | 0 | 54 | 54 |
+| zone_o | Zone O (Yamuna floodplain) | 0 | 34 | 34 |
 | land_pooling | Land Pooling | 23 | 55 | 63 |
 | ridge | the Ridge / Regional Park | 0 | 37 | 37 |
 | lda | Low Density Area | 15 | 31 | 37 |
@@ -286,13 +286,13 @@ it adds signal; it is still a word that could appear elsewhere in a future editi
 
 | Index | What | Size |
 | --- | --- | --- |
-| Chroma | 700 vectors, BAAI/bge-small-en-v1.5, 384 dimensions, cosine | 12.3 MB |
-| BM25 | 700 documents, 11,126 distinct tokens | 963 KB |
+| Chroma | 653 vectors, BAAI/bge-small-en-v1.5, 384 dimensions, cosine | 13.1 MB |
+| BM25 | 653 documents, 10,450 distinct tokens | 901 KB |
 | Model weights | downloaded once into `data/index/models` | 64 MB |
 
 Both run over `embed_text`. The keyword tokenizer keeps a dotted clause number whole, so
 searching "4.2.1" finds clause 4.2.1 rather than every chunk containing a 4, a 2 and a 1
-(D-027). Embedding all 700 chunks takes about 150 seconds on a laptop CPU.
+(D-027). Embedding all 653 chunks takes about 130 seconds on a laptop CPU.
 
 ---
 

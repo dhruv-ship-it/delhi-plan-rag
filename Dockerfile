@@ -2,7 +2,7 @@
 #
 # The image carries the **built data** — the Chroma store, the BM25 pickle, the cached
 # embedding and reranker weights, the map layers and the gazetteer — rather than building
-# it at startup. Embedding 700 chunks takes about 160 seconds on a CPU and downloading
+# it at startup. Embedding the corpus takes about 130 seconds on a CPU and downloading
 # the model takes longer, so a container that built its own index would spend three
 # minutes before its first request and do it again on every restart and every replica.
 # That means `docker build` has to run on a machine where the pipeline has already been

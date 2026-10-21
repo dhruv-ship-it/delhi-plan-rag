@@ -219,7 +219,7 @@ TOOLS: list[dict] = [
         "name": "search_clauses",
         "description": (
             "Search the Master Plan for Delhi 2047 gazette notification, the DDA FAQs, "
-            "a Delhi High Court order and a GNCTD report to the NGT, and return the "
+            "a Delhi High Court order, and return the "
             "clauses that match. Pass lat and lon whenever you have them: the search "
             "then drops rules that belong to zones the point is not in and favours "
             "rules that apply there. Put the subject of the question here, including "

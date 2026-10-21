@@ -430,7 +430,7 @@ because an unexpected extra call is a bug, not something to paper over."
 
 **What it is.** The two indexes in this project are **bi-encoders** in the loose sense:
 the question and the chunk are turned into numbers *separately* and then compared. That
-separation is what makes search possible at all — the 700 chunk vectors were computed
+separation is what makes search possible at all — the chunk vectors were computed
 once, at index time, so a query costs one embedding and a dot product against a stored
 matrix. It is also the limit: the chunk's vector was computed without any knowledge of
 the question. "What is the **maximum** ground coverage?" and "What is the **minimum**
@@ -646,7 +646,7 @@ re-resolve the dependency tree.
 
 Three other decisions in that file are worth knowing (D-079). It **bakes the built data
 in** — the Chroma store, the BM25 pickle, the cached model weights, the layers — rather
-than building at startup, because embedding 700 chunks takes about 160 seconds on a CPU
+than building at startup, because embedding the corpus takes about 130 seconds on a CPU
 and a self-building container would pay that on every restart and every replica; the
 cost is that `docker build` must run on a machine where the pipeline has already run,
 which `docs/DEPLOY.md` says first and in bold. It runs as a **non-root** user (uid

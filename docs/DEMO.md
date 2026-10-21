@@ -23,7 +23,7 @@ powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 
 Give the backend a few seconds — the indexes and the embedding model load before the
 first request. `http://localhost:8000/api/health` should say `status: ok` and
-`chunks: 700`.
+`chunks: 653`.
 
 The points are in `data/test_points.json`. Have them to hand, because clicking a precise
 coordinate on a map is the one thing that will make you fumble on camera:
@@ -121,7 +121,9 @@ mentions Zone O in passing, and it is not an answer to the question.
 
 **If you have 10 seconds more**, ask the sharper version: **"What are the rules for the
 active floodplain?"** puts 3.1.2 back at rank 1 with cosine **0.7854**, the highest at
-this point, followed by two chunks of the NGT report.
+this point. It used to be followed by two chunks of the GNCTD report to the NGT, which
+was removed from the index on 21 October because its text layer is unreadable OCR
+(D-105); expect usable clauses in those slots now.
 
 **Say, and this is the interesting part:** "Zone O is the one zone with *no policy
 section* in the Master Plan. The plan defines it and then only ever names it in other
@@ -132,7 +134,7 @@ either, because appending 'Zone O Yamuna floodplain' to a question about somethi
 replaced the question instead of qualifying it (D-086)."
 
 **If you are asked what that cost:** this beat used to open on 3.1.2 with a cosine of
-0.8489, and the NGT report was at rank 3. Both numbers were higher because the query
+0.8489, and the NGT report was at rank 3 (it is no longer indexed at all, D-105). Both numbers were higher because the query
 itself had the floodplain words appended to it. The trade is written up in
 `reports/diagnosis_fuel_station.md` § 5, and the question it bought back is in beat 3b
 below.
@@ -312,7 +314,7 @@ Two that **do** work and were left out only for time, worth keeping in your pock
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `503` on a question | no API key — expected in search-only mode | the clause list below it is the demo |
-| No chips, no results | backend still loading, or no index | check `http://localhost:8000/api/health` for `status: ok` and `chunks: 700` |
+| No chips, no results | backend still loading, or no index | check `http://localhost:8000/api/health` for `status: ok` and `chunks: 653` |
 | No map overlays | `data/layers/dda` is missing | `uv run python scripts\06_fetch_layers.py` |
 | Verify tab missing | `ZONEWISE_DEV` not set | restart with `scripts\dev.ps1 -Verify` |
 | Blank page at :5173 | Vite not running | look at the second PowerShell window |
@@ -320,4 +322,5 @@ Two that **do** work and were left out only for time, worth keeping in your pock
 The numbers in this file were observed on **19 October 2026** against 700 chunks with the
 reranker off, except beats 3, 3b and 5, which were re-run on **20 October** after D-086
 scoped query expansion to the four topics that have a policy section. If the pipeline is rebuilt, re-run the questions before trusting the clause
-ids — `reports/README.md` explains why a chunk count dates a report.
+ids — `reports/README.md` explains why a chunk count dates a report. **The corpus is now 653
+chunks** (D-105), so every rank and cosine in this file is from before that change.

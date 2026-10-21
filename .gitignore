@@ -37,3 +37,7 @@ data/reference/*.pdf
 # scripts/build_gazetteer.py, so the data itself is not committed (see D-073).
 data/gazetteer/*
 !data/gazetteer/.gitkeep
+
+# build products: the runtime data bundle written by scripts/make_data_bundle.py.
+# It carries the DDA layers and the built indexes, so it is never committed (D-112).
+dist/

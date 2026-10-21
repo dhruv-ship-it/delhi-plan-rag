@@ -1478,3 +1478,29 @@ Rejected: committing the data (CLAUDE.md rule 3, and the licence); a GitHub Rele
 Rejected: trusting the left-most entry (forgeable); `--proxy-headers` with `--forwarded-allow-ips=*` (trusts the header from any peer); keying the limiter on something other than an address (a cookie or a session is for a product with accounts); and defaulting `TRUSTED_PROXY_HOPS` to 1 (it would make the laptop trust a header anyone can send, and a setting that is unsafe by default is a setting that will be unsafe somewhere).
 
 **20 new tests**, every case of the parser and one end-to-end check that two visitors through one proxy get their own per-minute budgets.
+
+---
+
+## D-114 · 2026-10-22 · The bundle, and the bootstrap that unpacks it
+
+**Decision.** Two new pieces, implementing D-112.
+
+**`scripts/make_data_bundle.py`** writes `dist/zonewise-data-<YYYYMMDD>.zip` and prints its size, its SHA-256 and what is in it. The file list is `BUNDLE_PATTERNS` in `app/data_bootstrap.py` — the five runtime reads from section (a) of the audit, and nothing else. A `manifest.json` rides inside the zip with every file's path, size and SHA-256, plus the git commit the data was built from and the chunk count, because "which chunks are in this bundle" and "which code wrote them" are the same question and a zip in blob storage has no other way to answer it. `dist/` is gitignored. The first bundle: **40 files, 8.4 MB zipped, 20.9 MB unpacked, 653 chunks**.
+
+**`app/data_bootstrap.py`** is run as a step of its own, before uvicorn: `python -m app.data_bootstrap && uvicorn ...`. Three outcomes and nothing else — the data is already on disk, so do nothing (every local run); `DATA_BUNDLE_URL` is set, so download, verify, extract and check; neither, so one clear log line naming what is missing and both ways to fix it, and exit 1.
+
+**Why a separate process and not the server's lifespan.** The server's own design is to start even when something is missing and let `/api/health` explain (D-065). That is right for a laptop halfway through the pipeline and wrong for a container that cannot fix itself, and an exit inside the lifespan would also make every test that builds a `TestClient` care about data. Two steps keeps both behaviours: the container fails at the step that can fail, and the server keeps the one it has always had.
+
+**Atomic in the way that matters.** The zip is downloaded to a temporary directory outside `data/`, hashed against `DATA_BUNDLE_SHA256` **before** anything is unpacked, then extracted into a staging directory **inside** `data/` — a sibling of the final paths, so the moves are renames on one filesystem — and the manifest is checked against what actually came out. Only then is each file moved into place with `os.replace`, which is atomic per file. A bad checksum or a manifest that does not describe what arrived leaves the live paths untouched, which the tests assert rather than assume.
+
+**A bundle is untrusted input**, because it arrives over the network: an entry with an absolute path or a `..` in it is refused outright rather than normalised, and a zip with no manifest is refused too.
+
+**The URL is never logged.** It is a SAS URL and the token is in its query string, so every log line names `host_of(url)` and every error message goes through `scrubbed()`, which takes the URL and its query out of the text in case a library put them there. One test asserts that neither the signature nor `sig=` appears in any log record or in the raised error after three failed attempts.
+
+**Three retries, 60-second timeout, 3 seconds between.** A bundle is 8 MB over HTTPS from blob storage. Three attempts cover a cold storage account or a dropped connection; the wait is short because it is in front of the server starting.
+
+**Checksum unset is a warning, not a refusal.** It logs the hash it computed and says to set it. Refusing would mean the first deployment could not start before the second, and the deployment it protects against — "whatever was at that URL today" — is the one where the operator has already decided not to pin a version.
+
+Rejected: calling `ensure_data` from the API's lifespan (above); `requests` for the download (`urllib` is in the standard library and the hard rule for this job is no new dependencies); extracting over the live paths directly (a failure halfway leaves a server answering from half an index); verifying only the zip's hash and not the manifest (the hash catches a corrupted download, the manifest catches a bundle that was built wrong); putting the model weights in the bundle (65 MB on every container start, where the image can carry them once — D-112); and `shutil.unpack_archive` (no control over which members are extracted, which is where the path check lives).
+
+**21 new tests**, all against a five-file fake tree zipped with the real manifest builder and served over a `file://` URL, so the real download path runs with no network: the happy path, a bad checksum, a file listed in the manifest but missing from the zip, data already present (with an opener that fails if it is called at all), no data and no URL, a truncated file, a file whose bytes changed under an unchanged size, a path escaping `data/`, a missing manifest, the retry loop, and the URL's absence from every log line.

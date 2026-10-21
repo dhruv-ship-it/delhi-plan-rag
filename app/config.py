@@ -310,6 +310,17 @@ class Settings:
     max_request_bytes: int = 65536
     #: True enables the dev-only question verification endpoints. See D-073.
     dev_mode: bool = False
+
+    # --- the runtime data bundle ----------------------------------------------
+    #: Where `app/data_bootstrap.py` downloads the runtime data from when it is not on
+    #: disk. A read-only SAS URL, so the token that authorises the download is in its
+    #: query string: it is a **secret**, it is never logged (only its host is) and it
+    #: never goes in the repository or the image. Empty means "no bundle", which is the
+    #: normal state on a laptop where the pipeline has run. See D-112.
+    data_bundle_url: str = ""
+    #: The SHA-256 the downloaded bundle must have. When set, a mismatch refuses to
+    #: start; when unset, the bundle is used and its hash is logged so it can be set.
+    data_bundle_sha256: str = ""
     #: How much a map layer is simplified before it is sent to the browser, in degrees.
     layer_simplify_tolerance: float = 0.0005
 
@@ -424,4 +435,6 @@ settings = Settings(
     trusted_proxy_hops=env_int("TRUSTED_PROXY_HOPS", 0),
     max_question_chars=env_int("MAX_QUESTION_CHARS", 500),
     max_request_bytes=env_int("MAX_REQUEST_BYTES", 65536),
+    data_bundle_url=env_str("DATA_BUNDLE_URL", ""),
+    data_bundle_sha256=env_str("DATA_BUNDLE_SHA256", ""),
 )

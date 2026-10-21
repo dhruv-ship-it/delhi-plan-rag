@@ -497,6 +497,14 @@ not fixed; they are known.
 - **Free-tier rate limits make answers slow.** On Groq's free tier the tokens-a-minute
   bucket, not the model, sets the pace: a run's first question answers in a few seconds
   and later ones can take much longer.
+- **The model is not fully consistent.** The same question, retrieval and prompt can be
+  answered in one run and declined in the next (demo-12).
+- **Ridge questions are the least reliable.**
+- **A question naming a zone the point is outside of may not retrieve that zone's
+  rules.** Since the corpus changed, clause 3.1.2 falls outside the top 5 at ITO and at
+  `P_TOD`; the location note still appears.
+- **The figures instruction reduces misread figures; it does not eliminate them**
+  (demo-06).
 - **Not legal advice.** ZoneWise reports what the published documents say, with the
   clause and page behind every sentence. Read the clause, and check with DDA before
   acting on any of it.

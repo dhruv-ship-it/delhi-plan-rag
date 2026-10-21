@@ -1255,3 +1255,20 @@ Rejected: catching the error in `app/agent.py` (it would put provider logic in t
 **Not verified in a browser here.** This sandbox cannot reach OpenStreetMap, so the change is verified in code and in tests only: the attribute is in the source, it survives `npm run build` into `web/dist`, and the header is still `no-referrer`. The browser check — the deployed build showing map tiles — is listed for Dhruv in `reports/fix_round_1.md`.
 
 Rejected: changing the header to `strict-origin-when-cross-origin` (needed only if the per-layer option were unavailable, and it leaks the origin from every request on the page instead of from the tiles); proxying the tiles through FastAPI (it would make this app a tile cache, re-serve someone else's data under our origin, and cost bandwidth to fix a header); and self-hosting a basemap (a far larger change than the defect justifies).
+
+---
+
+## D-102 · 2026-10-21 · The answer panel's lists are not empty; a collapsed `<details>` is what the clipboard dropped
+
+**Decision.** Fix round 1, task 3. **No code change.** Both lists already render visible text, which the task's own rule says to leave alone:
+
+- `web/src/components/AnswerPanel.jsx` renders each retrieved clause as `Clause 4.2.3 — pages 753-754` (falling back to the chunk id when the clause is not numbered) followed by the first 180 characters of the clause text.
+- `web/src/components/ToolTrace.jsx` renders each step as the tool's plain-English label (`Found the place`, `Looked up the zones`, `Searched the documents`), the input it was called with, and the summary `AgentRun.note` wrote.
+
+Both are fed by data the API already returns — `result.retrieval` is `Result.to_dict()`, which includes `clause_id`, `page_start`, `page_end` and `text` in both answering paths, and `result.tool_trace` carries `tool`, `input` and `summary`.
+
+**Why Phase A saw empty bullets.** Both lists live inside a `<details>` element that is collapsed unless the answer was a refusal. A browser copying a selection that spans a collapsed `<details>` takes the `<summary>` text and the list *structure* while the hidden children contribute nothing, so a rich-text paste shows "6 clause(s) retrieved for this question" followed by six empty bullets. The text is in the page; it was never in the clipboard. Expanding the two sections before copying produces the full text.
+
+**Why that is worth leaving alone.** The defect is in a copy of the page, not in the page, and the collapsed default is deliberate: the clause list and the tool trace are the workings, and a reader who has just asked a question should see the answer first. The alternative — opening both by default so a copy catches them — would change the interface for every reader to improve one paste, and it would push the answer and its citation list off a phone screen.
+
+Rejected: opening both `<details>` sections by default (fixes the clipboard by worsening the page); adding a "copy answer" button that assembles the text itself (a new feature, outside the one fix round); and adding the document title to each clause line (the panel does not need it — every clause in a single answer currently comes from the corpus the citation list already names, and this round is for defects a check found, not for improvements).

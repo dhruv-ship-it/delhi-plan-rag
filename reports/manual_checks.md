@@ -37,6 +37,7 @@ Sample: tag_sample.md (30 tagged chunks, seed 7).
 ### Open questions
 - Does the app's own background map load at http://localhost:5173? Check in Phase A.
 - Referrer-Policy header: if it is set to no-referrer, a deployed build would hit the same OpenStreetMap block. Check pending.
+- ANSWERED, DEFECT: app/api.py sets "Referrer-Policy: no-referrer" on every response. When FastAPI serves the built app (deployment), browsers send no Referer, so OpenStreetMap will block the background map. Dev mode (Vite on :5173) is not affected. To fix in the fix round.
 - The NGT file is named OA 572, but its garbled text mentions No. 537/2023. Check the first page of that PDF.
 
 ## Phase A: using the app

@@ -17,7 +17,7 @@ http://localhost:8000/ as well. During development run the Vite dev server inste
 import argparse
 import sys
 
-from app.config import PROVIDER_ANTHROPIC, PROVIDER_GROQ, settings
+from app.config import PROVIDER_ANTHROPIC, PROVIDER_GROQ, env_int, settings
 from app.extract import use_utf8_output
 
 #: Which environment variable holds each provider's key, so the message names the one
@@ -33,7 +33,15 @@ def main(argv: list[str] | None = None) -> int:
     use_utf8_output()
     parser = argparse.ArgumentParser(description="Run the ZoneWise API.")
     parser.add_argument("--host", default="127.0.0.1", help="address to bind (default 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000, help="port to bind (default 8000)")
+    # $PORT, when it is set, because that is how a container platform says which port
+    # to listen on: App Service sets it from WEBSITES_PORT, and a container that ignored
+    # it would fail the platform's own health probe whatever the Dockerfile said (D-113).
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=env_int("PORT", 8000),
+        help="port to bind (default $PORT, or 8000)",
+    )
     parser.add_argument(
         "--reload", action="store_true", help="restart when a source file changes"
     )

@@ -11,6 +11,10 @@ deliberately stricter than a truthiness check: `.env.example` ships the placehol
 `your-key-here`, so a copied-but-unedited `.env` would otherwise read as a configured
 key and turn an honest "no key yet" into a confusing 401 (D-040).
 
+`TRUSTED_PROXY_HOPS` says how many reverse proxies are in front of the server and are
+therefore trusted to have appended to `X-Forwarded-For`. 0, the default, ignores the
+header entirely. See D-113.
+
 `SUPPORT_CHECK` picks what the semantic claim check does with its verdicts — `off`,
 `shadow` or `enforce`. `enforce` is the default since the human checks read a run of
 shadow verdicts and found no sentence wrongly dropped (D-096, D-103).
@@ -296,6 +300,11 @@ class Settings:
     #: Asks per IP per minute, and for the whole service per day. See D-049.
     rate_limit_per_minute: int = 10
     rate_limit_per_day: int = 300
+    #: How many proxies in front of this server are trusted to have appended to
+    #: `X-Forwarded-For`. 0 — the default, and the right value on a laptop — means the
+    #: socket peer is the client. 1 is right behind one reverse proxy, which is what
+    #: Azure App Service is. See D-113.
+    trusted_proxy_hops: int = 0
     #: The longest question the API accepts, and the largest request body. See D-075.
     max_question_chars: int = 500
     max_request_bytes: int = 65536
@@ -412,6 +421,7 @@ settings = Settings(
     cors_origins=tuple(env_list("CORS_ORIGINS", ["http://localhost:5173"])),
     rate_limit_per_minute=env_int("RATE_LIMIT_PER_MINUTE", 10),
     rate_limit_per_day=env_int("RATE_LIMIT_PER_DAY", 300),
+    trusted_proxy_hops=env_int("TRUSTED_PROXY_HOPS", 0),
     max_question_chars=env_int("MAX_QUESTION_CHARS", 500),
     max_request_bytes=env_int("MAX_REQUEST_BYTES", 65536),
 )

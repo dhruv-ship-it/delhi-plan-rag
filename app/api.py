@@ -27,11 +27,14 @@ reachable on a deployed server (D-075).
 
 Every request is size-checked and every response carries a small set of security headers
 (D-077), and a validation failure comes back as one readable sentence rather than
-pydantic's error list. Nothing here is configured in the file: the rate limits, the
+pydantic's error list. Behind a reverse proxy, `TRUSTED_PROXY_HOPS` says how many
+`X-Forwarded-For` entries were added by proxies we trust, so the per-IP rate limit means
+one visitor rather than the whole edge (D-113). Nothing here is configured in the file: the rate limits, the
 allowed origins, the question length and the body limit all come from `app/config.py`
 and therefore from the environment (D-065).
 """
 
+import ipaddress
 import json
 import logging
 import sys
@@ -219,9 +222,68 @@ def peak_rss_mb() -> float | None:
     return round(peak / divisor, 1)
 
 
+#: The header a reverse proxy appends the address it received the request from to.
+FORWARDED_FOR_HEADER = "x-forwarded-for"
+
+
+def parse_forwarded_entry(entry: str) -> str | None:
+    """One `X-Forwarded-For` entry as a bare IP address, or None when it is not one.
+
+    Four shapes have to be read, and the fourth is why this cannot be a `split(":")`:
+
+      203.0.113.5              a plain IPv4 address
+      203.0.113.5:51234        Azure App Service appends the client's **port**
+      [2001:db8::1]:443        IPv6 with a port, bracketed as RFC 7239 requires
+      2001:db8::1              IPv6 without a port, where every colon is part of it
+
+    The address is returned in `ipaddress`'s normal form, so one visitor arriving as
+    `2001:0db8::1` and `2001:db8::1` lands in one rate-limit bucket rather than two.
+    Anything that is not an address at all returns None, and the caller falls back to
+    the socket peer (D-113).
+    """
+    text = entry.strip()
+    if text.startswith("["):
+        host, closing, _ = text[1:].partition("]")
+        if not closing:
+            return None  # "[2001:db8::1" is malformed, not an address to guess at
+        text = host
+    elif text.count(":") == 1:
+        text = text.partition(":")[0]
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return None
+
+
+def forwarded_client_ip(header: str | None, hops: int) -> str | None:
+    """The client's address from `X-Forwarded-For`, or None to fall back to the peer.
+
+    Counted **from the right**, which is the whole of the safety property. Each proxy
+    appends the address it received the request from, so with one trusted proxy in front
+    the last entry is what that proxy saw — the visitor — and everything to its left was
+    supplied by the caller and can say anything at all. A caller sending
+    `X-Forwarded-For: 1.2.3.4` gets the real address appended after it and is rate
+    limited by that, which is the point: a limiter that read the left-most entry could
+    be defeated by rotating a forged header.
+
+    `hops` is `TRUSTED_PROXY_HOPS`. 0 ignores the header. More entries than the header
+    has, a missing header or an unreadable entry all return None.
+    """
+    if hops <= 0 or not header:
+        return None
+    entries = [part for part in (raw.strip() for raw in header.split(",")) if part]
+    if len(entries) < hops:
+        return None
+    return parse_forwarded_entry(entries[len(entries) - hops])
+
+
 def client_address(request: Request) -> str:
     """The caller's address, for rate limiting. Unknown callers share one bucket."""
-    return request.client.host if request.client else "unknown"
+    peer = request.client.host if request.client else "unknown"
+    forwarded = forwarded_client_ip(
+        request.headers.get(FORWARDED_FOR_HEADER), settings.trusted_proxy_hops
+    )
+    return forwarded or peer
 
 
 # --- request logging ------------------------------------------------------------

@@ -7,11 +7,19 @@ endpoints are tested without a key and without a network call.
 """
 
 import json
+from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import PROVIDER_BUSY_MESSAGE, app, limiter, llm_provider
+from app.api import (
+    PROVIDER_BUSY_MESSAGE,
+    app,
+    forwarded_client_ip,
+    limiter,
+    llm_provider,
+    parse_forwarded_entry,
+)
 from app.config import settings
 from app.llm import FakeLLM, tool_use_response
 
@@ -443,6 +451,96 @@ def test_search_is_not_rate_limited(client) -> None:
     limiter.reset()
     limiter._today = settings.rate_limit_per_day
     assert client.post("/api/search", json={"query": "TOD plot size"}).status_code == 200
+
+
+# --- the client address behind a proxy ------------------------------------------
+#
+# D-113. Every case of TRUSTED_PROXY_HOPS, because the per-IP rate limit is only a
+# per-IP limit if this reads the right entry, and reading the wrong one is either
+# "everyone shares one bucket" (the peer, behind a proxy) or "anyone can forge a
+# bucket" (the left-most entry).
+
+
+@pytest.mark.parametrize(
+    "entry,expected",
+    [
+        ("203.0.113.5", "203.0.113.5"),
+        # Azure App Service appends the client's port to the address
+        ("203.0.113.5:51234", "203.0.113.5"),
+        ("  203.0.113.5:51234  ", "203.0.113.5"),
+        # IPv6, bracketed with a port and bare without one
+        ("[2001:db8::1]:443", "2001:db8::1"),
+        ("[2001:db8::1]", "2001:db8::1"),
+        ("2001:db8::1", "2001:db8::1"),
+        # normalised, so one visitor is one bucket
+        ("2001:0db8:0000::1", "2001:db8::1"),
+        ("::1", "::1"),
+        # not addresses
+        ("", None),
+        ("unknown", None),
+        ("localhost:8000", None),
+        ("203.0.113.999", None),
+        ("203.0.113.5:51234:7", None),
+        ("[2001:db8::1", None),
+    ],
+)
+def test_one_forwarded_entry_is_read_as_an_address_or_not_at_all(entry, expected) -> None:
+    assert parse_forwarded_entry(entry) == expected
+
+
+def test_no_trusted_proxy_means_the_header_is_ignored() -> None:
+    """The default, and the right answer on a laptop: anyone can send this header."""
+    assert forwarded_client_ip("1.2.3.4", 0) is None
+    assert forwarded_client_ip("1.2.3.4, 203.0.113.5", 0) is None
+    assert forwarded_client_ip("1.2.3.4", -1) is None
+
+
+def test_one_trusted_proxy_reads_the_right_most_entry() -> None:
+    """Azure App Service: one proxy, which appends what it saw."""
+    assert forwarded_client_ip("203.0.113.5:51234", 1) == "203.0.113.5"
+    # A caller that forged a left-most entry is limited by the real one anyway.
+    assert forwarded_client_ip("1.2.3.4, 203.0.113.5:51234", 1) == "203.0.113.5"
+    assert forwarded_client_ip("1.2.3.4, 9.9.9.9, 203.0.113.5", 1) == "203.0.113.5"
+
+
+def test_two_trusted_proxies_count_two_from_the_right() -> None:
+    """A CDN in front of the platform: the second-from-last entry is the visitor."""
+    header = "1.2.3.4, 203.0.113.5:51234, 10.0.0.7"
+    assert forwarded_client_ip(header, 2) == "203.0.113.5"
+    assert forwarded_client_ip(header, 3) == "1.2.3.4"
+
+
+def test_a_header_shorter_than_the_hop_count_falls_back() -> None:
+    """Fewer entries than trusted proxies means the request did not come through them."""
+    assert forwarded_client_ip("203.0.113.5", 2) is None
+    assert forwarded_client_ip("", 1) is None
+    assert forwarded_client_ip(None, 1) is None
+    assert forwarded_client_ip("   ,  ,  ", 1) is None
+
+
+def test_a_malformed_entry_falls_back_to_the_peer() -> None:
+    """Refusing to guess: an unreadable entry is not an address."""
+    assert forwarded_client_ip("1.2.3.4, not-an-ip", 1) is None
+    assert forwarded_client_ip("1.2.3.4, 203.0.113.5", 1) == "203.0.113.5"
+
+
+def test_the_whole_request_path_uses_the_forwarded_address(client, monkeypatch) -> None:
+    """End to end: with one trusted hop, the limiter buckets by the forwarded address."""
+    monkeypatch.setattr("app.api.settings", replace(settings, trusted_proxy_hops=1))
+    limiter.reset()
+    use_llm([GOOD_ANSWER_JSON, SUPPORT_JSON] * (settings.rate_limit_per_minute + 1))
+    lat, lon = RAJIV_CHOWK
+    payload = {"question": "How much can I build?", "lat": lat, "lon": lon}
+    headers = {"X-Forwarded-For": "203.0.113.5:51234"}
+
+    for number in range(settings.rate_limit_per_minute):
+        assert client.post("/api/ask", json=payload, headers=headers).status_code == 200, number
+    assert client.post("/api/ask", json=payload, headers=headers).status_code == 429
+
+    # A different visitor through the same proxy still has its own budget, which is the
+    # whole point: before this, every request shared the proxy's one address.
+    other = {"X-Forwarded-For": "198.51.100.9:40001"}
+    assert client.post("/api/ask", json=payload, headers=other).status_code == 200
 
 
 # --- a provider that failed -----------------------------------------------------

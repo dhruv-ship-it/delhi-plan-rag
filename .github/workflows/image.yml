@@ -1,0 +1,101 @@
+name: Image
+
+# Builds the Dockerfile and pushes it to the GitHub Container Registry as
+# ghcr.io/<owner>/zonewise, tagged `latest` and the short commit SHA.
+#
+# It is NOT on every push. A container build here takes minutes (it installs the whole
+# dependency environment and downloads the embedding model), and nothing reads the image
+# except a deployment, so it runs when asked — the "Run workflow" button — and on a
+# version tag, which is what a freeze produces (D-108's v1.0-rc2, and whatever follows).
+#
+# The image carries no data: the runtime bundle is fetched at startup from a private blob
+# container (D-112), so this build needs nothing that a clean checkout does not have.
+# That is the whole reason it can run on a GitHub runner at all — the previous Dockerfile
+# copied the built indexes in and could only be built on a machine where the pipeline had
+# run (D-079).
+#
+# The existing CI workflow is untouched: it lints, runs the tests that need no data and
+# builds the frontend, on every push. This one does none of that, deliberately — a tag
+# is pushed from a commit CI has already checked.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+# GITHUB_TOKEN needs `packages: write` to push to GHCR, and nothing else. `contents:
+# read` is the checkout. No other secret is involved: the API keys and the data bundle's
+# SAS URL live in App Service settings and never reach a build.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build and push to ghcr.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the image name and tag
+        id: naming
+        # GHCR requires a lower-cased owner: `ghcr.io/Dhruv-Ship-It/zonewise` is
+        # rejected at push time, after the whole build, with a message about the
+        # repository name. github.repository_owner keeps the account's own casing, so it
+        # is lower-cased here rather than typed out, which would break if the account
+        # were ever renamed.
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${owner}/zonewise" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # `latest` is what App Service pulls; the short SHA is what makes a rollback
+          # possible, because "the image that was running last Tuesday" is otherwise a
+          # question with no answer.
+          tags: |
+            ${{ steps.naming.outputs.image }}:latest
+            ${{ steps.naming.outputs.image }}:${{ steps.naming.outputs.sha }}
+          # The layer cache lives in the Actions cache, so a code-only change reuses the
+          # dependency layers and the model download instead of paying for them again.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Say what to paste into App Service
+        # The one thing a person needs out of this run, printed where it is easy to find
+        # rather than hidden in the build log.
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo '```'
+            echo "${{ steps.naming.outputs.image }}:latest"
+            echo "${{ steps.naming.outputs.image }}:${{ steps.naming.outputs.sha }}"
+            echo '```'
+            echo
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+            echo
+            echo "The package is private until you make it public:"
+            echo "GitHub -> your profile -> Packages -> zonewise -> Package settings ->"
+            echo "Change visibility -> Public. Then restart the web app."
+          } >> "$GITHUB_STEP_SUMMARY"

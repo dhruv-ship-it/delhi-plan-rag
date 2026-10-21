@@ -12,6 +12,7 @@ import pytest
 
 from app.spatial import (
     ALL_LAYERS,
+    CORE_LAYERS,
     TOPIC_LAYERS,
     clean_zone_name,
     distance_to_topic,
@@ -74,7 +75,7 @@ def toy_folder(tmp_path: Path) -> Path:
 def toy(toy_folder: Path):
     """The toy layers loaded, with the cache cleared so the real ones are never used."""
     load_layers.cache_clear()
-    layers = load_layers(str(toy_folder))
+    layers = load_layers(str(toy_folder), ALL_LAYERS)
     yield layers
     load_layers.cache_clear()
 
@@ -82,6 +83,23 @@ def toy(toy_folder: Path):
 def test_every_layer_name_is_loaded(toy) -> None:
     """A missing layer would silently answer False for its zone, so all eight are required."""
     assert set(toy) == set(ALL_LAYERS)
+
+
+def test_the_default_load_leaves_out_the_layer_no_policy_uses(toy_folder: Path) -> None:
+    """D-110. `load_layers()` loads the seven core layers and not the river.
+
+    The river polygon answers one question — is this zone O test point in the water —
+    and `scripts/07_test_points.py` is the only caller, so a server that parsed it and
+    built an STRtree over it at every startup was paying for nothing.
+    """
+    load_layers.cache_clear()
+    try:
+        assert set(load_layers(str(toy_folder))) == set(CORE_LAYERS)
+        assert "yamuna_river" not in load_layers(str(toy_folder))
+        # ...and `in_water` still works, because it asks for the layer by name.
+        assert in_water(28.6, 77.25, load_layers(str(toy_folder), ALL_LAYERS))
+    finally:
+        load_layers.cache_clear()
 
 
 def test_a_point_outside_delhi_answers_only_that(toy) -> None:

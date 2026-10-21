@@ -365,7 +365,7 @@ def main() -> int:
     """Find the points, print their zones, and write the JSON and the preview page."""
     use_utf8_output()
     try:
-        layers = load_layers()
+        layers = load_layers(names=ALL_LAYERS)
     except LayersMissing as exc:
         print(exc)
         return 1

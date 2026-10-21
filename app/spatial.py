@@ -36,7 +36,10 @@ CORE_LAYERS = (
     "low_density_area",
 )
 #: Downloaded as well, and reported, but no policy is wired to it. The river polygon
-#: is used when picking a zone O test point that is on land, and nowhere else.
+#: is used when picking a zone O test point that is on land, and nowhere else — which
+#: is why `load_layers()` does **not** load it: the running server parsed three river
+#: polygons and built an STRtree over them at every startup for nothing (D-110).
+#: `scripts/07_test_points.py` asks for it by name.
 EXTRA_LAYERS = ("yamuna_river",)
 ALL_LAYERS = CORE_LAYERS + EXTRA_LAYERS
 
@@ -120,11 +123,19 @@ def load_layer(name: str, folder: Path | None = None) -> Layer:
     )
 
 
-@lru_cache(maxsize=1)
-def load_layers(folder: str | None = None) -> dict[str, Layer]:
-    """Load every layer once and keep it. Cached, so repeated searches pay nothing."""
+@lru_cache(maxsize=4)
+def load_layers(
+    folder: str | None = None, names: tuple[str, ...] = CORE_LAYERS
+) -> dict[str, Layer]:
+    """Load the named layers once and keep them. Cached, so repeated searches pay nothing.
+
+    `names` defaults to `CORE_LAYERS`, the seven a policy topic is wired to, because
+    that is what the server needs and loading a layer nothing reads is memory a 1.75 GB
+    container would rather have (D-110). `scripts/07_test_points.py` passes `ALL_LAYERS`
+    to get the river polygon as well.
+    """
     base = Path(folder) if folder else None
-    return {name: load_layer(name, base) for name in ALL_LAYERS}
+    return {name: load_layer(name, base) for name in names}
 
 
 def clean_zone_name(value: object) -> str | None:
@@ -190,9 +201,10 @@ def in_water(lat: float, lon: float, layers: dict[str, Layer] | None = None) -> 
     """True when the point sits inside the Yamuna river polygon.
 
     Not part of `get_zones` — the river layer is downloaded but not wired to any
-    policy. It is used when picking a test point inside zone O that is on land.
+    policy. It is used when picking a test point inside zone O that is on land, so it
+    has to ask for the layer by name: `load_layers()` on its own does not load it.
     """
-    layers = layers or load_layers()
+    layers = layers or load_layers(names=ALL_LAYERS)
     return layers["yamuna_river"].contains(Point(lon, lat))
 
 

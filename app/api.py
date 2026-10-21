@@ -33,6 +33,8 @@ and therefore from the environment (D-065).
 """
 
 import json
+import logging
+import sys
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -62,6 +64,8 @@ from app.llm import LLM, get_llm, is_provider_error, provider_error_line
 from app.rerank import available as reranker_available
 from app.retrieval import SearchReport, get_index, rank, search
 from app.spatial import CORE_LAYERS, get_zones, load_layers
+
+log = logging.getLogger("zonewise.api")
 
 #: What the interface may ask for. The extra layers are downloaded but not exposed,
 #: because nothing in the product uses them yet.
@@ -189,6 +193,32 @@ class RateLimiter:
 limiter = RateLimiter(settings.rate_limit_per_minute, settings.rate_limit_per_day)
 
 
+# --- how much memory this process has used --------------------------------------
+
+
+def peak_rss_mb() -> float | None:
+    """The highest resident set size this process has reached, in MB.
+
+    `None` where the platform cannot say, which here means Windows: `resource` is
+    POSIX-only, so the development laptop reports nothing and `/api/health` leaves the
+    field out rather than carrying a null that looks like a measurement of zero.
+
+    The unit of `ru_maxrss` is not portable — kilobytes on Linux, bytes on macOS — so
+    the divisor follows the platform. The deployment target is Linux, and the number
+    this answers is the one that decides whether a 1.75 GB container is the right size
+    (D-110): peak, not current, because the peak is what gets a process killed.
+    """
+    try:
+        import resource
+    except ImportError:  # pragma: no cover - the Windows path, exercised in CI's absence
+        return None
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if peak <= 0:
+        return None
+    divisor = 1024 * 1024 if sys.platform == "darwin" else 1024
+    return round(peak / divisor, 1)
+
+
 def client_address(request: Request) -> str:
     """The caller's address, for rate limiting. Unknown callers share one bucket."""
     return request.client.host if request.client else "unknown"
@@ -277,6 +307,14 @@ async def lifespan(app: FastAPI):
         app.state.startup_errors.append(
             f"map layers not loaded ({exc}); run: uv run python scripts/06_fetch_layers.py"
         )
+
+    # One line, once, after everything expensive is resident. On a 1.75 GB container
+    # this is the number that says how much headroom is left, and the log stream is
+    # where a deployment's first question gets answered (D-110).
+    peak = peak_rss_mb()
+    if peak is not None:
+        chunks = len(app.state.index) if app.state.index is not None else 0
+        log.info("startup complete: peak RSS %.1f MB, %d chunks", peak, chunks)
     yield
 
 
@@ -411,7 +449,7 @@ def health(request: Request) -> dict:
     """
     index = request.app.state.index
     layers = request.app.state.layers
-    return {
+    body = {
         "status": "ok" if index is not None and layers is not None else "degraded",
         "chunks": len(index) if index is not None else 0,
         "layers_loaded": sorted(layers) if layers else [],
@@ -434,6 +472,12 @@ def health(request: Request) -> dict:
         # which mode a deployment is actually running (D-096).
         "support_check": settings.support_check,
     }
+    # Only where the platform can measure it, which is the deployed container and not
+    # the Windows laptop. Absent rather than null: a null would read as zero (D-110).
+    peak = peak_rss_mb()
+    if peak is not None:
+        body["peak_rss_mb"] = peak
+    return body
 
 
 @app.get("/api/zones")

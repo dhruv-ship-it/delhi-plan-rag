@@ -1,18 +1,25 @@
 # What never reaches the build context. The Dockerfile COPYs explicitly, so this is a
 # second line of defence rather than the only one — and for .env it is the line that
 # matters, because a key baked into an image layer stays in that layer forever.
+#
+# Since D-112 the image carries no data at all, so the whole of data/ is excluded here
+# rather than four directories of it. The build is a clean GitHub Actions checkout,
+# which has none of it anyway; this makes a build from a developer's laptop produce the
+# same image rather than a 1.2 GB one with the indexes silently baked in.
 
 # secrets, first and always
 .env
 .env.*
 !.env.example
 
-# 109 MB of source PDFs. The chunks derived from them are in the image; these are not,
-# because nothing at run time reads them (D-079).
-data/raw/
+# every data directory: the runtime data arrives at startup as a bundle (D-112, D-114).
+# This covers data/raw (109 MB of PDFs), data/processed, data/index, data/layers,
+# data/gazetteer and data/logs in one line, along with the committed CSV and JSON files
+# that only the pipeline scripts read.
+data/
 
-# written by the running container, never baked in
-data/logs/
+# the data bundles themselves, written by scripts/make_data_bundle.py
+dist/
 
 # local python
 .venv/
@@ -40,6 +47,11 @@ reports/
 *.md
 !README.md
 
+# the evaluation set: the drafts, the verified questions and every results file. The
+# endpoints that read them are 404 with ZONEWISE_DEV=0 (D-075), so a public image has
+# no reason to carry an unpublished question set.
+eval/
+
 # tests do not run in the image
 tests/
 
@@ -48,6 +60,3 @@ tests/
 .idea/
 .DS_Store
 Thumbs.db
-
-# reference material used by hand
-data/reference/

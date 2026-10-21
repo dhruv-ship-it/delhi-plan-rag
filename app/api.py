@@ -58,7 +58,7 @@ from app.dev_eval import (
     question_list,
     save_decision,
 )
-from app.llm import LLM, get_llm
+from app.llm import LLM, get_llm, is_provider_error, provider_error_line
 from app.rerank import available as reranker_available
 from app.retrieval import SearchReport, get_index, rank, search
 from app.spatial import CORE_LAYERS, get_zones, load_layers
@@ -66,6 +66,13 @@ from app.spatial import CORE_LAYERS, get_zones, load_layers
 #: What the interface may ask for. The extra layers are downloaded but not exposed,
 #: because nothing in the product uses them yet.
 SERVABLE_LAYERS = CORE_LAYERS
+
+#: The message the two answering endpoints return when the provider itself failed:
+#: rate limited, refusing the request, or down. Short on purpose — a user can only do
+#: one thing about it, and the detail belongs in the log (D-100).
+PROVIDER_BUSY_MESSAGE = (
+    "The AI service is busy or returned an error. Please try again in a minute."
+)
 
 #: The message the two answering endpoints return when there is no key.
 NO_LLM_MESSAGE = (
@@ -205,6 +212,21 @@ def log_request(endpoint: str, payload: dict) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         pass
+
+
+def failure_log_payload(question: str, error: Exception) -> dict:
+    """The log line for a request that failed, with the exception named in `error`.
+
+    A failed request used to leave no trace at all, so the only record of the agent's
+    500s was a screenshot (Phase A). One line, one flattened message, no stack trace
+    and no key (D-100).
+    """
+    return {
+        "question": question,
+        "abstained": True,
+        "abstain_reason": "request_failed",
+        "error": provider_error_line(error),
+    }
 
 
 def answer_log_payload(question: str, result: Any) -> dict:
@@ -529,6 +551,29 @@ def search_endpoint(body: SearchRequest, index=Depends(require_index)) -> dict:
     }
 
 
+def _provider_failed(endpoint: str, question: str, error: Exception) -> JSONResponse:
+    """The 503 for a provider that failed, having logged what went wrong.
+
+    `/api/ask` and `/api/agent` are the only endpoints that call a provider, and a
+    provider that is rate limited, refusing the request or down is not a bug in
+    ZoneWise: it is a condition the user can retry out of. It gets the same status as
+    "no key configured" with its own `error` code, so the interface shows the message
+    rather than "Request failed (500)" (D-100).
+    """
+    log_request(endpoint, failure_log_payload(question, error))
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": {
+                "error": "provider_error",
+                "message": PROVIDER_BUSY_MESSAGE,
+                "zones": None,
+                "results": [],
+            }
+        },
+    )
+
+
 def _rate_limited(request: Request) -> JSONResponse | None:
     """A 429 response when the caller has had enough, otherwise None."""
     reason = limiter.check(client_address(request))
@@ -589,7 +634,17 @@ def ask(
             },
         )
 
-    result = answer_point(body.question, body.lat, body.lon, k=body.k, llm=llm, index=index)
+    try:
+        result = answer_point(
+            body.question, body.lat, body.lon, k=body.k, llm=llm, index=index
+        )
+    except Exception as exc:
+        if not is_provider_error(exc):
+            # Our own bug. Logged like any other failure, then re-raised: a 500 is the
+            # honest answer, and calling it "the AI service is busy" would hide it.
+            log_request("ask", failure_log_payload(body.question, exc))
+            raise
+        return _provider_failed("ask", body.question, exc)
     log_request("ask", answer_log_payload(body.question, result))
     return result.to_dict()
 
@@ -629,7 +684,13 @@ def agent(
             },
         )
 
-    result = run_agent(body.question, llm=llm, index=index)
+    try:
+        result = run_agent(body.question, llm=llm, index=index)
+    except Exception as exc:
+        if not is_provider_error(exc):
+            log_request("agent", failure_log_payload(body.question, exc))
+            raise
+        return _provider_failed("agent", body.question, exc)
     log_request("agent", answer_log_payload(body.question, result))
     return result.to_dict()
 

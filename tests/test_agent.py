@@ -32,7 +32,7 @@ from app.answer import (
     UNSUPPORTED_CLAIMS,
 )
 from app.config import settings
-from app.llm import FakeLLM, text_response, tool_use_response
+from app.llm import FakeLLM, salvaged_answer, text_response, tool_use_response
 from app.retrieval import Result
 
 CHUNK_ID = "MPD47_GAZETTE_EN:4.2.3@p753:0"
@@ -727,6 +727,97 @@ def tool_then(final: str, *extra) -> FakeLLM:
             *extra,
         ]
     )
+
+
+# --- a final answer Groq rejected (D-100) ---------------------------------------
+#
+# The exact `failed_generation` from the agent's HTTP 500 in Phase A, whitespace
+# normalised: `openai/gpt-oss-120b` sent its final answer as a call to a tool named
+# `JSON`, which no ZoneWise request offers, so Groq rejected the whole completion.
+
+HAUZ_KHAS_FAILED_GENERATION = (
+    '{"name": "JSON", "arguments": {"abstain": null, "sentences": [{"text": "Near the Hauz Khas metro station, which lies within a TOD Zone in Planning Zone F, a “TOD Plot” may be developed, defined as a plot of at least 2000 sqm that meets all eligibility criteria of the TOD policy", "citations": ["S1"]}, {"text": "The TOD policy applies only within the TOD zone and is excluded from environmentally sensitive areas, Zone O, low-density areas, heritage zones and other notified exclusions", "citations": ["S4"]}, {"text": "Any TOD project must comply with the mandatory sustainability and green-building provisions of the prevailing Master Plan and UBBL, including water conservation, solar energy use, energy efficiency and waste management", "citations": ["S2"]}]}}'
+)
+
+
+class RejectedToolCall(Exception):
+    """Groq's 400, carrying the rejected completion, as `salvaged_answer` reads it."""
+
+    def __init__(self, failed_generation: str) -> None:
+        super().__init__("Error code: 400 - tool_use_failed")
+        self.status_code = 400
+        self.body = {
+            "code": "tool_use_failed",
+            "message": "Failed to call a function. Please adjust your prompt.",
+            "failed_generation": failed_generation,
+        }
+
+
+def four_sources() -> tuple[dict, list]:
+    """Four searchable clauses, so a run issues S1 to S4 and `S4` can be cited."""
+    chunks = dict(CHUNKS)
+    results = []
+    for number in range(1, 5):
+        chunk_id = f"MPD47_GAZETTE_EN:4.2.{number}@p75{number}:0"
+        chunks[chunk_id] = {
+            "chunk_id": chunk_id,
+            "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+            "authority_rank": 1,
+            "source_url": "https://dda.gov.in/gazette.pdf",
+        }
+        results.append(stub_result(chunk_id))
+    return chunks, results
+
+
+def test_an_answer_sent_as_a_rejected_tool_call_is_accepted_and_its_labels_checked(
+    stubs,
+) -> None:
+    """Phase A's 500, replayed: the answer is read back out of the rejected call.
+
+    The rescue happens in `app/llm.py`, where the provider lives; what this test is
+    for is the other half of the promise — that a rescued answer reaches the agent as
+    an ordinary reply and goes through exactly the same validation, with no extra
+    model call (D-100).
+    """
+    chunks, results = four_sources()
+    stubs["results"] = results
+
+    rescued = salvaged_answer(RejectedToolCall(HAUZ_KHAS_FAILED_GENERATION), TOOL_NAMES)
+    assert rescued is not None, "the real failed_generation must be rescuable"
+
+    llm = tool_then(rescued)
+    result = run_agent(
+        "What can be built near Hauz Khas metro?", llm=llm, index=StubIndex(chunks)
+    )
+
+    assert result.abstained is False
+    assert "TOD Plot" in result.answer_markdown
+    assert result.validation_failures == []
+    # the three labels it cited are the ones this run issued, resolved in citation order
+    assert [citation.marker for citation in result.citations] == ["S1", "S4", "S2"]
+    assert result.citations[1].chunk_id == "MPD47_GAZETTE_EN:4.2.4@p754:0"
+    # one search, one answer: the rescue costs no extra call
+    assert llm.call_count == 2
+
+
+def test_a_rescued_answer_citing_a_label_the_run_never_issued_is_still_rejected(
+    stubs,
+) -> None:
+    """The rescue is a different door, not a looser one: validation is unchanged."""
+    stubs["results"] = [stub_result()]
+    rescued = salvaged_answer(RejectedToolCall(HAUZ_KHAS_FAILED_GENERATION), TOOL_NAMES)
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "TOD"}, "t1"),
+            rescued,
+            reply(abstain="I cannot support that from the sources."),
+        ]
+    )
+    result = run_agent("What can be built near Hauz Khas metro?", llm=llm, index=StubIndex(CHUNKS))
+
+    assert result.abstained is True
+    assert result.validation_failures, "S4 was never issued, so the attempt was rejected"
+    assert any("S4" in problem for problem in result.validation_failures[0])
 
 
 def test_shadow_mode_records_verdicts_for_an_agent_answer(stubs, monkeypatch) -> None:

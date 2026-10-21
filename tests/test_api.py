@@ -11,7 +11,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import app, limiter, llm_provider
+from app.api import PROVIDER_BUSY_MESSAGE, app, limiter, llm_provider
 from app.config import settings
 from app.llm import FakeLLM, tool_use_response
 
@@ -441,6 +441,103 @@ def test_search_is_not_rate_limited(client) -> None:
     limiter.reset()
     limiter._today = settings.rate_limit_per_day
     assert client.post("/api/search", json={"query": "TOD plot size"}).status_code == 200
+
+
+# --- a provider that failed -----------------------------------------------------
+
+
+def provider_error(status: int, kind: str = "APIStatusError", body: dict | None = None):
+    """A real SDK exception, the way the `openai` client raises one.
+
+    Built from the real classes on purpose: `is_provider_error` recognises a provider
+    failure by the SDK the exception came from, so a stand-in exception would prove
+    nothing about the behaviour this test is for (D-100). This is the one place in
+    `tests/` that touches `openai`, and it touches only its exception types.
+    """
+    import httpx
+    import openai
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(status, request=request, json=body or {})
+    inner = (body or {}).get("error")
+    return getattr(openai, kind)(
+        f"Error code: {status}", response=response, body=inner
+    )
+
+
+def raising(error: Exception):
+    """A scripted FakeLLM reply that raises instead of answering."""
+
+    def reply(**_call):
+        raise error
+
+    return reply
+
+
+def test_a_rate_limited_provider_becomes_a_503_with_the_busy_message(client) -> None:
+    """A 429 from Groq is not a bug in ZoneWise, and 500 was the wrong answer."""
+    use_llm([raising(provider_error(429, "RateLimitError"))])
+    lat, lon = RAJIV_CHOWK
+    response = client.post(
+        "/api/ask", json={"question": "What can I build here?", "lat": lat, "lon": lon}
+    )
+
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["error"] == "provider_error"
+    assert detail["message"] == PROVIDER_BUSY_MESSAGE
+    assert "busy or returned an error" in detail["message"]
+
+
+def test_a_rejected_generation_that_is_not_an_answer_gives_a_clean_503(client) -> None:
+    """The agent's 500 (Phase A): a tool call Groq refused and nothing to rescue."""
+    error = provider_error(
+        400,
+        "BadRequestError",
+        {
+            "error": {
+                "code": "tool_use_failed",
+                "message": "Failed to call a function",
+                "failed_generation": '{"name": "JSON", "arguments": {"note": "hello"}}',
+            }
+        },
+    )
+    use_llm([raising(error)])
+    response = client.post("/api/agent", json={"question": "What can be built here?"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["message"] == PROVIDER_BUSY_MESSAGE
+
+
+def test_a_failed_request_is_logged_with_an_error_field(client) -> None:
+    """Phase A: the agent's failures left no trace in the log at all."""
+    path = settings.requests_log_path
+    use_llm([raising(provider_error(429, "RateLimitError"))])
+    client.post("/api/agent", json={"question": "a failure worth logging"})
+
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    record = json.loads(lines[-1])
+    assert record["endpoint"] == "agent"
+    assert record["question"] == "a failure worth logging"
+    assert record["abstained"] is True
+    assert record["abstain_reason"] == "request_failed"
+    assert record["error"].startswith("RateLimitError: ")
+    assert len(record["error"].splitlines()) == 1, "one line, no stack trace"
+    assert "key" not in json.dumps(record).lower()
+
+
+def test_a_bug_in_zonewise_is_logged_but_still_a_500(client) -> None:
+    """Only the provider gets the friendly message. Our own faults stay honest."""
+    path = settings.requests_log_path
+    use_llm([raising(RuntimeError("something of ours broke"))])
+    with pytest.raises(RuntimeError):
+        client.post("/api/agent", json={"question": "not a provider failure"})
+
+    record = json.loads(
+        [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()][-1]
+    )
+    assert record["abstain_reason"] == "request_failed"
+    assert record["error"].startswith("RuntimeError: ")
 
 
 # --- logging --------------------------------------------------------------------

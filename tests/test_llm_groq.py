@@ -18,7 +18,8 @@ from typing import Any
 import pytest
 
 from app import llm as llm_module
-from app.agent import assistant_content
+from app.agent import TOOL_NAMES, assistant_content
+from app.agent import TOOLS as AGENT_TOOLS
 from app.llm import (
     GROQ_MAX_TRIES,
     REASONING_EFFORT,
@@ -26,12 +27,16 @@ from app.llm import (
     GroqLLM,
     from_openai_response,
     get_llm,
+    is_provider_error,
     is_rate_limited,
     needs_the_word_json,
+    offered_tool_names,
+    provider_error_line,
     rate_limit_of,
     rejects_reasoning_effort,
     rejects_response_format,
     retry_after_of,
+    salvaged_answer,
     supports_reasoning_effort,
     text_of,
     to_openai_messages,
@@ -90,12 +95,34 @@ class FakeCompletion:
 
 
 class FakeAPIError(Exception):
-    """An SDK error, with the status and headers the real ones carry."""
+    """An SDK error, with the status, headers and body the real ones carry."""
 
-    def __init__(self, message: str, status_code: int, headers: dict | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        headers: dict | None = None,
+        body: dict | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.headers = headers or {}
+        self.body = body
+
+
+def tool_use_failed(failed_generation: str) -> FakeAPIError:
+    """Groq's 400 for a tool call it would not accept (D-100)."""
+    return FakeAPIError(
+        "Error code: 400 - tool_use_failed",
+        400,
+        body={
+            "error": {
+                "code": "tool_use_failed",
+                "message": "Failed to call a function. Please adjust your prompt.",
+                "failed_generation": failed_generation,
+            }
+        },
+    )
 
 
 def said(text: str, *, prompt_tokens: int = 100, completion_tokens: int = 20) -> FakeCompletion:
@@ -820,3 +847,98 @@ def test_the_fake_client_still_wins_over_any_provider(monkeypatch) -> None:
     )
     client = get_llm(fake=True, responses=["hello [C1]."])
     assert client.chat(messages=[{"role": "user", "content": "q"}]) is not None
+
+
+# --- a final answer sent as a tool call Groq refused (D-100) --------------------
+
+
+ANSWER_AS_A_TOOL_CALL = json.dumps(
+    {
+        "name": "JSON",
+        "arguments": {
+            "abstain": None,
+            "sentences": [{"text": "Ground coverage is 40%.", "citations": ["S1"]}],
+        },
+    }
+)
+
+
+def test_a_rejected_call_to_a_tool_we_never_offered_is_read_as_the_answer(clock) -> None:
+    """Phase A's agent 500: the answer was written, paid for, and thrown away."""
+    client = groq([tool_use_failed(ANSWER_AS_A_TOOL_CALL)])
+    response = client.chat(
+        messages=[{"role": "user", "content": "what can I build?"}],
+        tools=AGENT_TOOLS,
+    )
+
+    assert json.loads(text_of(response)) == {
+        "abstain": None,
+        "sentences": [{"text": "Ground coverage is 40%.", "citations": ["S1"]}],
+    }
+    assert tool_calls_of(response) == [], "a rescued answer is a final answer"
+    assert client.tool_call_rescues == 1
+
+
+def test_a_rejected_call_to_a_real_tool_is_not_rescued(clock) -> None:
+    """A refused `search_clauses` is a different fault, and guessing at it would
+    invent a tool result nobody ran."""
+    rejected = json.dumps(
+        {"name": "search_clauses", "arguments": {"sentences": [], "abstain": "no"}}
+    )
+    client = groq([tool_use_failed(rejected)])
+    with pytest.raises(FakeAPIError):
+        client.chat(messages=[{"role": "user", "content": "hi"}], tools=AGENT_TOOLS)
+
+
+def test_a_rejected_generation_that_is_not_an_answer_is_not_rescued(clock) -> None:
+    """Only an answer object is rescuable. Anything else stays a failed request."""
+    client = groq([tool_use_failed(json.dumps({"name": "JSON", "arguments": {"q": 1}}))])
+    with pytest.raises(FakeAPIError):
+        client.chat(messages=[{"role": "user", "content": "hi"}], tools=AGENT_TOOLS)
+
+
+def test_an_unparseable_rejected_generation_is_not_rescued(clock) -> None:
+    client = groq([tool_use_failed("{not json at all")])
+    with pytest.raises(FakeAPIError):
+        client.chat(messages=[{"role": "user", "content": "hi"}], tools=AGENT_TOOLS)
+
+
+def test_a_400_that_is_not_tool_use_failed_is_not_rescued(clock) -> None:
+    """The rescue is keyed on Groq's own code, not on "a 400 happened"."""
+    error = FakeAPIError("Error code: 400 - bad request", 400)
+    client = groq([error])
+    with pytest.raises(FakeAPIError):
+        client.chat(messages=[{"role": "user", "content": "hi"}], tools=AGENT_TOOLS)
+
+
+def test_salvaged_answer_reads_arguments_sent_as_a_json_string() -> None:
+    """Some replies nest the arguments as text, which is how OpenAI tool calls work."""
+    rejected = json.dumps({"name": "JSON", "arguments": json.dumps({"abstain": "no"})})
+    assert salvaged_answer(tool_use_failed(rejected), ["search_clauses"]) == '{"abstain": "no"}'
+
+
+def test_offered_tool_names_reads_the_payload_the_sdk_was_sent() -> None:
+    payload = {"tools": to_openai_tools(AGENT_TOOLS)}
+    assert offered_tool_names(payload) == list(TOOL_NAMES)
+    assert offered_tool_names({}) == []
+
+
+def test_is_provider_error_tells_an_sdk_failure_from_one_of_ours() -> None:
+    """What `app/api.py` answers with a 503 rather than letting it become a 500."""
+    import httpx
+    import openai
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(429, request=request, json={})
+    assert is_provider_error(openai.RateLimitError("busy", response=response, body=None))
+    assert is_provider_error(openai.APITimeoutError(request=request))
+    assert is_provider_error(openai.APIConnectionError(request=request))
+    assert not is_provider_error(ValueError("our own bug"))
+    assert not is_provider_error(FakeAPIError("not from an sdk", 429))
+
+
+def test_provider_error_line_is_one_line_and_names_the_type() -> None:
+    multiline = "two" + chr(10) + "lines"
+    line = provider_error_line(FakeAPIError(multiline, 500))
+    assert line == "FakeAPIError: two lines"
+    assert len(provider_error_line(FakeAPIError("x" * 900, 500))) < 320

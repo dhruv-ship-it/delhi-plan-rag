@@ -5,6 +5,11 @@
 // "no API key is configured yet, and here are the clauses anyway". The thrown error
 // carries the body so the interface can switch into search-only mode and still show
 // them (see app/api.py and D-050).
+//
+// The other 503 is error: 'provider_error' — the AI service was busy, refused the
+// request or was down. It carries a short message meant to be shown as it is, which is
+// what request() already does with any detail.message, so the interface shows it
+// instead of "Request failed (500)" (D-100).
 
 export class ApiError extends Error {
   constructor(message, status, detail) {
@@ -22,6 +27,13 @@ export class ApiError extends Error {
 
   get isRateLimited() {
     return this.status === 429
+  }
+
+  // True when the AI provider failed rather than ZoneWise: busy, refusing, or down.
+  // The message is already the one to show; this is for anything that wants to tell
+  // the two kinds of 503 apart.
+  get isProviderError() {
+    return this.status === 503 && this.detail?.error === 'provider_error'
   }
 }
 

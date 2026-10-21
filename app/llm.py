@@ -283,6 +283,30 @@ GROQ_MAX_TRIES = 4
 GROQ_BACKOFF_BASE_S = 2.0
 GROQ_MAX_BACKOFF_S = 60.0
 
+#: Groq's code for "the model called a tool this request does not allow". The rejected
+#: completion comes back in the error's `failed_generation`, which is where a final
+#: answer sent as a bogus tool call can be read back from (D-100).
+TOOL_USE_FAILED = "tool_use_failed"
+
+#: What makes a JSON object a final answer rather than something else. Either field is
+#: enough: an answer has `sentences`, a refusal has `abstain`.
+ANSWER_OBJECT_KEYS = ("sentences", "abstain")
+
+#: How a provider SDK's exceptions are recognised: the module they come from and the
+#: class names that mean "the provider failed". Matched by name rather than by
+#: importing either SDK, so this module stays the only one that imports a provider and
+#: a caller can ask the question without paying for the import (D-100).
+PROVIDER_SDK_MODULES = ("openai", "anthropic")
+PROVIDER_ERROR_NAMES = frozenset(
+    {
+        "APIError",
+        "APIStatusError",
+        "APIConnectionError",
+        "APITimeoutError",
+        "APIResponseValidationError",
+    }
+)
+
 #: Words that mark an error as "slow down" or "you have run out", rather than as a bug.
 QUOTA_MARKERS = (
     "rate limit",
@@ -532,6 +556,111 @@ def needs_the_word_json(error: Exception) -> bool:
     return rejects_response_format(error) and "must contain the word" in str(error).lower()
 
 
+def error_body(error: Exception) -> dict:
+    """The JSON body an SDK error carries, unwrapped from its `error` envelope.
+
+    The `openai` SDK puts the decoded body on the exception, sometimes as the whole
+    document and sometimes as the `error` object inside it, so both shapes are read.
+    """
+    body = getattr(error, "body", None)
+    if not isinstance(body, dict):
+        return {}
+    inner = body.get("error")
+    return inner if isinstance(inner, dict) else body
+
+
+def failed_generation_of(error: Exception) -> str:
+    """The completion Groq rejected, when the error carries one."""
+    raw = error_body(error).get("failed_generation")
+    return raw if isinstance(raw, str) else ""
+
+
+def rejected_tool_call(error: Exception) -> bool:
+    """True for Groq's `tool_use_failed`: a tool call the request did not allow."""
+    if status_of(error) != 400:
+        return False
+    code = error_body(error).get("code") or getattr(error, "code", "") or ""
+    return str(code) == TOOL_USE_FAILED or TOOL_USE_FAILED in str(error).lower()
+
+
+def offered_tool_names(payload: dict) -> list[str]:
+    """The tool names a chat-completions payload actually offered the model."""
+    names = []
+    for tool in payload.get("tools") or []:
+        name = (tool.get("function") or {}).get("name") if isinstance(tool, dict) else None
+        if isinstance(name, str) and name:
+            names.append(name)
+    return names
+
+
+def salvaged_answer(error: Exception, offered: Any = ()) -> str | None:
+    """The final answer inside a rejected tool call, or None when there is none.
+
+    `openai/gpt-oss-120b` sometimes sends its final answer as a call to a tool named
+    `JSON`, which no ZoneWise request offers. Groq rejects the whole completion with a
+    400 and hands the text back in `failed_generation`, so the answer is already paid
+    for and only needs reading (D-100).
+
+    The rescue is deliberately narrow. The error must be `tool_use_failed`; the
+    rejected text must parse as a tool call; the tool must be one the request did
+    **not** offer, because a rejected call to a real tool is a different fault and
+    guessing at it would invent a tool result; and its arguments must look like an
+    answer object. Anything else returns None, and the caller lets the error stand.
+    The arguments are returned as text, so the answer goes through exactly the same
+    parsing and validation as any other reply and no second call is made.
+    """
+    if not rejected_tool_call(error):
+        return None
+    try:
+        call = json.loads(failed_generation_of(error))
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(call, dict):
+        return None
+    name = call.get("name")
+    if not isinstance(name, str) or name in set(offered):
+        return None
+    arguments = call.get("arguments")
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(arguments, dict):
+        return None
+    if not any(key in arguments for key in ANSWER_OBJECT_KEYS):
+        return None
+    return json.dumps(arguments, ensure_ascii=False)
+
+
+def is_provider_error(error: Exception) -> bool:
+    """True when an exception came out of a provider SDK rather than our own code.
+
+    Covers every `openai` status error (400, 429 and 5xx all subclass
+    `APIStatusError`), the connection and timeout errors, and the matching Anthropic
+    classes. `app/api.py` uses it to answer a provider failure with a 503 instead of
+    letting it become a 500, without importing either SDK (D-100).
+    """
+    for klass in type(error).__mro__:
+        module = (getattr(klass, "__module__", "") or "").split(".")[0]
+        if module in PROVIDER_SDK_MODULES and klass.__name__ in PROVIDER_ERROR_NAMES:
+            return True
+    return False
+
+
+def provider_error_line(error: Exception) -> str:
+    """One line naming an exception, for the request log: its type and its message.
+
+    Flattened and trimmed, because a log is one JSON object per line and nothing is
+    gained by keeping a provider's full body in it. No stack trace, and no key: the
+    SDKs never put the key in an error message.
+    """
+    message = " ".join(str(error).split())
+    if len(message) > 300:
+        message = message[:297] + "..."
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
+
+
 def retry_after_of(headers: dict[str, str]) -> float | None:
     """The `retry-after` header in seconds, when there is a usable one."""
     raw = headers.get("retry-after")
@@ -591,6 +720,8 @@ class GroqLLM:
         self.calls = 0
         self.retries = 0
         self.rate_limit_events = 0
+        #: How many times a final answer was read back out of a rejected tool call.
+        self.tool_call_rescues = 0
         self.input_tokens = 0
         self.output_tokens = 0
         self.last_rate_limit: dict[str, str] = {}
@@ -688,6 +819,14 @@ class GroqLLM:
                     self.json_mode_supported = False
                 payload.pop("response_format")
                 return self._send(payload)
+            rescued = salvaged_answer(exc, offered_tool_names(payload))
+            if rescued is not None:
+                log.warning(
+                    "groq rejected a call to a tool this request did not offer; "
+                    "reading its arguments as the final answer (D-100)"
+                )
+                self.tool_call_rescues += 1
+                return text_response(rescued)
             raise
 
     def _send_with_retries(self, payload: dict) -> Response:

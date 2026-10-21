@@ -32,7 +32,7 @@ first real build is step C of `docs/DEPLOY.md`.
 | 5 | the image rewritten to carry code only | `724b50f` |
 | 6 | the image workflow, and tests for the deployment files | `f0bc8f2` |
 | 7 | `docs/DEPLOY.md` rewritten; the AWS assumptions removed | `7766990` |
-| 8 | this report | (this commit) |
+| 8 | this report | `f617051` |
 
 New decisions: **D-109** (the agent's forced last round), **D-110** (the memory trims),
 **D-111** (the host), **D-112** (the data as a bundle), **D-113** (`$PORT` and the proxy

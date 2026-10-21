@@ -36,7 +36,7 @@ free-tier token limit reset). 17 answered, 6 declined, 0 failed, 123,276 tokens 
 `reports/manual_checks.md` judges them case by case, and fix round 1 (D-100 to D-107)
 is what came out of that reading.
 
-**Current test count: 527 pass** (D-096; confirmed again when `v1.0-rc1` was tagged).
+**Current test count: 554 pass** (fix round 1; it was 527 when `v1.0-rc1` was tagged).
 
 ---
 
@@ -162,7 +162,7 @@ n, and saying the questions were human-verified.
 | Map layers | **8**, from DDA's GIS portal |
 | Eval points | **26** in `eval/points.json`; 8 named test points |
 | Eval questions | **60** drafted, **0 verified** |
-| Tests | **477 pass**; 446 run with no data at all, 31 marked `needs_data` |
+| Tests | **554 pass**; 518 run with no data at all, 36 marked `needs_data` |
 | Provider / model | **Groq**, `openai/gpt-oss-120b` (D-082). `LLM_PROVIDER=anthropic` still works unchanged |
 | Live answers recorded | **37** in v1 and **21** in v2, **none human-reviewed** (D-085, D-091) |
 | First-attempt citation pass rate | **100%** in v2 (18 of 18 answers), against 14% over the same cases in v1 |

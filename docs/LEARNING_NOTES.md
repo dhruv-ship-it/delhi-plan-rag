@@ -694,7 +694,7 @@ two suites.
 `npm run build`, then an assertion that `dist/index.html` and a JS bundle exist). The
 marker is declared in `pyproject.toml` under `[tool.pytest.ini_options]`, applied
 module-wide in `tests/test_api.py` with `pytestmark = pytest.mark.needs_data` and on one
-case in `tests/test_web_build.py`. **31 tests are marked; 446 of the 477 run with no data
+case in `tests/test_web_build.py`. **36 tests are marked; 518 of the 554 run with no data
 at all.**
 
 Two details carry most of the value. `concurrency` with `cancel-in-progress` means a
@@ -718,7 +718,7 @@ leave CI testing a dependency tree nobody has run locally.
 
 **How to explain it in an interview.** "My indexes and source PDFs aren't committed, so a
 CI runner can't run every test. I marked the 31 that need built data with a pytest marker
-and CI runs `-m 'not needs_data'` — 446 tests on a clean clone. Two things I'd point at:
+and CI runs `-m 'not needs_data'` — 518 tests on a clean clone. Two things I'd point at:
 I found the membership of that set by actually hiding the data directories and re-running,
 which caught a test whose name gave no hint it depended on the index; and CI asserts the
 deselected set is non-empty, so if someone deletes the marker it fails loudly instead of

@@ -1,0 +1,1024 @@
+{
+  "started_at": "2026-10-21T17:10:14+00:00",
+  "updated_at": "2026-10-21T17:17:44+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "min_interval_s": 2.5,
+  "token_budget": 100000,
+  "call_cap": 120,
+  "total_cases": 12,
+  "tokens_used": 69576,
+  "calls_made": 30,
+  "runs": 1,
+  "last_run_tokens": 69576,
+  "last_run_calls": 30,
+  "rate_limit_events": 0,
+  "api_retries": 0,
+  "stopped_because": "finished",
+  "last_rate_limit": {
+    "x-ratelimit-limit-requests": "1000",
+    "x-ratelimit-remaining-requests": "970",
+    "x-ratelimit-reset-requests": "43m12s",
+    "x-ratelimit-limit-tokens": "8000",
+    "x-ratelimit-remaining-tokens": "51",
+    "x-ratelimit-reset-tokens": "59.617s"
+  },
+  "records": [
+    {
+      "id": "demo-03",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Is construction allowed here?",
+      "point_name": "P_ZONEO",
+      "lat": 28.672913,
+      "lon": 77.243545,
+      "expect": "answer",
+      "note": "beat 3",
+      "ran_at": "2026-10-21T17:10:15+00:00",
+      "error": null,
+      "zones_text": "planning zone O; in Zone O (Yamuna floodplain)",
+      "located_lat": 28.672913,
+      "located_lon": 77.243545,
+      "answer": "Active floodplain, which includes Zone O as a Yamuna floodplain, is designated a ‘no construction zone’ where only recreational uses are permitted, and all unauthorised construction must be demolished [C2].\nThe Delhi High Court has directed the removal of all encroachments and illegal construction on the Yamuna river bank and floodplain, reinforcing that such construction is not allowed [C3].",
+      "answer_words": 59,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "clause_id": "3.1.2",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "681-682"
+        },
+        {
+          "chunk_id": "DHC_YAMUNA_20240708:6:0",
+          "clause_id": "6",
+          "doc_title": "Delhi High Court order on Yamuna floodplain encroachments (8 Jul 2024)",
+          "pages": "2-3"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:6:0"
+      ],
+      "retrieved_chunk_ids": [
+        "DHC_YAMUNA_20240708:2:0",
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:6:0",
+        "MPD47_GAZETTE_EN:9.2:0",
+        "MPD47_GAZETTE_EN:4.5.1:0",
+        "MPD47_GAZETTE_EN:p1013:1"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1126,
+        "output_tokens": 335,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "partly",
+            "reason": "Clause ii states active floodplain is a ‘no construction zone’ with only recreational uses and demolition of unauthorised construction, but does not mention Zone O as a Yamuna floodplain."
+          },
+          {
+            "i": 2,
+            "verdict": "partly",
+            "reason": "Clause 6 orders removal of encroachments on the Yamuna river bank, river bed and drains, but does not explicitly mention the floodplain."
+          }
+        ],
+        "counts": {
+          "supported": 0,
+          "partly": 2,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 3825,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 3702,
+      "output_tokens": 505,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1461,
+      "answer_tokens": 2746
+    },
+    {
+      "id": "demo-04",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "What are the rules for the active floodplain?",
+      "point_name": "P_ZONEO",
+      "lat": 28.672913,
+      "lon": 77.243545,
+      "expect": "answer",
+      "note": "beat 3, sharper",
+      "ran_at": "2026-10-21T17:10:19+00:00",
+      "error": null,
+      "zones_text": "planning zone O; in Zone O (Yamuna floodplain)",
+      "located_lat": 28.672913,
+      "located_lon": 77.243545,
+      "answer": "Active floodplain is designated as a ‘no construction zone’ where only recreational uses are permitted and all unauthorised construction, including religious structures, must be demolished by the concerned agency on priority [C1].\nThe zone is also described as a prohibited activity zone because encroachment diverts water and leads to floods, as acknowledged by respondents in the court proceedings [C5].",
+      "answer_words": 59,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "clause_id": "3.1.2",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "681-682"
+        },
+        {
+          "chunk_id": "DHC_YAMUNA_20240708:3:0",
+          "clause_id": "3",
+          "doc_title": "Delhi High Court order on Yamuna floodplain encroachments (8 Jul 2024)",
+          "pages": "2"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:3:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:2:0",
+        "MPD47_GAZETTE_EN:p1013:0",
+        "DHC_YAMUNA_20240708:6:0",
+        "DHC_YAMUNA_20240708:3:0",
+        "MPD47_GAZETTE_EN:3.1.2@p680:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1108,
+        "output_tokens": 215,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "supported",
+            "reason": "Clause ii states: \"Active floodplain shall be a ‘no construction zone’ and only recreational uses shall be permitted. All unauthorised construction including religious structures shall be demolished by the concerned agency on priority.\""
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "Clause 3 says: \"...the floodplain area is a prohibited activity zone... encroachment in this area leads to diversion of water leading to floods...\""
+          }
+        ],
+        "counts": {
+          "supported": 2,
+          "partly": 0,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 4834,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 3706,
+      "output_tokens": 360,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1323,
+      "answer_tokens": 2743
+    },
+    {
+      "id": "demo-06",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Can I build a house here?",
+      "point_name": "P_LDA",
+      "lat": 28.608034,
+      "lon": 76.903849,
+      "expect": "answer",
+      "note": "beat 4, alternative",
+      "ran_at": "2026-10-21T17:10:24+00:00",
+      "error": null,
+      "zones_text": "planning zone L; in low density area",
+      "located_lat": 28.608034,
+      "located_lon": 76.903849,
+      "answer": "Low Density Area (LDA) comprises areas within the depth of one peripheral village revenue boundary along the border of NCTD and LDRA as defined in the Master Plan for Delhi 2047 [C2].\nFor residential use in LDA, the minimum plot size is 10,000 sq m and the development control norms are FAR 10, maximum ground coverage 15%, maximum building height 10 m, and a minimum rear‑of‑site (RoW) setback of 18 m [C1].",
+      "answer_words": 72,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.4@p764:0",
+          "clause_id": "4.4",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "764"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:4.4.3:0",
+          "clause_id": "4.4.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "766-767"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.4@p764:0",
+        "MPD47_GAZETTE_EN:4.4.3:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.4.3:0",
+        "MPD47_GAZETTE_EN:4.4@p764:0",
+        "MPD47_FAQ:Q1@p18:0",
+        "MPD47_GAZETTE_EN:3.4.2:0",
+        "MPD47_FAQ:Q4@p18:0",
+        "MPD47_FAQ:Q8@p3:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1326,
+        "output_tokens": 220,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "supported",
+            "reason": "Clause 4.4 states LDA shall comprise areas within the depth of one peripheral village revenue boundary along the border of NCTD and LDRA."
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "Clause 4.4.3 lists Residential plot minimum 10,000 sq m with FAR 10, ground coverage max 15%, height max 10 m, min RoW 18 m."
+          }
+        ],
+        "counts": {
+          "supported": 2,
+          "partly": 0,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 27932,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 3608,
+      "output_tokens": 430,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1546,
+      "answer_tokens": 2492
+    },
+    {
+      "id": "demo-07",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Is construction allowed here?",
+      "point_name": "P_RIDGE",
+      "lat": 28.427902,
+      "lon": 77.207749,
+      "expect": "abstain",
+      "note": "beat 5, the should-abstain beat",
+      "ran_at": "2026-10-21T17:10:52+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in Ridge / regional park",
+      "located_lat": 28.427902,
+      "located_lon": 77.207749,
+      "answer": "In the Ridge/Regional Park area, new construction is generally restricted and may be permitted only for socio‑cultural, recreational uses or essential government utilities and public infrastructure, subject to approval/NOC of the competent authority or statutory body [C1].\nAny development within a Regional Park must comply with the specific controls set out for Regional Parks, including obtaining necessary approvals from the Forest Department and adhering to security and amenity provisions, and no general construction is allowed without such clearances [C3].",
+      "answer_words": 79,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:3.1.2@p681:0",
+          "clause_id": "3.1.2",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "681-682"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:10.2.1@p846:0",
+          "clause_id": "10.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "846"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "MPD47_GAZETTE_EN:10.2.1@p846:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "MPD47_GAZETTE_EN:10.1@p843:0",
+        "MPD47_GAZETTE_EN:10.2.1@p846:0",
+        "MPD47_GAZETTE_EN:9.2:0",
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:3.1.2@p683:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1275,
+        "output_tokens": 366,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "supported",
+            "reason": "Clause ii and iii state that development is restricted to socio‑cultural, recreational uses, essential utilities and public infrastructure with approval/NOC"
+          },
+          {
+            "i": 2,
+            "verdict": "partly",
+            "reason": "Clause ix(a) requires development to be in accordance with the Forest Department and (b) adds security provisions, but does not explicitly state that no general construction is allowed without such clearances"
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 1,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 38730,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 4594,
+      "output_tokens": 655,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1641,
+      "answer_tokens": 3608
+    },
+    {
+      "id": "demo-10",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Can a fuel station be built here?",
+      "point_name": "P_ZONEO",
+      "lat": 28.672913,
+      "lon": 77.243545,
+      "expect": "answer",
+      "note": "beat 3b; was cut, fixed by D-086",
+      "ran_at": "2026-10-21T17:11:31+00:00",
+      "error": null,
+      "zones_text": "planning zone O; in Zone O (Yamuna floodplain)",
+      "located_lat": 28.672913,
+      "located_lon": 77.243545,
+      "answer": "Fuel stations are not permitted in Zone O [C1].",
+      "answer_words": 9,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:11.1.1@p854:0",
+          "clause_id": "11.1.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "854-855"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:11.1.1@p854:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:11.1.1@p854:0",
+        "MPD47_GAZETTE_EN:11.1.1@p855:0",
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "DHC_YAMUNA_20240708:2:0",
+        "MPD47_GAZETTE_EN:Annexure 18:0",
+        "MPD47_GAZETTE_EN:1.8@p670:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1210,
+        "output_tokens": 202,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "supported",
+            "reason": "Clause (x)(a) states fuel stations may be permitted in all zones except Recreational and Zone O, thus not permitted in Zone O."
+          },
+          {
+            "i": 2,
+            "verdict": "unsupported",
+            "reason": "Clause ii defines active floodplain as a no‑construction zone with only recreational uses, but does not say Zone O is part of the active floodplain."
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 0,
+          "unsupported": 1
+        },
+        "dropped": [
+          2
+        ],
+        "enforced": true,
+        "would_change": true,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 40035,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 4660,
+      "output_tokens": 394,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1412,
+      "answer_tokens": 3642
+    },
+    {
+      "id": "demo-12",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Can I build a house here?",
+      "point_name": "P_RIDGE",
+      "lat": 28.427902,
+      "lon": 77.207749,
+      "expect": "abstain",
+      "note": "cut; D-086 left it weaker still",
+      "ran_at": "2026-10-21T17:12:11+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in Ridge / regional park",
+      "located_lat": 28.427902,
+      "located_lon": 77.207749,
+      "answer": "The Ridge is designated as a Regional Park, which is defined as a park of minimum area of 40 Ha of natural, semi‑natural or planted space set aside for recreation and/or protection/preservation [C1]\nRegional Park falls under Use Zone P1 in the Recreational land‑use category, which is not a residential use zone [C6]",
+      "answer_words": 53,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:10.1@p842:0",
+          "clause_id": "10.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "842"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "clause_id": "5.1.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "796-797"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:5.1.3@p796:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:Annexure 22@p984:0",
+        "MPD47_FAQ:Q3@p20:0",
+        "MPD47_GAZETTE_EN:1.6.2@p657:0",
+        "MPD47_GAZETTE_EN:p911:1",
+        "MPD47_GAZETTE_EN:5.1.3@p796:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1562,
+        "output_tokens": 334,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "partly",
+            "reason": "Clause defines Regional Park as the Ridge but the 40 Ha minimum area definition applies to City Park, not Regional Park"
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "Clause lists Regional Park under Use Zone P1 in the Recreational category, separate from Residential zones"
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 1,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 28913,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 4729,
+      "output_tokens": 507,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1896,
+      "answer_tokens": 3340
+    },
+    {
+      "id": "demo-13",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "How much of my plot can I build on?",
+      "point_name": "P_PLAIN",
+      "lat": 28.639973,
+      "lon": 77.088994,
+      "expect": "either",
+      "note": "cut; wanders at ranks 2-3",
+      "ran_at": "2026-10-21T17:12:40+00:00",
+      "error": null,
+      "zones_text": "planning zone G; in none of the six policy zones",
+      "located_lat": 28.639973,
+      "located_lon": 77.088994,
+      "answer": "For plotted housing the maximum ground coverage is 90% for plots up to 100 sqm and 75% for plots above 100 sqm up to 750 sqm, with the maximum FAR ranging from 350 for plots up to 250 sqm down to 200 for plots above 750 sqm as specified in clause 7.2.1 of the Master Plan (C6) [C6].\nThe minimum plot size for residential development is 32 sqm, and the total ground coverage and floor area for any plot category shall not be less than that available to the largest plot in the next lower category (C6) [C6].",
+      "answer_words": 98,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "clause_id": "7.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "813-814"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:7.2.1@p813:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_FAQ:Q1@p5:0",
+        "MPD47_GAZETTE_EN:4.6.5@p785:0",
+        "MPD47_FAQ:Q4@p20:0",
+        "MPD47_GAZETTE_EN:7.2.1@p814:0",
+        "MPD47_GAZETTE_EN:4.6.4@p781:0",
+        "MPD47_GAZETTE_EN:7.2.1@p813:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1713,
+        "output_tokens": 359,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "partly",
+            "reason": "Clause lists 350 FAR only up to 100 sqm, then 300 up to 250 sqm, not 350 up to 250 sqm as sentence claims"
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "Clause (ii) states minimum plot size 32 sqm and (iii) states ground coverage/floor area shall not be less than that of the largest plot in the next lower category"
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 1,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 43213,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 5264,
+      "output_tokens": 568,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 2072,
+      "answer_tokens": 3760
+    },
+    {
+      "id": "demo-14",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "What is the permissible FAR for plotted housing?",
+      "point_name": "P_PLAIN",
+      "lat": 28.639973,
+      "lon": 77.088994,
+      "expect": "answer",
+      "note": "the demo's replacement",
+      "ran_at": "2026-10-21T17:13:23+00:00",
+      "error": null,
+      "zones_text": "planning zone G; in none of the six policy zones",
+      "located_lat": 28.639973,
+      "located_lon": 77.088994,
+      "answer": "For plotted housing the maximum permissible FAR is 350 for plots up to 100 sqm, 300 for plots above 100 sqm up to 250 sqm, and 225 – 200 for larger plots as detailed in the table (250‑750 sqm: 225; 750‑1000 sqm: 200; 1000‑1500 sqm: 200; 1500‑2250 sqm: 200; 2250‑3000 sqm: 200; 3000‑3750 sqm: 200; above 3750 sqm: 200) [C2]",
+      "answer_words": 60,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:7.2.1@p813:0",
+          "clause_id": "7.2.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "813-814"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:7.2.1@p813:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_FAQ:Q1@p5:0",
+        "MPD47_GAZETTE_EN:7.2.1@p813:0",
+        "MPD47_GAZETTE_EN:7.2.1@p814:0",
+        "MPD47_GAZETTE_EN:9.1.3:0",
+        "MPD47_GAZETTE_EN:11.1.3@p859:0",
+        "MPD47_FAQ:Q6@p3:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1125,
+        "output_tokens": 266,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "supported",
+            "reason": "Clause lists FAR 350 up to 100 sqm, 300 for 100‑250 sqm, 225 for 250‑750 sqm and 200 for all larger ranges matching the sentence"
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 0,
+          "unsupported": 0
+        },
+        "dropped": [],
+        "enforced": false,
+        "would_change": false,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 40760,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 4599,
+      "output_tokens": 654,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1391,
+      "answer_tokens": 3862
+    },
+    {
+      "id": "agent-02",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "Can I build a house on the Yamuna floodplain near ITO?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.6283,
+        77.241
+      ],
+      "radius_m": 3000,
+      "expect": "answer",
+      "note": "the floodplain, named in words",
+      "ran_at": "2026-10-21T17:14:04+00:00",
+      "error": null,
+      "zones_text": "planning zone D; in TOD zone",
+      "located_lat": 28.628191,
+      "located_lon": 77.241044,
+      "answer": null,
+      "answer_words": 0,
+      "citations": [],
+      "cited_chunk_ids": [],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.2:0",
+        "MPD47_GAZETTE_EN:4.2.4@p755:0",
+        "MPD47_GAZETTE_EN:4.2.1:0",
+        "MPD47_GAZETTE_EN:4.2.5:0",
+        "MPD47_GAZETTE_EN:4.2.4@p754:0"
+      ],
+      "abstained": true,
+      "abstain_reason": "model_abstained: No clause found addressing house construction on Yamuna floodplain at the specified location.",
+      "validation_failures": [],
+      "location_note": "This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest Zone O boundary is about 600 m away.",
+      "support_check": {},
+      "llm_calls": 4,
+      "latency_ms": 61552,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "ITO"
+          },
+          "summary": "found ITO (Delhi Metro) at 28.62819, 77.24104"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.628191,
+            "lon": 77.241044
+          },
+          "summary": "planning zone D; in TOD zone — This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest Zone O boundary is about 600 m away."
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.628191,
+            "lon": 77.241044,
+            "query": "Yamuna floodplain house construction"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:4.2.2:0, S2 MPD47_GAZETTE_EN:4.2.4@p755:0, S3 MPD47_GAZETTE_EN:4.2.1:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 7889,
+      "output_tokens": 240,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 0,
+      "support_tokens": 0,
+      "answer_tokens": 8129,
+      "located_metres_off": 13
+    },
+    {
+      "id": "agent-05",
+      "group": "b. agent mode, a place named in words",
+      "mode": "agent",
+      "question": "Is construction allowed in the Ridge near Chhatarpur?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.5067,
+        77.175
+      ],
+      "radius_m": 4000,
+      "expect": "either",
+      "note": "a Ridge question with no pin; no indexed clause states a construction rule for the Ridge, and 3.1.2's only Ridge mention is the Ridge-Yamuna cycling connector (D-106)",
+      "ran_at": "2026-10-21T17:15:05+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in none of the six policy zones",
+      "located_lat": 28.506724,
+      "located_lon": 77.175002,
+      "answer": null,
+      "answer_words": 0,
+      "citations": [],
+      "cited_chunk_ids": [],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "MPD47_GAZETTE_EN:10.1@p843:0",
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:10.2.3:0",
+        "MPD47_GAZETTE_EN:5.1.6@p800:0"
+      ],
+      "abstained": true,
+      "abstain_reason": "model_abstained: Insufficient clause information on construction rules for the Ridge near Chhatarpur",
+      "validation_failures": [],
+      "location_note": "This point is not inside the Ridge / a Regional Park on DDA's map; the nearest Ridge / Regional Park boundary is about 100 m away.",
+      "support_check": {},
+      "llm_calls": 4,
+      "latency_ms": 63406,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Chhatarpur"
+          },
+          "summary": "found Chhatarpur (Delhi Metro) at 28.50672, 77.17500"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.506724,
+            "lon": 77.175002
+          },
+          "summary": "planning zone J; in none of the six policy zones — This point is not inside the Ridge / a Regional Park on DDA's map; the nearest Ridge / Regional Park boundary is about 100 m away."
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.506724,
+            "lon": 77.175002,
+            "query": "Ridge construction allowed"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:3.1.2@p681:0, S2 MPD47_GAZETTE_EN:10.1@p843:0, S3 MPD47_GAZETTE_EN:10.1@p842:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 8216,
+      "output_tokens": 259,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 0,
+      "support_tokens": 0,
+      "answer_tokens": 8475,
+      "located_metres_off": 3
+    },
+    {
+      "id": "probe-01",
+      "group": "d. probes for the location note",
+      "mode": "map",
+      "question": "Can I build on the Yamuna floodplain here?",
+      "point_name": "P_TOD",
+      "lat": 28.6328,
+      "lon": 77.2197,
+      "expect": "either",
+      "note": "probe: names Zone O at a point get_zones puts in a TOD zone, 2.7 km away (D-094)",
+      "ran_at": "2026-10-21T17:16:09+00:00",
+      "error": null,
+      "zones_text": "planning zone D; in TOD zone",
+      "located_lat": 28.6328,
+      "located_lon": 77.2197,
+      "answer": null,
+      "answer_words": 0,
+      "citations": [],
+      "cited_chunk_ids": [],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:4.2.2:0",
+        "MPD47_GAZETTE_EN:4.2.4@p755:0",
+        "MPD47_GAZETTE_EN:3.6.1@p721:1",
+        "MPD47_GAZETTE_EN:4.2.3@p751:0",
+        "MPD47_GAZETTE_EN:4.2.4@p754:0",
+        "MPD47_GAZETTE_EN:p642:0"
+      ],
+      "abstained": true,
+      "abstain_reason": "unsupported_claims",
+      "validation_failures": [],
+      "location_note": "This point is not inside Zone O (Yamuna floodplain) on DDA's map; the nearest Zone O boundary is about 2.7 km away.",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 1451,
+        "output_tokens": 399,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "unsupported",
+            "reason": "Clause only lists areas where policy shall not apply, not that it applies elsewhere"
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "Clause states \"A TOD Plot must cover a minimum area of 2000 sqm... at least 50% of the plot area\""
+          },
+          {
+            "i": 3,
+            "verdict": "supported",
+            "reason": "Clause states \"must be accessible from an existing road having a minimum ROW of 18m... may be considered based on proposed continuous 18 m ROW road\""
+          }
+        ],
+        "counts": {
+          "supported": 2,
+          "partly": 0,
+          "unsupported": 1
+        },
+        "dropped": [
+          1
+        ],
+        "enforced": true,
+        "would_change": true,
+        "would_abstain": true,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 39546,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 4831,
+      "output_tokens": 648,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 1850,
+      "answer_tokens": 3629
+    },
+    {
+      "id": "probe-02",
+      "group": "d. probes for the location note",
+      "mode": "agent",
+      "question": "Is construction allowed in the Ridge near Chhatarpur?",
+      "point_name": null,
+      "lat": null,
+      "lon": null,
+      "near": [
+        28.5067,
+        77.175
+      ],
+      "radius_m": 4000,
+      "expect": "either",
+      "note": "probe: the same question as agent-05, re-asked with the note in place (D-094); no indexed clause states a construction rule for the Ridge, and 3.1.2's only Ridge mention is the Ridge-Yamuna cycling connector (D-106)",
+      "ran_at": "2026-10-21T17:16:48+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in none of the six policy zones",
+      "located_lat": 28.506724,
+      "located_lon": 77.175002,
+      "answer": null,
+      "answer_words": 0,
+      "citations": [],
+      "cited_chunk_ids": [],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:3.1.2@p681:0",
+        "MPD47_GAZETTE_EN:10.1@p843:0",
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:10.2.3:0",
+        "MPD47_GAZETTE_EN:5.1.6@p800:0"
+      ],
+      "abstained": true,
+      "abstain_reason": "model_abstained: No clause directly addresses construction permission in the Ridge near Chhatarpur.",
+      "validation_failures": [],
+      "location_note": "This point is not inside the Ridge / a Regional Park on DDA's map; the nearest Ridge / Regional Park boundary is about 100 m away.",
+      "support_check": {},
+      "llm_calls": 4,
+      "latency_ms": 55664,
+      "tool_trace": [
+        {
+          "tool": "locate_place",
+          "input": {
+            "query": "Chhatarpur"
+          },
+          "summary": "found Chhatarpur (Delhi Metro) at 28.50672, 77.17500"
+        },
+        {
+          "tool": "get_zones",
+          "input": {
+            "lat": 28.506724,
+            "lon": 77.175002
+          },
+          "summary": "planning zone J; in none of the six policy zones — This point is not inside the Ridge / a Regional Park on DDA's map; the nearest Ridge / Regional Park boundary is about 100 m away."
+        },
+        {
+          "tool": "search_clauses",
+          "input": {
+            "k": 5,
+            "lat": 28.506724,
+            "lon": 77.175002,
+            "query": "Ridge construction allowed"
+          },
+          "summary": "5 clause(s): S1 MPD47_GAZETTE_EN:3.1.2@p681:0, S2 MPD47_GAZETTE_EN:10.1@p843:0, S3 MPD47_GAZETTE_EN:10.1@p842:0..."
+        }
+      ],
+      "api_calls": 4,
+      "input_tokens": 8216,
+      "output_tokens": 342,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 0,
+      "support_tokens": 0,
+      "answer_tokens": 8558,
+      "located_metres_off": 3
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "started_at": "2026-10-21T17:24:14+00:00",
+  "updated_at": "2026-10-21T17:24:20+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "min_interval_s": 2.5,
+  "token_budget": 10000,
+  "call_cap": 120,
+  "total_cases": 1,
+  "tokens_used": 6239,
+  "calls_made": 2,
+  "runs": 1,
+  "last_run_tokens": 6239,
+  "last_run_calls": 2,
+  "rate_limit_events": 0,
+  "api_retries": 0,
+  "stopped_because": "finished",
+  "last_rate_limit": {
+    "x-ratelimit-limit-requests": "1000",
+    "x-ratelimit-remaining-requests": "963",
+    "x-ratelimit-reset-requests": "53m16.799s",
+    "x-ratelimit-limit-tokens": "8000",
+    "x-ratelimit-remaining-tokens": "2029",
+    "x-ratelimit-reset-tokens": "44.782s"
+  },
+  "records": [
+    {
+      "id": "demo-12",
+      "group": "a. docs/DEMO.md, map mode",
+      "mode": "map",
+      "question": "Can I build a house here?",
+      "point_name": "P_RIDGE",
+      "lat": 28.427902,
+      "lon": 77.207749,
+      "expect": "abstain",
+      "note": "cut; D-086 left it weaker still",
+      "ran_at": "2026-10-21T17:24:15+00:00",
+      "error": null,
+      "zones_text": "planning zone J; in Ridge / regional park",
+      "located_lat": 28.427902,
+      "located_lon": 77.207749,
+      "answer": "The Ridge is designated as a Regional Park, which is a type of recreational land use (P1) under the Master Plan for Delhi 2047 [C1].\nRegional Parks are listed only under the Recreational land‑use category and are not included in any residential use zones such as RD or RF [C6].",
+      "answer_words": 50,
+      "citations": [
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:10.1@p842:0",
+          "clause_id": "10.1",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "842"
+        },
+        {
+          "chunk_id": "MPD47_GAZETTE_EN:5.1.3@p796:0",
+          "clause_id": "5.1.3",
+          "doc_title": "Master Plan for Delhi 2047 gazette notification (English)",
+          "pages": "796-797"
+        }
+      ],
+      "cited_chunk_ids": [
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:5.1.3@p796:0"
+      ],
+      "retrieved_chunk_ids": [
+        "MPD47_GAZETTE_EN:10.1@p842:0",
+        "MPD47_GAZETTE_EN:Annexure 22@p984:0",
+        "MPD47_FAQ:Q3@p20:0",
+        "MPD47_GAZETTE_EN:1.6.2@p657:0",
+        "MPD47_GAZETTE_EN:p911:1",
+        "MPD47_GAZETTE_EN:5.1.3@p796:0"
+      ],
+      "abstained": false,
+      "abstain_reason": null,
+      "validation_failures": [],
+      "location_note": "",
+      "support_check": {
+        "mode": "enforce",
+        "ran": true,
+        "calls": 1,
+        "input_tokens": 2660,
+        "output_tokens": 409,
+        "verdicts": [
+          {
+            "i": 1,
+            "verdict": "partly",
+            "reason": "C1 defines Regional Park as the Ridge but does not mention the P1 code"
+          },
+          {
+            "i": 2,
+            "verdict": "supported",
+            "reason": "C6 lists Regional Park (P1) only under Recreational and residential zones are RD, RF"
+          },
+          {
+            "i": 3,
+            "verdict": "unsupported",
+            "reason": "C1 and C6 define the park and its category but do not state that residential construction is prohibited"
+          }
+        ],
+        "counts": {
+          "supported": 1,
+          "partly": 1,
+          "unsupported": 1
+        },
+        "dropped": [
+          3
+        ],
+        "enforced": true,
+        "would_change": true,
+        "would_abstain": false,
+        "error": ""
+      },
+      "llm_calls": 1,
+      "latency_ms": 4714,
+      "tool_trace": [],
+      "api_calls": 2,
+      "input_tokens": 5637,
+      "output_tokens": 602,
+      "api_retries": 0,
+      "rate_limit_events": 0,
+      "citation_retry": 0,
+      "support_calls": 1,
+      "support_tokens": 3069,
+      "answer_tokens": 3170
+    }
+  ]
+}

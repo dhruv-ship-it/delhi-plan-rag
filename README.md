@@ -233,8 +233,8 @@ uv run python scripts/show_chunk.py MPD47_GAZETTE_EN:4.2.1:0
 **Tests:**
 
 ```powershell
-uv run pytest                      # 477
-uv run pytest -m "not needs_data"  # 446, the ones needing no built data
+uv run pytest                      # 554
+uv run pytest -m "not needs_data"  # 518, the ones needing no built data
 ```
 
 **Lint:**
@@ -534,14 +534,14 @@ deployment without one is a working map, zone lookup and clause search.
 
 A runner has no `data/` — the PDFs are 109 MB, the indexes are generated, and the DDA
 layers have no stated licence — so the 31 tests that need them are marked `needs_data`
-and CI runs `pytest -m "not needs_data"`. **446 of the 477 tests run with no data at
+and CI runs `pytest -m "not needs_data"`. **518 of the 554 tests run with no data at
 all**, which was proved by moving the data aside and running them, not by reasoning about
 it. A second CI step asserts the marked set is non-empty, so a marker going missing is a
 named failure rather than a surprise.
 
 ```powershell
-uv run pytest                      # all 477, needs the built data
-uv run pytest -m "not needs_data"  # the 446 CI runs
+uv run pytest                      # all 554, needs the built data
+uv run pytest -m "not needs_data"  # the 518 CI runs
 ```
 
 ## Project structure

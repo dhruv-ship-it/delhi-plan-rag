@@ -8,7 +8,7 @@
         1. ruff check .     lint: pyflakes (F), syntax errors (E9), import order (I).
                             Not a formatter - `ruff format` is deliberately not run
                             here or anywhere (D-080).
-        2. uv run pytest    all 477 tests. 31 of them need the built indexes and the
+        2. uv run pytest    all 554 tests. 36 of them need the built indexes and the
                             DDA layers; without that data they will fail rather than
                             skip, so on a clean clone use -NoData.
         3. npm run build    the frontend. Catches an import that no test touches,
@@ -101,7 +101,7 @@ if ($NoData) {
 }
 $code = $LASTEXITCODE
 $secs = ((Get-Date) - $t).TotalSeconds
-$scope = if ($NoData) { '446 expected, no data needed' } else { '477 expected' }
+$scope = if ($NoData) { '518 expected, no data needed' } else { '554 expected' }
 if ($code -eq 0) {
     Add-Result -Name 'pytest' -State 'PASS' -Detail $scope -Seconds $secs
 } else {

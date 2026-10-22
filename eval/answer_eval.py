@@ -20,20 +20,21 @@ tooling addition, not a tuning run (D-116).
 **A location question runs through `app.answer.answer_point`, unmodified** - the exact
 function `/api/ask` calls, with the question's own lat/lon and `app.spatial.get_zones`.
 
-**A question with no point cannot go through `/api/ask` at all**: `AskRequest.lat` and
-`.lon` are required fields, not optional ones, so there is no production endpoint this
-script can call for roughly half the verified set (the "general" category carries no
-coordinates by design - see eval/README.md). `answer_general` below is what stands in:
-the same system prompt, the same JSON contract, the same structural and claim checks as
-`answer_point`, imported from `app.answer` rather than copied, but retrieval is plain
-`hybrid` search with no zone awareness (`eval/run_eval.py` calls the identical
-no-location path its own "hybrid" configuration). The one place this cannot be faithful
-to production is the "Where the question is about" line of the prompt: production's
-`describe_zones` has no way to say "no point was given" - every value it can be handed
-reads as either a zone description or "outside NCT Delhi" - so `answer_general` states
-the honest text ("no location was given for this question") instead of calling
-`describe_zones` on a borrowed set of zones. The report says so again, next to every
-number this path contributes to.
+**A question with no point runs through `app.agent.run_agent`, unmodified** - the exact
+function `/api/agent` calls, with the same round cap, the same structural and claim
+checks, and no pin (D-117). Roughly half the verified set (the "general" category
+carries no coordinates by design - see eval/README.md) and any should-abstain question
+with no point take this path; a should-abstain question with a point still goes through
+`answer_point`. Earlier, a no-point question ran through this script's own stand-in,
+`answer_general`, because D-116 reasoned the agent would waste its tool-calling rounds
+on a question that names no place. That stand-in's prompt called
+`app.location.describe_zones({})`, which has no way to say "no point was given" - every
+value it can be handed reads as either a zone description or "outside NCT Delhi" - so a
+general question was told it was about a place outside Delhi, which biases the model
+toward declining. `run_agent` has no such line, because it never calls `describe_zones`
+for a point it never established; a question naming no place just skips
+`locate_place`/`get_zones` and searches directly. Every record, and the report, say
+which mode ran: `"map"` or `"agent"`.
 
 Every LLM call made for one question is counted through `_MeteredLLM`, a thin wrapper
 around whichever client was passed in (`GroqLLM`, `AnthropicLLM` or `FakeLLM` in a
@@ -46,33 +47,14 @@ import json
 import re
 import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.answer import (  # noqa: E402
-    CITATION_CHECK_FAILED,
-    MODEL_ABSTAINED,
-    RETRY_TEMPLATE,
-    SYSTEM_PROMPT,
-    UNSUPPORTED_CLAIMS,
-    WEAK_RETRIEVAL,
-    AnswerResult,
-    answer_point,
-    citations_from,
-    enforce_support,
-    is_weak,
-    model_abstained,
-    parse_answer_object,
-    payload_abstained,
-    render_markdown,
-    run_support_check,
-    source_block,
-    structural_problems,
-)
+from app.agent import run_agent  # noqa: E402
+from app.answer import answer_point  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.extract import markdown_table, use_utf8_output  # noqa: E402
 from app.llm import (  # noqa: E402
@@ -81,10 +63,9 @@ from app.llm import (  # noqa: E402
     get_llm,
     is_rate_limited,
     provider_error_line,
-    text_of,
     usage_of,
 )
-from app.retrieval import SearchIndex, get_index, search  # noqa: E402
+from app.retrieval import SearchIndex, get_index  # noqa: E402
 from eval.metrics import percentile, wilson_interval  # noqa: E402
 
 #: Nobody may run this against fewer than this many verified questions. 40 is the same
@@ -129,150 +110,6 @@ def ensure_enough(questions: list[dict], minimum: int = MIN_VERIFIED) -> None:
         )
 
 
-# --- the no-location answering path -----------------------------------------------
-#
-# Everything below is `app.answer.answer_point`'s own retry loop, with two things
-# removed: `app.spatial.get_zones` (there is no point to look up) and the named-zone
-# mismatch note (D-094), which is built from a point this path does not have. Every
-# other function is imported from app.answer, not copied, so the prompt rules, the
-# structural check and the claim check are exactly production's.
-
-#: The line `build_user_message` would have printed as `describe_zones(zones)`, if
-#: `describe_zones` had any way to say "no point was given" - it does not: every input
-#: it accepts reads back as a zone or as "outside NCT Delhi" (see the module docstring).
-NO_LOCATION_LINE = "no location was given for this question"
-
-
-def build_general_user_message(question: str, results, chunks: dict) -> str:
-    """The user turn for a no-point question: the sources, then the question.
-
-    Shaped like `app.answer.build_user_message`, with the "Where the question is
-    about" line replaced by the honest statement above instead of a borrowed zones
-    dict.
-    """
-    return (
-        f"Sources:\n\n{source_block(results, chunks)}\n\n"
-        f"---\n\n"
-        f"Question: {question}\n"
-        f"Where the question is about: {NO_LOCATION_LINE}.\n"
-    )
-
-
-def _abstain_general(
-    question: str,
-    reason: str,
-    results: list,
-    llm_calls: int,
-    started: float,
-    failures: list[list[str]] | None = None,
-) -> AnswerResult:
-    """Build a refusal for the no-point path. See `app.answer._abstain`."""
-    return AnswerResult(
-        question=question,
-        lat=None,
-        lon=None,
-        zones={},
-        answer_markdown=None,
-        citations=[],
-        abstained=True,
-        abstain_reason=reason,
-        retrieval=[result.to_dict() for result in results],
-        llm_calls=llm_calls,
-        latency_ms=int((time.perf_counter() - started) * 1000),
-        validation_failures=[list(attempt) for attempt in (failures or [])],
-    )
-
-
-def answer_general(
-    question: str,
-    llm: LLM,
-    index: SearchIndex,
-    k: int = settings.default_k,
-) -> AnswerResult:
-    """Answer a question that carries no point, using location-free retrieval.
-
-    The eval harness's own stand-in for a case `/api/ask` cannot accept at all (see the
-    module docstring): `search(..., zones=None, ...)` here is the identical call
-    `eval/run_eval.py`'s "hybrid" configuration makes, and everything downstream of
-    retrieval - the weak-retrieval pre-check, the JSON contract, the structural check,
-    the retry, the claim check - is `app.answer`'s own code, not a reimplementation.
-    """
-    started = time.perf_counter()
-    results = search(question, k=k, mode="hybrid", zones=None, index=index)
-
-    if is_weak(results):
-        return _abstain_general(question, WEAK_RETRIEVAL, results, 0, started)
-
-    sources = {f"C{number}": result for number, result in enumerate(results, start=1)}
-    labels = list(sources)
-    user_message = build_general_user_message(question, results, index.chunks)
-    messages: list[dict] = [{"role": "user", "content": user_message}]
-    calls = 0
-    failures: list[list[str]] = []
-
-    for attempt in range(settings.citation_retries + 1):
-        response = llm.chat(
-            messages=messages,
-            system=SYSTEM_PROMPT,
-            max_tokens=settings.answer_max_tokens,
-            temperature=settings.answer_temperature,
-            json_object=True,
-        )
-        calls += 1
-        reply = text_of(response).strip()
-
-        payload, parse_error = parse_answer_object(reply)
-        refusal = payload_abstained(payload) if payload else model_abstained(reply)
-        if refusal is not None:
-            result = _abstain_general(question, MODEL_ABSTAINED, results, calls, started, failures)
-            result.abstain_reason = f"{MODEL_ABSTAINED}: {refusal}"
-            return result
-
-        problems = (
-            [parse_error] if payload is None else structural_problems(payload, labels)
-        )
-        if not problems:
-            sentences = list(payload["sentences"])
-            support = run_support_check(sentences, sources, index.chunks, llm)
-            sentences, give_up = enforce_support(sentences, support)
-            if give_up:
-                result = _abstain_general(
-                    question, UNSUPPORTED_CLAIMS, results, calls, started, failures
-                )
-                result.support_check = support
-                return result
-            return AnswerResult(
-                question=question,
-                lat=None,
-                lon=None,
-                zones={},
-                answer_markdown=render_markdown(sentences),
-                citations=citations_from(sentences, sources, index.chunks),
-                abstained=False,
-                abstain_reason=None,
-                retrieval=[item.to_dict() for item in results],
-                llm_calls=calls,
-                latency_ms=int((time.perf_counter() - started) * 1000),
-                validation_failures=failures,
-                support_check=support,
-            )
-
-        failures.append(problems)
-        if attempt < settings.citation_retries:
-            messages = messages + [
-                {"role": "assistant", "content": reply},
-                {
-                    "role": "user",
-                    "content": RETRY_TEMPLATE.format(
-                        problems="\n".join(f"- {problem}" for problem in problems),
-                        valid=", ".join(f'"{label}"' for label in labels),
-                    ),
-                },
-            ]
-
-    return _abstain_general(question, CITATION_CHECK_FAILED, results, calls, started, failures)
-
-
 # --- counting tokens and calls, whatever the provider -----------------------------
 
 
@@ -306,8 +143,15 @@ class _MeteredLLM:
 
 
 def run_one(question: dict, llm: LLM, index: SearchIndex) -> dict:
-    """Run one verified question through the production answer path, and record it."""
+    """Run one verified question through the production answer path, and record it.
+
+    A question with a point runs through `answer_point`, exactly as `/api/ask` does. A
+    question with none runs through `app.agent.run_agent`, exactly as `/api/agent` does
+    - with no pin, the same round cap, and the same checks - not a location-free
+    stand-in (D-117).
+    """
     has_point = question.get("lat") is not None and question.get("lon") is not None
+    mode = "map" if has_point else "agent"
     metered = _MeteredLLM(llm)
 
     if has_point:
@@ -315,7 +159,7 @@ def run_one(question: dict, llm: LLM, index: SearchIndex) -> dict:
             question["question"], question["lat"], question["lon"], llm=metered, index=index
         )
     else:
-        result = answer_general(question["question"], llm=metered, index=index)
+        result = run_agent(question["question"], llm=metered, index=index)
 
     cited = [citation.chunk_id for citation in result.citations]
     wanted = set(question.get("expected_chunk_ids") or []) | set(
@@ -327,6 +171,7 @@ def run_one(question: dict, llm: LLM, index: SearchIndex) -> dict:
         "id": question["id"],
         "category": question["category"],
         "should_abstain": bool(question.get("should_abstain")),
+        "mode": mode,
         "has_point": has_point,
         "answered": not result.abstained,
         "abstained": result.abstained,
@@ -446,10 +291,12 @@ def run_questions(
                 state["stopped_because"] = "rate_limited"
                 state["last_rate_limit_error"] = provider_error_line(exc)
                 break
+            has_point = question.get("lat") is not None and question.get("lon") is not None
             record = {
                 "id": question["id"],
                 "category": question["category"],
                 "should_abstain": bool(question.get("should_abstain")),
+                "mode": "map" if has_point else "agent",
                 "error": provider_error_line(exc),
             }
 
@@ -576,6 +423,7 @@ def detail_rows(state: dict) -> list[list[str]]:
                 [
                     record["id"],
                     record.get("category", ""),
+                    record.get("mode", ""),
                     "yes" if record.get("should_abstain") else "no",
                     f"FAILED: {record['error'][:60]}",
                     "-",
@@ -592,6 +440,7 @@ def detail_rows(state: dict) -> list[list[str]]:
             [
                 record["id"],
                 record["category"],
+                record["mode"],
                 "yes" if record["should_abstain"] else "no",
                 outcome,
                 "yes" if record["cites_verified_clause"] else ("-" if record["abstained"] else "no"),
@@ -665,11 +514,10 @@ def build_report(
         f"{len(state['records'])} of {len(questions)} verified question(s) run, "
         f"{len(failed)} failed outright (a provider error, not an abstention).",
         "",
-        "A question with no lat/lon cannot go through `/api/ask` at all - "
-        "`AskRequest` requires both - so it ran through `answer_general` instead: the "
-        "same prompt, structural check and claim check as production, over "
-        "location-free retrieval. See the module docstring of `eval/answer_eval.py` "
-        "for exactly what that does and does not share with `/api/ask`.",
+        "A question with a point ran through `answer_point`, exactly as `/api/ask` "
+        "does. A question with no point ran through `app.agent.run_agent`, exactly as "
+        "`/api/agent` does - the same round cap, the same checks, no pin (D-117). The "
+        "`mode` column in the per-question table below says which one ran.",
         "",
         "## Answerable questions",
         "",
@@ -721,8 +569,11 @@ def build_report(
             "## Failed outright",
             "",
             markdown_table(
-                ("id", "category", "error"),
-                [[r["id"], r.get("category", ""), r["error"][:120]] for r in failed],
+                ("id", "category", "mode", "error"),
+                [
+                    [r["id"], r.get("category", ""), r.get("mode", ""), r["error"][:120]]
+                    for r in failed
+                ],
             ),
             "",
         ]
@@ -734,6 +585,7 @@ def build_report(
             (
                 "id",
                 "category",
+                "mode",
                 "should abstain",
                 "outcome",
                 "cites verified clause",

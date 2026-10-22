@@ -1,19 +1,20 @@
 """Tests for eval/answer_eval.py: the answer-level harness, against FakeLLM.
 
 Everything here runs with a scripted FakeLLM and a hand-built search index, exactly as
-tests/test_answer.py does for app/answer.py itself - no API key, no Chroma store, no
-map layers. `app.answer.get_zones` and `app.answer.search` are patched for the
-location-question path (the same two names tests/test_answer.py patches, because
-`answer_point` calls them by those names); `eval.answer_eval.search` is patched for the
-no-point path, because `answer_general` cannot run the real `rank()` against a
-`StubIndex` that only carries `.chunks`.
+tests/test_answer.py and tests/test_agent.py do for app/answer.py and app/agent.py
+themselves - no API key, no Chroma store, no map layers. `app.answer.get_zones` and
+`app.answer.search` are patched for the location-question path (the same two names
+tests/test_answer.py patches, because `answer_point` calls them by those names);
+`app.agent.search` is patched for the no-point path, which since D-117 runs through
+`app.agent.run_agent` - the same function `/api/agent` calls - rather than a
+location-free stand-in.
 """
 
 import json
 
 import pytest
 
-from app.llm import FakeLLM
+from app.llm import FakeLLM, tool_use_response
 from app.retrieval import Result
 from eval.answer_eval import (
     InsufficientQuestions,
@@ -137,10 +138,10 @@ def located(monkeypatch):
 
 
 @pytest.fixture
-def unlocated(monkeypatch):
-    """Patch eval.answer_eval's own search, used by the no-point path."""
+def agented(monkeypatch):
+    """Patch app.agent's own search, used by the no-point path (D-117)."""
     results = {"value": [fake_result("MPD47_FAQ:Q2@p2:0")]}
-    monkeypatch.setattr("eval.answer_eval.search", lambda *args, **kwargs: list(results["value"]))
+    monkeypatch.setattr("app.agent.search", lambda *args, **kwargs: list(results["value"]))
     return results
 
 
@@ -153,6 +154,7 @@ def test_an_answered_question_citing_an_expected_clause(located, monkeypatch) ->
     llm = FakeLLM(responses=[good_json("Ground coverage is 40%.", "C1")])
     record = run_one(location_question(), llm, StubIndex(CHUNKS))
 
+    assert record["mode"] == "map"
     assert record["answered"] is True
     assert record["abstained"] is False
     assert record["cited_chunk_ids"] == ["MPD47_GAZETTE_EN:4.2.3:0"]
@@ -164,11 +166,12 @@ def test_an_answered_question_citing_an_expected_clause(located, monkeypatch) ->
 # --- an answered question citing a non-verified clause -----------------------------
 
 
-def test_an_answered_question_citing_a_non_verified_clause(unlocated, monkeypatch) -> None:
-    """A no-point question, answered, but the citation is not one the question expects.
+def test_a_no_point_question_goes_through_the_agent_path(agented, monkeypatch) -> None:
+    """A no-point question runs through `app.agent.run_agent` (D-117), the same
+    function `/api/agent` calls, rather than a location-free stand-in.
 
-    Exercises `answer_general`: the question carries no lat/lon, so `run_one` has to
-    take the location-free path rather than `answer_point`.
+    The model searches once, citing the agent's own `S1` label, then answers - the
+    same two-call shape `tests/test_agent.py` scripts for a full tool conversation.
     """
     monkeypatch.setattr("app.answer.settings", _with(support_check="off"))
     other_chunk = dict(CHUNKS, **{
@@ -180,13 +183,18 @@ def test_an_answered_question_citing_a_non_verified_clause(unlocated, monkeypatc
             "text": "Q99. An unrelated answer.",
         }
     })
-    unlocated["value"] = [
-        fake_result("MPD47_FAQ:Q2@p2:0"),
+    agented["value"] = [
         fake_result("MPD47_FAQ:Q99@p99:0", text="Q99. An unrelated answer."),
     ]
-    llm = FakeLLM(responses=[good_json("An unrelated answer.", "C2")])
+    llm = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "2047 plan status"}, "t1"),
+            good_json("An unrelated answer.", "S1"),
+        ]
+    )
     record = run_one(general_question(), llm, StubIndex(other_chunk))
 
+    assert record["mode"] == "agent"
     assert record["has_point"] is False
     assert record["answered"] is True
     assert record["cited_chunk_ids"] == ["MPD47_FAQ:Q99@p99:0"]
@@ -257,6 +265,60 @@ def test_a_budget_stop_then_a_resume(located, monkeypatch) -> None:
 
     assert len(state["records"]) == 2
     assert {r["id"] for r in state["records"]} == {"loc-01", "loc-02"}
+    assert state["stopped_because"] == "finished"
+
+
+# --- an agent case is budgeted and resumable too ------------------------------------
+
+
+def test_an_agent_case_is_budgeted_and_resumable_like_a_map_case(agented, monkeypatch) -> None:
+    """A no-point case spends tokens across two calls (search, then answer); the
+    budget and --resume logic treat it the same way as a single-call map case (D-117).
+    """
+    monkeypatch.setattr("app.answer.settings", _with(support_check="off"))
+    from app.llm import Response, TextBlock, ToolUseBlock, Usage
+
+    def costly_search(tokens: int, call_id: str) -> Response:
+        return Response(
+            content=[ToolUseBlock(name="search_clauses", input={"query": "2047 plan"}, id=call_id)],
+            stop_reason="tool_use",
+            usage=Usage(input_tokens=tokens, output_tokens=10),
+        )
+
+    def costly_answer(text: str, citation: str, tokens: int) -> Response:
+        return Response(
+            content=[TextBlock(text=good_json(text, citation))],
+            usage=Usage(input_tokens=tokens, output_tokens=10),
+        )
+
+    questions = [general_question("gen-01"), general_question("gen-02")]
+    llm = FakeLLM(
+        responses=[
+            costly_search(300, "t1"),
+            costly_answer("An unrelated answer.", "S1", 300),
+        ]
+    )
+    state = {"records": [], "runs": 0}
+
+    run_questions(questions, llm, StubIndex(CHUNKS), state, budget_tokens=500, max_calls=100)
+
+    assert state["stopped_because"] == "token_budget"
+    assert len(state["records"]) == 1
+    assert state["records"][0]["id"] == "gen-01"
+    assert state["records"][0]["mode"] == "agent"
+    assert state["records"][0]["llm_calls"] == 2
+
+    # --resume: a fresh client, the same state, the remaining question gets a turn
+    llm2 = FakeLLM(
+        responses=[
+            tool_use_response("search_clauses", {"query": "2047 plan"}, "t2"),
+            good_json("An unrelated answer.", "S1"),
+        ]
+    )
+    run_questions(questions, llm2, StubIndex(CHUNKS), state, budget_tokens=500, max_calls=100)
+
+    assert len(state["records"]) == 2
+    assert {r["id"] for r in state["records"]} == {"gen-01", "gen-02"}
     assert state["stopped_because"] == "finished"
 
 

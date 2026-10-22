@@ -219,13 +219,26 @@ cleanly and prints the exact `--resume` command rather than losing what it alrea
 for.
 
 A question with coordinates runs through `answer_point` exactly as `/api/ask` does. A
-question with none cannot: `AskRequest.lat` and `.lon` are required fields, so there is
-no production endpoint for roughly half the verified set (the "general" category
-carries no point by design). Those questions run through `answer_general`, this
-script's own stand-in — the same system prompt, the same JSON contract, the same
-structural and claim checks, imported from `app/answer.py` rather than copied, over
-plain `hybrid` retrieval with no zone awareness. The report says so again next to every
-number that path contributes to.
+question with none runs through `app.agent.run_agent` exactly as `/api/agent` does — the
+same round cap, the same structural and claim checks, and no pin, not a location-free
+stand-in (D-117). Roughly half the verified set (the "general" category carries no
+point by design) and any should-abstain question with no point take this path; a
+should-abstain question with a point still goes through `answer_point`. Every record,
+and the per-question table in the report, say which mode ran: `map` or `agent`.
+
+**What a real run costs.** Measured from `reports/live_run_state_v3.json`
+(`scripts/live_run.py` against real Groq calls, 17 map cases and 6 agent cases): a map
+case — the answer call, plus the claim check when it runs — costs a mean of **4,221
+tokens**; an agent case costs about double that, a mean of **8,587 tokens**, from its
+extra tool-calling rounds. `questions_verified.jsonl` carries no map/agent split of its
+own in this checkout, so the total below is a projection from the 60 drafted questions'
+category mix (25 location + 5 should-abstain-with-point = 30 map cases; 25 general + 5
+should-abstain-without-point = 30 agent cases — an even split), scaled to 57 questions:
+**≈28 map cases + ≈29 agent cases ≈ 367,000 tokens total**. Against Groq's free-tier
+limit of 200,000 tokens a day, that is **about two days** — one real run, stopped by the
+daily limit, then one `--resume`d the next day. `--budget-tokens` stays at its default
+of 180,000, comfortably under the daily limit so one run per day still has headroom for
+whatever else that key does that day.
 
 The output, `eval/results/answers_<timestamp>.md` and `.json`, reports the answered
 rate, the share of answers citing a verified clause, the share whose citations needed

@@ -191,6 +191,51 @@ it earns its 2.4 seconds a query.
 
 ---
 
+## Measuring answer quality: eval/answer_eval.py
+
+`run_eval.py` above answers "was the right clause in the top k?" — retrieval only, no
+LLM call. `answer_eval.py` answers a different question: "was the thing the model
+actually wrote any good?", by running every verified question once through the real
+answering path (`app.answer.answer_point`, the same function `/api/ask` calls) and
+scoring the answer against the human-verified labels, not just the retrieval.
+
+```powershell
+# the real thing: needs a usable key and spends tokens
+uv run python eval\answer_eval.py
+
+# continue a run that stopped on its token budget, its call cap, or Groq's daily limit
+uv run python eval\answer_eval.py --resume
+
+# prove the harness runs end to end with FakeLLM, no tokens spent, report marked DRY RUN
+uv run python eval\answer_eval.py --dry-run
+```
+
+It refuses to run at all with fewer than 40 verified questions — the same floor this
+file asks a person to reach before trusting a retrieval number, with more force here
+because a real run spends tokens. `--budget-tokens` (default 180,000) and `--max-calls`
+(default 300) cap one run; a state file at `eval/results/answer_eval_state.json` is
+written after every question, so a run that hits either cap, or Groq's daily 429, stops
+cleanly and prints the exact `--resume` command rather than losing what it already paid
+for.
+
+A question with coordinates runs through `answer_point` exactly as `/api/ask` does. A
+question with none cannot: `AskRequest.lat` and `.lon` are required fields, so there is
+no production endpoint for roughly half the verified set (the "general" category
+carries no point by design). Those questions run through `answer_general`, this
+script's own stand-in — the same system prompt, the same JSON contract, the same
+structural and claim checks, imported from `app/answer.py` rather than copied, over
+plain `hybrid` retrieval with no zone awareness. The report says so again next to every
+number that path contributes to.
+
+The output, `eval/results/answers_<timestamp>.md` and `.json`, reports the answered
+rate, the share of answers citing a verified clause, the share whose citations needed
+no retry and nothing dropped by the claim check, and the claim check's own verdict
+counts — every rate with a Wilson 95% interval, every should-abstain number as a count
+("x of 6 declined"), never a percentage. Nothing is tuned from what it finds: it is a
+measurement of the frozen system, named by its git commit, taken once.
+
+---
+
 ## What each metric means
 
 **recall@k** — "was the right clause in the top k?" One question scores 1 or 0, and the

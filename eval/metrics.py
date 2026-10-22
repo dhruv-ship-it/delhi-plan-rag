@@ -123,6 +123,35 @@ def bootstrap_interval(
     return (percentile(means, tail), percentile(means, 1 - tail))
 
 
+#: z for a 95% Wilson interval: the inverse normal CDF at 0.975. Hardcoded rather than
+#: computed, because `CONFIDENCE` above is the only level this project reports at and a
+#: general inverse-normal routine is not worth a new dependency for one constant.
+WILSON_Z_95 = 1.959963985
+
+
+def wilson_interval(successes: int, n: int) -> tuple[float, float]:
+    """A 95% Wilson score interval for a proportion from `n` Bernoulli trials.
+
+    Unlike `bootstrap_interval`, this needs no resampling and no question-level data:
+    just a count of successes out of n, which is what `answer_eval.py` has for "was
+    this question answered", "did the citation cite a verified clause", and so on. It
+    behaves better than a plain `phat ± z*se` interval exactly where that one breaks —
+    n small, or phat near 0 or 1 — which is the normal case for an evaluation run of a
+    few dozen questions.
+
+    (0.0, 0.0) for n = 0, matching `bootstrap_interval`'s empty-list behaviour: there is
+    nothing to report, not a rate of zero.
+    """
+    if n <= 0:
+        return (0.0, 0.0)
+    z = WILSON_Z_95
+    phat = successes / n
+    denom = 1 + z * z / n
+    centre = (phat + z * z / (2 * n)) / denom
+    margin = (z * ((phat * (1 - phat) + z * z / (4 * n)) / n) ** 0.5) / denom
+    return (max(0.0, centre - margin), min(1.0, centre + margin))
+
+
 def paired_difference_interval(
     first: list[float],
     second: list[float],

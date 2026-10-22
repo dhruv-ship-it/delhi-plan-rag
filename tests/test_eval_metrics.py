@@ -21,6 +21,7 @@ from eval.metrics import (
     suggest_threshold,
     sweep_thresholds,
     threshold_sweep,
+    wilson_interval,
 )
 
 
@@ -139,6 +140,40 @@ def test_more_questions_give_a_narrower_interval() -> None:
 
 def test_an_empty_bootstrap_is_zero_rather_than_an_error() -> None:
     assert bootstrap_interval([]) == (0.0, 0.0)
+
+
+# --- the Wilson interval ----------------------------------------------------------
+
+
+def test_wilson_interval_of_zero_of_ten_matches_the_published_value() -> None:
+    """0/10 is the textbook example: about (0, 0.278), never a negative lower bound."""
+    low, high = wilson_interval(0, 10)
+    assert low == pytest.approx(0.0, abs=1e-3)
+    assert high == pytest.approx(0.2775, abs=1e-3)
+
+
+def test_wilson_interval_of_five_of_ten_matches_the_published_value() -> None:
+    """5/10 is the other textbook example: about (0.237, 0.763), centred near 0.5."""
+    low, high = wilson_interval(5, 10)
+    assert low == pytest.approx(0.2366, abs=1e-3)
+    assert high == pytest.approx(0.7634, abs=1e-3)
+
+
+def test_wilson_interval_never_leaves_zero_to_one() -> None:
+    """A rate of 0 or 1 is still a valid rate; the interval must not spill past it."""
+    assert wilson_interval(0, 5)[0] >= 0.0
+    assert wilson_interval(5, 5)[1] <= 1.0
+
+
+def test_wilson_interval_of_nothing_is_zero_rather_than_an_error() -> None:
+    assert wilson_interval(0, 0) == (0.0, 0.0)
+
+
+def test_wilson_interval_narrows_as_n_grows() -> None:
+    """More trials at the same rate should narrow the interval, same as the bootstrap."""
+    few = wilson_interval(5, 10)
+    many = wilson_interval(50, 100)
+    assert (many[1] - many[0]) < (few[1] - few[0])
 
 
 # --- the paired comparison -------------------------------------------------------
